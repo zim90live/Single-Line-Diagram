@@ -1,0 +1,2687 @@
+{
+  "schemaVersion": 6,
+  "project": {
+    "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f",
+    "name": "AIDC 一次接线图",
+    "createdAt": "2026-08-13T10:32:21.116Z",
+    "updatedAt": "2026-08-14T09:39:06.560Z"
+  },
+  "lineSystems": [
+    {
+      "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-cooling",
+      "type": "cooling",
+      "name": "冷却线路",
+      "rootDiagramId": "cooling-campus-094a32ed-93b9-49db-8666-e5954aedf2ab"
+    },
+    {
+      "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-power",
+      "type": "power",
+      "name": "电力线路",
+      "rootDiagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f"
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "cooling-campus-094a32ed-93b9-49db-8666-e5954aedf2ab",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-cooling",
+      "parentId": null,
+      "level": "campus",
+      "name": "园区总图",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 0.5066311211773208,
+          "tx": 473.52236957386503,
+          "ty": 312.02933982460877
+        }
+      }
+    },
+    {
+      "id": "cooling-building-7588ca64-da5a-4a4a-be09-4aa77194a2b1",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-cooling",
+      "parentId": "cooling-campus-094a32ed-93b9-49db-8666-e5954aedf2ab",
+      "level": "building",
+      "name": "1 号楼",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    },
+    {
+      "id": "cooling-pod-b2f24a31-2e7b-4115-b1ce-cce059f16ce8",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-cooling",
+      "parentId": "cooling-building-7588ca64-da5a-4a4a-be09-4aa77194a2b1",
+      "level": "pod",
+      "name": "POD A",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    },
+    {
+      "id": "cooling-device-43e590d9-9654-4185-bf15-cf71fd7985e2",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-cooling",
+      "parentId": "cooling-pod-b2f24a31-2e7b-4115-b1ce-cce059f16ce8",
+      "level": "device",
+      "name": "设备间",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    },
+    {
+      "id": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-power",
+      "parentId": null,
+      "level": "campus",
+      "name": "园区总图",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 0.5825773637251265,
+          "tx": 1092.7186640127816,
+          "ty": 573.1280970609541
+        }
+      }
+    },
+    {
+      "id": "power-building-884cdf5c-b0c1-43dc-a0f8-d235a5ce7849",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-power",
+      "parentId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "level": "building",
+      "name": "1 号楼",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    },
+    {
+      "id": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-power",
+      "parentId": "power-building-884cdf5c-b0c1-43dc-a0f8-d235a5ce7849",
+      "level": "pod",
+      "name": "POD A",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    },
+    {
+      "id": "power-device-4772c34b-678a-47b2-ab30-1685ae5f2d4c",
+      "lineSystemId": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f-power",
+      "parentId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "level": "device",
+      "name": "设备间",
+      "canvas": {
+        "gridSize": 8,
+        "viewport": {
+          "zoom": 1,
+          "tx": 0,
+          "ty": 0
+        }
+      }
+    }
+  ],
+  "elements": [
+    {
+      "id": "4e614432-0e5f-4644-bac9-35225f239a60",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 400,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "86139510-4fc9-47d0-ad7b-8231e76358df",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "power-pod",
+      "name": "动力 POD",
+      "x": 368,
+      "y": 1520,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "a1ab957c-a2e2-4453-a7d3-62a4d7ed8675",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 480,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "1fc49553-c4c5-4285-8fe4-f6f357f443a5",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 560,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "83e44e00-f79d-4758-996c-83cb672fe669",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 640,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "f6a198df-53db-4d2b-a80f-c260fc3f9c94",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 720,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "57c386fa-0f8b-495a-a7c7-d300d9497d1a",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 800,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "96b22323-273a-44d1-a9c8-0ed9ce12bc7c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "power-pod",
+      "name": "动力 POD",
+      "x": 368,
+      "y": 1600,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "0a460fd2-bf4a-4455-884d-27ad316d4370",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 880,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "901008a5-bea5-4ade-806a-7fcabcc9bb87",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 960,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "512c0816-e115-45c2-a3ba-fd432e11993e",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1040,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "c817ee5b-64c8-4566-92e4-a290ea78f5ea",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1120,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "17150af9-ba4d-48b8-9463-b541095e587b",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1200,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "9802d96e-4195-4d9f-9b4f-24162ddb97bd",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1280,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "08a4894e-608d-4dd9-8470-a49e5e6f720e",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1360,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "dc8cfc72-6e81-44f5-8034-75c365bef963",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "compute-pod",
+      "name": "算力 POD",
+      "x": 368,
+      "y": 1440,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "7ccb65ca-15cb-4eb1-ac46-07560ac2a98c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "grid",
+      "name": "Grid",
+      "x": -480,
+      "y": -1176,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {},
+      "extensions": {}
+    },
+    {
+      "id": "2a3ad201-e791-402a-aa7b-63a75c6de1b7",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -112,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "712d80ed-32a9-4930-aab8-e816f7c235ee",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 688,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "40789d3e-91b0-4731-b8c7-bfba4ca33a24",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -64,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "6755915e-3c47-4bdb-bb37-6462e01a9bc3",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -16,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "39b5f459-8983-42e7-95ab-6ddd28282e08",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 32,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "043adb41-f825-429e-9a22-47af0deb1c90",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 80,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "bbc900fd-ebe6-48b7-8858-fa7d1e70ba90",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 128,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "84c7771d-318e-48af-91ea-ad872e5f5528",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 176,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "fd18c6fb-14fa-436f-bf83-7bace48e3722",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 640,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "dcb3d3b4-44d3-4268-baa3-2137132f7122",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 592,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "1ba88ab1-690d-4282-bfc3-c619035addf3",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 384,
+      "y": 184,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "5b83cb21-33f5-4fb5-8a91-e9863a169140",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -160,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "f743e0d8-2ca1-418a-9bdb-1972573308c9",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -208,
+      "y": 336,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "0883fbf1-55d0-4268-97ba-d904a6fcd184",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -256,
+      "y": 192,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "2349ca0e-897c-4def-9595-1f3ae10ebe36",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -608,
+      "y": 192,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "205b2e07-735b-42a9-b71f-ac3e7afb00c0",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "transformer",
+      "name": "Transformer",
+      "x": 64,
+      "y": -608,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "3684db3a-6e7b-43bb-9a77-af3996253ace",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -464,
+      "y": -1040,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "8b6e7e55-a7ba-4959-b86d-8c35b768f404",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -504,
+      "y": -968,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "3d7c184b-712f-4764-a679-9c984cf015a4",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -424,
+      "y": -968,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "7d1b3b7c-f671-4bf5-af2a-c324091effcf",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 48,
+      "y": -768,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "938b9d47-acca-4c85-912a-e0a75b8065d7",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 112,
+      "y": -768,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "feb2bb41-8cf3-4e25-ac75-be0a404e46d9",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 80,
+      "y": -672,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "8bda90f9-d65c-4e4f-a5d2-972140eebd5a",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -608,
+      "y": -128,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "412fac6d-1609-4cfc-bf27-26874d871f3e",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -672,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "bca4d339-63d9-4e0b-b471-62800dec4ed4",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -640,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "c5c21ce2-4e3b-4711-b2a7-7c03412fbc8f",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -704,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "8822f410-2021-4600-8386-2ca04620138c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -768,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "0130e8af-2d0a-44fb-a350-6aba2919ffac",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -832,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "07c5b7f9-2dac-44be-97f1-766ee0401d72",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -896,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "bce31f18-95a0-45f7-a2ce-0625cdd1fd99",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -960,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "0ba81ac2-7700-4947-aa21-612611e81438",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -1024,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "44fcbf38-aa3c-4b55-8397-a88a8c1b152a",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -1088,
+      "y": 288,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "e5dfd261-55a3-4dc7-a295-0ee9b2f0ac27",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -1144,
+      "y": 96,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "dfd9e1e2-2f8b-4c48-89d6-6c09cbb55347",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -736,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "94e6ba9c-7a0e-40fb-93e6-bfa4e8262e4a",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -800,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "7bc28519-797e-4173-948a-7b4cb3498648",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -864,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "a90a008f-049c-4cb5-a655-30fb52c14da2",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -928,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "fa718755-f64f-4940-9ed1-8595883c9e0c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -992,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "e11964eb-7e9c-4361-9f81-ebcadc98f414",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -1056,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "1482725b-6edf-4bc6-a604-ac8ae104600a",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -1120,
+      "y": -16,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "359b691f-a56b-417b-8f64-8168f97ccfd8",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": -288,
+      "y": -128,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "properties": {
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    }
+  ],
+  "busbars": [
+    {
+      "id": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -288,
+      "y": 256,
+      "length": 528
+    },
+    {
+      "id": "8117ca1f-e246-4172-853e-8e3f1eb7ece1",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": 240,
+      "y": 160,
+      "length": 128
+    },
+    {
+      "id": "0146c169-9543-4682-b209-fe2255eac56e",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": 560,
+      "y": 264,
+      "length": 1344
+    },
+    {
+      "id": "7db2aee5-5576-46ea-a7b4-d1c5ccb517ba",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": 432,
+      "y": 160,
+      "length": 128
+    },
+    {
+      "id": "ba75309a-cd17-4dcd-bf2c-e2c71f524037",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -592,
+      "y": 160,
+      "length": 352
+    },
+    {
+      "id": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -1128,
+      "y": 256,
+      "length": 584
+    },
+    {
+      "id": "a93d974f-ab1e-417d-b3c6-e030305b6309",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -624,
+      "y": -912,
+      "length": 832
+    },
+    {
+      "id": "91025a18-1073-4cb9-af5a-e76638367f98",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -624,
+      "y": -880,
+      "length": 832
+    },
+    {
+      "id": "e520f49f-ded6-42b7-9f2f-86b4f71d38a2",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -592,
+      "y": -176,
+      "length": 344
+    },
+    {
+      "id": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": -1128,
+      "y": -48,
+      "length": 584
+    }
+  ],
+  "connections": [
+    {
+      "id": "connection-network-64e07031-e81e-4f46-b4c2-e71f43f9a8a0",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-19f098a3-509d-402c-9368-daa30375d4ed",
+          "kind": "element-anchor",
+          "elementId": "2a3ad201-e791-402a-aa7b-63a75c6de1b7",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-873ab4bb-a52a-42e5-8694-84e0d2abc1ba",
+          "kind": "element-anchor",
+          "elementId": "4e614432-0e5f-4644-bac9-35225f239a60",
+          "anchorId": "anchor-b598429b-da5b-423e-afed-066437101542"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-7b1ec4ad-d567-494f-9ed7-bfcd736cfde7",
+          "sourceNodeId": "connection-node-19f098a3-509d-402c-9368-daa30375d4ed",
+          "targetNodeId": "connection-node-873ab4bb-a52a-42e5-8694-84e0d2abc1ba"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-babd1516-5d73-4e06-9720-4374aa0190c8",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-69677873-5b72-4634-a0fb-fa26da063815",
+          "kind": "element-anchor",
+          "elementId": "712d80ed-32a9-4930-aab8-e816f7c235ee",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-e2f5fe34-b722-4a38-b375-576eed375e17",
+          "kind": "element-anchor",
+          "elementId": "4e614432-0e5f-4644-bac9-35225f239a60",
+          "anchorId": "anchor-742b2660-a980-46ff-b10e-14717a0c2fd2"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-5fab4e46-0a38-45b6-a209-f33d5250b3c5",
+          "sourceNodeId": "connection-node-69677873-5b72-4634-a0fb-fa26da063815",
+          "targetNodeId": "connection-node-e2f5fe34-b722-4a38-b375-576eed375e17"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-9569959b-8cda-42f6-86e4-bcfac05640b8",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-busbar-tap-8e04c462-07f8-46cc-8530-b4594b1a3e47",
+          "kind": "busbar-tap",
+          "busbarId": "8117ca1f-e246-4172-853e-8e3f1eb7ece1",
+          "offset": 32
+        },
+        {
+          "id": "connection-node-5437c9b5-3c66-48e4-ae03-9d8ba5caf25b",
+          "kind": "element-anchor",
+          "elementId": "2a3ad201-e791-402a-aa7b-63a75c6de1b7",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-35d54987-f7a3-44f1-b32c-4c98f3eccc6f",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 360
+        },
+        {
+          "id": "connection-busbar-tap-7ace849d-4d0d-4786-a9d2-ebadecca5ec8",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 288
+        },
+        {
+          "id": "connection-node-85eba4e7-a0fb-42a9-91b3-b582196a7cd7",
+          "kind": "element-anchor",
+          "elementId": "40789d3e-91b0-4731-b8c7-bfba4ca33a24",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-dc2f4894-ec05-4c26-96c8-968135ceed49",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 280
+        },
+        {
+          "id": "connection-node-e1d1c1ae-fb24-4a7c-93bd-afd34ea06553",
+          "kind": "element-anchor",
+          "elementId": "6755915e-3c47-4bdb-bb37-6462e01a9bc3",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-acad37ee-08e3-4358-8ac2-7e228671e969",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 304
+        },
+        {
+          "id": "connection-node-35d4b7f8-6f60-4986-8d4b-c428b7e7f8ae",
+          "kind": "element-anchor",
+          "elementId": "39b5f459-8983-42e7-95ab-6ddd28282e08",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-02994f4d-ad5c-46ef-8981-55d346288981",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 320
+        },
+        {
+          "id": "connection-node-21f238b1-5a8b-43dc-a516-cee02cbb17bf",
+          "kind": "element-anchor",
+          "elementId": "043adb41-f825-429e-9a22-47af0deb1c90",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-058c9d07-e3dd-4f96-8b53-af501939d355",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 328
+        },
+        {
+          "id": "connection-node-cb2d6a6e-622f-4be3-9f44-4720f6586baa",
+          "kind": "element-anchor",
+          "elementId": "bbc900fd-ebe6-48b7-8858-fa7d1e70ba90",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-a7022de5-06d7-4230-9410-11b1dc382431",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 344
+        },
+        {
+          "id": "connection-node-0f3fde0d-55bf-4438-b9d4-f4b9c23fb153",
+          "kind": "element-anchor",
+          "elementId": "84c7771d-318e-48af-91ea-ad872e5f5528",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-27bd32c2-e2a5-4c54-9df6-a916a31b10ba",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 480
+        },
+        {
+          "id": "connection-busbar-tap-cfa980b8-78d4-436c-9cfe-ec1cc2e098f5",
+          "kind": "busbar-tap",
+          "busbarId": "8117ca1f-e246-4172-853e-8e3f1eb7ece1",
+          "offset": 120
+        },
+        {
+          "id": "connection-node-bbf14631-0aa1-431b-8b9e-cb9071ff6c93",
+          "kind": "element-anchor",
+          "elementId": "1ba88ab1-690d-4282-bfc3-c619035addf3",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-f3fa192c-8b49-4277-860b-bc563c5ae338",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 352
+        },
+        {
+          "id": "connection-node-af40afcb-e986-485b-878b-62dc6eca8a2d",
+          "kind": "element-anchor",
+          "elementId": "5b83cb21-33f5-4fb5-8a91-e9863a169140",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-68b0c34a-e94c-4bbe-96cd-956fd729f36f",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 336
+        },
+        {
+          "id": "connection-node-f5cb2ee0-1b8a-4a76-94d0-369e2510a05a",
+          "kind": "element-anchor",
+          "elementId": "f743e0d8-2ca1-418a-9bdb-1972573308c9",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-de1040ad-6509-409b-af8f-15aab55b5cb8",
+          "kind": "busbar-tap",
+          "busbarId": "27a57cd2-a8ca-4fd5-9965-0f25bea56608",
+          "offset": 48
+        },
+        {
+          "id": "connection-node-c3614022-cc3f-44a2-ad70-de266a919573",
+          "kind": "element-anchor",
+          "elementId": "0883fbf1-55d0-4268-97ba-d904a6fcd184",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-c9a166c5-b4cc-4d03-805a-3c1ac9de32b4",
+          "sourceNodeId": "connection-node-5437c9b5-3c66-48e4-ae03-9d8ba5caf25b",
+          "targetNodeId": "connection-busbar-tap-35d54987-f7a3-44f1-b32c-4c98f3eccc6f"
+        },
+        {
+          "id": "connection-edge-ef41f67b-8a60-4c67-86f0-d70500e76e51",
+          "sourceNodeId": "connection-node-85eba4e7-a0fb-42a9-91b3-b582196a7cd7",
+          "targetNodeId": "connection-busbar-tap-7ace849d-4d0d-4786-a9d2-ebadecca5ec8"
+        },
+        {
+          "id": "connection-edge-89e76d0d-8cec-4017-8cbe-7df7fa387996",
+          "sourceNodeId": "connection-node-e1d1c1ae-fb24-4a7c-93bd-afd34ea06553",
+          "targetNodeId": "connection-busbar-tap-dc2f4894-ec05-4c26-96c8-968135ceed49"
+        },
+        {
+          "id": "connection-edge-51be59f9-2aae-40db-86a7-64d65ae0a767",
+          "sourceNodeId": "connection-node-35d4b7f8-6f60-4986-8d4b-c428b7e7f8ae",
+          "targetNodeId": "connection-busbar-tap-acad37ee-08e3-4358-8ac2-7e228671e969"
+        },
+        {
+          "id": "connection-edge-31e1282a-d312-4005-a133-8416e15ebe1a",
+          "sourceNodeId": "connection-node-21f238b1-5a8b-43dc-a516-cee02cbb17bf",
+          "targetNodeId": "connection-busbar-tap-02994f4d-ad5c-46ef-8981-55d346288981"
+        },
+        {
+          "id": "connection-edge-67cc7458-e58b-4a9c-8234-9f89255f6f58",
+          "sourceNodeId": "connection-node-cb2d6a6e-622f-4be3-9f44-4720f6586baa",
+          "targetNodeId": "connection-busbar-tap-058c9d07-e3dd-4f96-8b53-af501939d355"
+        },
+        {
+          "id": "connection-edge-68b57e72-ba00-4f81-a64b-7fbc37d51d0d",
+          "sourceNodeId": "connection-node-0f3fde0d-55bf-4438-b9d4-f4b9c23fb153",
+          "targetNodeId": "connection-busbar-tap-a7022de5-06d7-4230-9410-11b1dc382431"
+        },
+        {
+          "id": "connection-edge-18a9a48c-4563-47be-9962-30ca27848133",
+          "sourceNodeId": "connection-busbar-tap-8e04c462-07f8-46cc-8530-b4594b1a3e47",
+          "targetNodeId": "connection-busbar-tap-27bd32c2-e2a5-4c54-9df6-a916a31b10ba"
+        },
+        {
+          "id": "connection-edge-e0e45e15-ad2a-46d2-9dac-8a9fb78f80b5",
+          "sourceNodeId": "connection-node-bbf14631-0aa1-431b-8b9e-cb9071ff6c93",
+          "targetNodeId": "connection-busbar-tap-cfa980b8-78d4-436c-9cfe-ec1cc2e098f5"
+        },
+        {
+          "id": "connection-edge-4cbd6a4a-1fa2-4e91-ba63-0943b33e1e66",
+          "sourceNodeId": "connection-node-af40afcb-e986-485b-878b-62dc6eca8a2d",
+          "targetNodeId": "connection-busbar-tap-f3fa192c-8b49-4277-860b-bc563c5ae338"
+        },
+        {
+          "id": "connection-edge-b2aed65a-55d3-44ba-b156-e090d8f00290",
+          "sourceNodeId": "connection-node-f5cb2ee0-1b8a-4a76-94d0-369e2510a05a",
+          "targetNodeId": "connection-busbar-tap-68b0c34a-e94c-4bbe-96cd-956fd729f36f"
+        },
+        {
+          "id": "connection-edge-e5816293-cb1d-4399-be61-4106a08a03d0",
+          "sourceNodeId": "connection-node-c3614022-cc3f-44a2-ad70-de266a919573",
+          "targetNodeId": "connection-busbar-tap-de1040ad-6509-409b-af8f-15aab55b5cb8"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-201b0cf8-a142-4777-83ec-5c7a1b9863b7",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-d49498f6-e34b-4a7c-8eeb-71faa431eb11",
+          "kind": "element-anchor",
+          "elementId": "1ba88ab1-690d-4282-bfc3-c619035addf3",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-22b1ef63-0312-475d-abd1-0d90c697a479",
+          "kind": "busbar-tap",
+          "busbarId": "7db2aee5-5576-46ea-a7b4-d1c5ccb517ba",
+          "offset": 0
+        },
+        {
+          "id": "connection-busbar-tap-fd9caf2f-1b83-4770-9f95-d6955cddcc10",
+          "kind": "busbar-tap",
+          "busbarId": "7db2aee5-5576-46ea-a7b4-d1c5ccb517ba",
+          "offset": 96
+        },
+        {
+          "id": "connection-node-01f17272-5123-48d2-a948-80a2ec811f5a",
+          "kind": "element-anchor",
+          "elementId": "712d80ed-32a9-4930-aab8-e816f7c235ee",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-6ec35d2c-c9e8-44b1-bd54-fba681fd7902",
+          "kind": "busbar-tap",
+          "busbarId": "0146c169-9543-4682-b209-fe2255eac56e",
+          "offset": 416
+        },
+        {
+          "id": "connection-busbar-tap-301574ea-eaa9-4f74-9efa-01a059e9b4b8",
+          "kind": "busbar-tap",
+          "busbarId": "0146c169-9543-4682-b209-fe2255eac56e",
+          "offset": 344
+        },
+        {
+          "id": "connection-node-f7e4a898-7041-4512-83e3-426f453aec30",
+          "kind": "element-anchor",
+          "elementId": "fd18c6fb-14fa-436f-bf83-7bace48e3722",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-5a4da8c3-42a8-4421-a9a6-38cd876b01ce",
+          "kind": "busbar-tap",
+          "busbarId": "0146c169-9543-4682-b209-fe2255eac56e",
+          "offset": 304
+        },
+        {
+          "id": "connection-node-afd53b84-a8e2-47f7-9422-0acd81378d4a",
+          "kind": "element-anchor",
+          "elementId": "dcb3d3b4-44d3-4268-baa3-2137132f7122",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-52550a01-a8f8-49c7-9054-376e5536d3e9",
+          "kind": "busbar-tap",
+          "busbarId": "0146c169-9543-4682-b209-fe2255eac56e",
+          "offset": 0
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-a9d727e7-fadb-4fcf-bce4-664708c11f01",
+          "sourceNodeId": "connection-node-d49498f6-e34b-4a7c-8eeb-71faa431eb11",
+          "targetNodeId": "connection-busbar-tap-22b1ef63-0312-475d-abd1-0d90c697a479"
+        },
+        {
+          "id": "connection-edge-8b5fbab9-12b4-4e19-9d22-705c7727a3ee",
+          "sourceNodeId": "connection-node-01f17272-5123-48d2-a948-80a2ec811f5a",
+          "targetNodeId": "connection-busbar-tap-6ec35d2c-c9e8-44b1-bd54-fba681fd7902"
+        },
+        {
+          "id": "connection-edge-ce79c88d-bb0f-4568-bde6-17b9dd6acc9e",
+          "sourceNodeId": "connection-node-f7e4a898-7041-4512-83e3-426f453aec30",
+          "targetNodeId": "connection-busbar-tap-301574ea-eaa9-4f74-9efa-01a059e9b4b8"
+        },
+        {
+          "id": "connection-edge-a2aeceea-45cf-4ec0-a322-e6134fa926b9",
+          "sourceNodeId": "connection-node-afd53b84-a8e2-47f7-9422-0acd81378d4a",
+          "targetNodeId": "connection-busbar-tap-5a4da8c3-42a8-4421-a9a6-38cd876b01ce"
+        },
+        {
+          "id": "connection-edge-281b4260-23ca-4847-b597-7ff8e074795c",
+          "sourceNodeId": "connection-busbar-tap-fd9caf2f-1b83-4770-9f95-d6955cddcc10",
+          "targetNodeId": "connection-busbar-tap-52550a01-a8f8-49c7-9054-376e5536d3e9"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-fe27a098-b154-4495-9990-151caf027e0e",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-5395421d-b6bc-47c8-82ed-4ed6a1e3f40e",
+          "kind": "element-anchor",
+          "elementId": "2349ca0e-897c-4def-9595-1f3ae10ebe36",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-46678bcc-7fe6-47d1-a408-be4d2efc6ef1",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 152
+        },
+        {
+          "id": "connection-node-76fd4709-7c54-48ac-93fa-4c113af08817",
+          "kind": "element-anchor",
+          "elementId": "bca4d339-63d9-4e0b-b471-62800dec4ed4",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-cdfca6ca-d745-4886-8eac-2c38d0a6504d",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 392
+        },
+        {
+          "id": "connection-node-1d365ebe-4337-417c-9f53-119b995c3c53",
+          "kind": "element-anchor",
+          "elementId": "c5c21ce2-4e3b-4711-b2a7-7c03412fbc8f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-392a5070-4e21-4359-88f0-9237502a9cc2",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 336
+        },
+        {
+          "id": "connection-node-1977de6d-0a38-499f-88d3-277d3449ae33",
+          "kind": "element-anchor",
+          "elementId": "8822f410-2021-4600-8386-2ca04620138c",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-c7275dec-b109-4943-bee3-a50fcba92f49",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 288
+        },
+        {
+          "id": "connection-node-cedce811-2cb1-4734-9d65-238fa0a5ab63",
+          "kind": "element-anchor",
+          "elementId": "0130e8af-2d0a-44fb-a350-6aba2919ffac",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-2e360a46-4cc7-4433-a17d-126941830b96",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 240
+        },
+        {
+          "id": "connection-node-cb02a284-d5b6-4e2f-95eb-2578e614d09f",
+          "kind": "element-anchor",
+          "elementId": "07c5b7f9-2dac-44be-97f1-766ee0401d72",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-51016ad4-f2f4-45c8-9e97-c47d54ffbfc1",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 192
+        },
+        {
+          "id": "connection-node-7bfa833e-e185-4f76-8200-4ad3b8a1c887",
+          "kind": "element-anchor",
+          "elementId": "bce31f18-95a0-45f7-a2ce-0625cdd1fd99",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-b1c7e162-b4e0-4101-92fb-f2a92e4d4928",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 144
+        },
+        {
+          "id": "connection-node-18a82ac4-bf5c-4116-8510-b614a4e2a527",
+          "kind": "element-anchor",
+          "elementId": "0ba81ac2-7700-4947-aa21-612611e81438",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-f4fb8791-34f0-4044-b8d8-ac37f3a2c280",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 96
+        },
+        {
+          "id": "connection-node-27602822-2a32-4e2d-a7d1-9b43f73144f8",
+          "kind": "element-anchor",
+          "elementId": "44fcbf38-aa3c-4b55-8397-a88a8c1b152a",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-0fdfb0e8-d97a-4b01-8679-b6cc28ab4c7f",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 48
+        },
+        {
+          "id": "connection-node-ecc0e84e-ae2b-4210-ae8d-935429f8d2b0",
+          "kind": "element-anchor",
+          "elementId": "e5dfd261-55a3-4dc7-a295-0ee9b2f0ac27",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-8d440493-57c3-4c37-b51c-8821b2b6aadd",
+          "kind": "busbar-tap",
+          "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
+          "offset": 0
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f44badd3-b767-4eef-b970-73c20a6a7464",
+          "sourceNodeId": "connection-node-5395421d-b6bc-47c8-82ed-4ed6a1e3f40e",
+          "targetNodeId": "connection-busbar-tap-46678bcc-7fe6-47d1-a408-be4d2efc6ef1"
+        },
+        {
+          "id": "connection-edge-95454778-b2e8-4340-835a-d8e74ef78e21",
+          "sourceNodeId": "connection-node-76fd4709-7c54-48ac-93fa-4c113af08817",
+          "targetNodeId": "connection-busbar-tap-cdfca6ca-d745-4886-8eac-2c38d0a6504d"
+        },
+        {
+          "id": "connection-edge-cd0407c3-2d0d-4748-943a-f1132acffb64",
+          "sourceNodeId": "connection-node-1d365ebe-4337-417c-9f53-119b995c3c53",
+          "targetNodeId": "connection-busbar-tap-392a5070-4e21-4359-88f0-9237502a9cc2"
+        },
+        {
+          "id": "connection-edge-c09ea435-36fd-4c8e-a31d-abba3c63ca4f",
+          "sourceNodeId": "connection-node-1977de6d-0a38-499f-88d3-277d3449ae33",
+          "targetNodeId": "connection-busbar-tap-c7275dec-b109-4943-bee3-a50fcba92f49"
+        },
+        {
+          "id": "connection-edge-e7b0b173-9bf2-4bac-a16f-ac49bf2a3c76",
+          "sourceNodeId": "connection-node-cedce811-2cb1-4734-9d65-238fa0a5ab63",
+          "targetNodeId": "connection-busbar-tap-2e360a46-4cc7-4433-a17d-126941830b96"
+        },
+        {
+          "id": "connection-edge-60c56b87-f467-44c3-a8e9-002d4d6af4b7",
+          "sourceNodeId": "connection-node-cb02a284-d5b6-4e2f-95eb-2578e614d09f",
+          "targetNodeId": "connection-busbar-tap-51016ad4-f2f4-45c8-9e97-c47d54ffbfc1"
+        },
+        {
+          "id": "connection-edge-23ada958-21ca-4e74-9556-b7436b5b0c88",
+          "sourceNodeId": "connection-node-7bfa833e-e185-4f76-8200-4ad3b8a1c887",
+          "targetNodeId": "connection-busbar-tap-b1c7e162-b4e0-4101-92fb-f2a92e4d4928"
+        },
+        {
+          "id": "connection-edge-2b87d675-d416-482f-86f9-63b5dc15d05a",
+          "sourceNodeId": "connection-node-18a82ac4-bf5c-4116-8510-b614a4e2a527",
+          "targetNodeId": "connection-busbar-tap-f4fb8791-34f0-4044-b8d8-ac37f3a2c280"
+        },
+        {
+          "id": "connection-edge-7cf64276-2594-4db1-99d3-a4a0414ca67c",
+          "sourceNodeId": "connection-node-27602822-2a32-4e2d-a7d1-9b43f73144f8",
+          "targetNodeId": "connection-busbar-tap-0fdfb0e8-d97a-4b01-8679-b6cc28ab4c7f"
+        },
+        {
+          "id": "connection-edge-775db4db-2548-4993-85c5-90e52c5ff44b",
+          "sourceNodeId": "connection-node-ecc0e84e-ae2b-4210-ae8d-935429f8d2b0",
+          "targetNodeId": "connection-busbar-tap-8d440493-57c3-4c37-b51c-8821b2b6aadd"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b2ff2341-4f98-40d0-9195-2e2b11bebb5c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-669709fa-2c67-4603-85b6-9c3477644444",
+          "kind": "element-anchor",
+          "elementId": "7ccb65ca-15cb-4eb1-ac46-07560ac2a98c",
+          "anchorId": "anchor-88e4eab8-42fb-40cb-9d65-076759bb935a"
+        },
+        {
+          "id": "connection-node-9fb2fe8f-2b95-4c26-a45c-1e16ac7c595a",
+          "kind": "element-anchor",
+          "elementId": "3684db3a-6e7b-43bb-9a77-af3996253ace",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-e77d604e-a301-460e-b5a1-0288d8c78f55",
+          "sourceNodeId": "connection-node-669709fa-2c67-4603-85b6-9c3477644444",
+          "targetNodeId": "connection-node-9fb2fe8f-2b95-4c26-a45c-1e16ac7c595a"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-e0ccedfe-5529-43e7-8aa1-31e957bc829c",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-e9326d06-13a7-4556-a95b-e3d1304003fb",
+          "kind": "element-anchor",
+          "elementId": "3684db3a-6e7b-43bb-9a77-af3996253ace",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-ddc818ed-8127-463f-9e60-07323231aa49",
+          "kind": "element-anchor",
+          "elementId": "8b6e7e55-a7ba-4959-b86d-8c35b768f404",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-5f247848-54cc-43b7-94e9-2d3042c0d371",
+          "kind": "element-anchor",
+          "elementId": "3d7c184b-712f-4764-a679-9c984cf015a4",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-network-e0ccedfe-5529-43e7-8aa1-31e957bc829c-migrated-link-1",
+          "sourceNodeId": "connection-node-e9326d06-13a7-4556-a95b-e3d1304003fb",
+          "targetNodeId": "connection-node-ddc818ed-8127-463f-9e60-07323231aa49"
+        },
+        {
+          "id": "connection-network-e0ccedfe-5529-43e7-8aa1-31e957bc829c-migrated-link-2",
+          "sourceNodeId": "connection-node-e9326d06-13a7-4556-a95b-e3d1304003fb",
+          "targetNodeId": "connection-node-5f247848-54cc-43b7-94e9-2d3042c0d371"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b3d28d07-49bc-4e41-883e-34b335df8470",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-f7f70cac-5482-4888-8b40-b789f5f9af37",
+          "kind": "element-anchor",
+          "elementId": "8b6e7e55-a7ba-4959-b86d-8c35b768f404",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-71150d67-e883-42ca-b573-7a621f69ab89",
+          "kind": "busbar-tap",
+          "busbarId": "a93d974f-ab1e-417d-b3c6-e030305b6309",
+          "offset": 136
+        },
+        {
+          "id": "connection-node-4a44ab4e-6a3c-42a9-86f3-bf2a3c09c6ad",
+          "kind": "element-anchor",
+          "elementId": "7d1b3b7c-f671-4bf5-af2a-c324091effcf",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-a1c624f8-4500-4050-9f9c-7bd5be133ada",
+          "kind": "busbar-tap",
+          "busbarId": "a93d974f-ab1e-417d-b3c6-e030305b6309",
+          "offset": 696
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-919d343a-6f02-43f8-be2e-2605d14a5ed8",
+          "sourceNodeId": "connection-node-f7f70cac-5482-4888-8b40-b789f5f9af37",
+          "targetNodeId": "connection-busbar-tap-71150d67-e883-42ca-b573-7a621f69ab89"
+        },
+        {
+          "id": "connection-edge-1102b4b7-8224-4bef-ab00-aff81001d6dd",
+          "sourceNodeId": "connection-node-4a44ab4e-6a3c-42a9-86f3-bf2a3c09c6ad",
+          "targetNodeId": "connection-busbar-tap-a1c624f8-4500-4050-9f9c-7bd5be133ada"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-e441cb04-c3d2-42f8-b7c4-8dc0b4036f06",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-2d5dac24-1de1-434f-bf2d-6cbb94f2f85c",
+          "kind": "element-anchor",
+          "elementId": "3d7c184b-712f-4764-a679-9c984cf015a4",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-7cd5487a-e1d3-4e08-b3ed-6bca8720f072",
+          "kind": "busbar-tap",
+          "busbarId": "91025a18-1073-4cb9-af5a-e76638367f98",
+          "offset": 216
+        },
+        {
+          "id": "connection-node-f113fff5-75c3-4bdb-843e-41bdc03a39c9",
+          "kind": "element-anchor",
+          "elementId": "938b9d47-acca-4c85-912a-e0a75b8065d7",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-2e5e7797-5830-458e-9e2e-ed8426b852b8",
+          "kind": "busbar-tap",
+          "busbarId": "91025a18-1073-4cb9-af5a-e76638367f98",
+          "offset": 744
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-ec2f2ca2-e15f-4b2a-b773-f78d136aa5e9",
+          "sourceNodeId": "connection-node-2d5dac24-1de1-434f-bf2d-6cbb94f2f85c",
+          "targetNodeId": "connection-busbar-tap-7cd5487a-e1d3-4e08-b3ed-6bca8720f072"
+        },
+        {
+          "id": "connection-edge-71a95b94-f369-4e1b-b390-8df6067415ef",
+          "sourceNodeId": "connection-node-f113fff5-75c3-4bdb-843e-41bdc03a39c9",
+          "targetNodeId": "connection-busbar-tap-2e5e7797-5830-458e-9e2e-ed8426b852b8"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-c78a58ea-ca09-4849-8bd5-c32279d037b5",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-dd49b474-1efe-461f-aff0-544679cfd62e",
+          "kind": "element-anchor",
+          "elementId": "7d1b3b7c-f671-4bf5-af2a-c324091effcf",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-9b26818f-b9bd-4f3f-948f-8e90368d93da",
+          "kind": "element-anchor",
+          "elementId": "feb2bb41-8cf3-4e25-ac75-be0a404e46d9",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-c83a9008-d097-4d90-8e70-6b7ca0cd7987",
+          "kind": "element-anchor",
+          "elementId": "938b9d47-acca-4c85-912a-e0a75b8065d7",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f0933278-4899-40bb-bc50-4e266fa7cf47",
+          "sourceNodeId": "connection-node-dd49b474-1efe-461f-aff0-544679cfd62e",
+          "targetNodeId": "connection-node-9b26818f-b9bd-4f3f-948f-8e90368d93da"
+        },
+        {
+          "id": "connection-edge-33b27e62-5af9-4f7a-8ac1-e19b7aea7fb9",
+          "sourceNodeId": "connection-node-c83a9008-d097-4d90-8e70-6b7ca0cd7987",
+          "targetNodeId": "connection-node-9b26818f-b9bd-4f3f-948f-8e90368d93da"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-5f324126-f72f-46e7-b316-c8a8430fedbd",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-d70dd04f-5414-4df8-9097-a4cda7139adb",
+          "kind": "element-anchor",
+          "elementId": "feb2bb41-8cf3-4e25-ac75-be0a404e46d9",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-ed581511-2f57-496f-9369-fc1a4ab46216",
+          "kind": "element-anchor",
+          "elementId": "205b2e07-735b-42a9-b71f-ac3e7afb00c0",
+          "anchorId": "anchor-8f729400-5496-4e7a-8153-5e8ba500795a"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-62eb56e2-18e3-452c-83df-6a9cbae5a36a",
+          "sourceNodeId": "connection-node-d70dd04f-5414-4df8-9097-a4cda7139adb",
+          "targetNodeId": "connection-node-ed581511-2f57-496f-9369-fc1a4ab46216"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-955a74d6-a3ac-4de0-b9db-4000ffa10a93",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-2e24472b-63f1-4e92-9fa4-9b29c3a9f5a1",
+          "kind": "element-anchor",
+          "elementId": "205b2e07-735b-42a9-b71f-ac3e7afb00c0",
+          "anchorId": "anchor-36d09ecb-5bb2-453a-8222-b7bb1c962814"
+        },
+        {
+          "id": "connection-busbar-tap-2ce12c8a-1f06-47eb-a493-5f7fb0119539",
+          "kind": "busbar-tap",
+          "busbarId": "e520f49f-ded6-42b7-9f2f-86b4f71d38a2",
+          "offset": 160
+        },
+        {
+          "id": "connection-busbar-tap-d9f1152d-0f2b-41d9-920e-18f19c7e1512",
+          "kind": "busbar-tap",
+          "busbarId": "e520f49f-ded6-42b7-9f2f-86b4f71d38a2",
+          "offset": 168
+        },
+        {
+          "id": "connection-node-23086707-d47e-49bc-9e0c-2562bf014e74",
+          "kind": "element-anchor",
+          "elementId": "0883fbf1-55d0-4268-97ba-d904a6fcd184",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-2fc325fb-5b21-4d7a-835c-cda8617c5e7c",
+          "kind": "busbar-tap",
+          "busbarId": "ba75309a-cd17-4dcd-bf2c-e2c71f524037",
+          "offset": 72
+        },
+        {
+          "id": "connection-busbar-tap-87161412-567c-4ea2-b3fd-83d5c2195b2d",
+          "kind": "busbar-tap",
+          "busbarId": "ba75309a-cd17-4dcd-bf2c-e2c71f524037",
+          "offset": 8
+        },
+        {
+          "id": "connection-node-a7e5c3d6-50bd-4bae-9544-5a034f245c21",
+          "kind": "element-anchor",
+          "elementId": "2349ca0e-897c-4def-9595-1f3ae10ebe36",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-68f5b4f7-2cbc-49f2-ac24-ee186d74c502",
+          "kind": "busbar-tap",
+          "busbarId": "ba75309a-cd17-4dcd-bf2c-e2c71f524037",
+          "offset": 176
+        },
+        {
+          "id": "connection-node-990b6bc9-e391-4e61-aaec-2e49348ecb8d",
+          "kind": "element-anchor",
+          "elementId": "8bda90f9-d65c-4e4f-a5d2-972140eebd5a",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-09e04829-8e7c-49c9-8149-a19adaa38268",
+          "kind": "busbar-tap",
+          "busbarId": "e520f49f-ded6-42b7-9f2f-86b4f71d38a2",
+          "offset": 16
+        },
+        {
+          "id": "connection-node-53949713-1345-44f4-8cea-c619ad58eace",
+          "kind": "element-anchor",
+          "elementId": "359b691f-a56b-417b-8f64-8168f97ccfd8",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-1f8617bd-7f85-4387-a97c-0fc96dd17ae5",
+          "kind": "busbar-tap",
+          "busbarId": "e520f49f-ded6-42b7-9f2f-86b4f71d38a2",
+          "offset": 320
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-fd345158-0414-459e-8566-0932c26f5b88",
+          "sourceNodeId": "connection-node-2e24472b-63f1-4e92-9fa4-9b29c3a9f5a1",
+          "targetNodeId": "connection-busbar-tap-2ce12c8a-1f06-47eb-a493-5f7fb0119539"
+        },
+        {
+          "id": "connection-edge-3d2cadbb-d486-47ff-91b6-8c6512bd9d4e",
+          "sourceNodeId": "connection-node-23086707-d47e-49bc-9e0c-2562bf014e74",
+          "targetNodeId": "connection-busbar-tap-2fc325fb-5b21-4d7a-835c-cda8617c5e7c"
+        },
+        {
+          "id": "connection-edge-300b3634-5039-4689-a4ca-ac2ee37cfd88",
+          "sourceNodeId": "connection-node-a7e5c3d6-50bd-4bae-9544-5a034f245c21",
+          "targetNodeId": "connection-busbar-tap-87161412-567c-4ea2-b3fd-83d5c2195b2d"
+        },
+        {
+          "id": "connection-edge-32340562-232a-44b3-ad7c-484df2d6458c",
+          "sourceNodeId": "connection-busbar-tap-d9f1152d-0f2b-41d9-920e-18f19c7e1512",
+          "targetNodeId": "connection-busbar-tap-68f5b4f7-2cbc-49f2-ac24-ee186d74c502"
+        },
+        {
+          "id": "connection-edge-d6e4ab67-6ad6-41c1-9b25-0aab520dede9",
+          "sourceNodeId": "connection-node-990b6bc9-e391-4e61-aaec-2e49348ecb8d",
+          "targetNodeId": "connection-busbar-tap-09e04829-8e7c-49c9-8149-a19adaa38268"
+        },
+        {
+          "id": "connection-edge-2ca42c00-1527-419f-9002-b359ffdc074a",
+          "sourceNodeId": "connection-node-53949713-1345-44f4-8cea-c619ad58eace",
+          "targetNodeId": "connection-busbar-tap-1f8617bd-7f85-4387-a97c-0fc96dd17ae5"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-27cd8778-2fe4-4b3b-ba88-97b288dedd31",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-74b17af6-5704-462c-b722-14355ef1b1a3",
+          "kind": "element-anchor",
+          "elementId": "8bda90f9-d65c-4e4f-a5d2-972140eebd5a",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-b86a7050-97db-4cef-95c2-fac95dddb01d",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 408
+        },
+        {
+          "id": "connection-node-def81c40-0fed-4449-ba38-18bda6100ab3",
+          "kind": "element-anchor",
+          "elementId": "412fac6d-1609-4cfc-bf27-26874d871f3e",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-c2ce1d99-72c8-4e23-9950-e5b65c8d9a8c",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 368
+        },
+        {
+          "id": "connection-node-392fc220-7de6-4130-b27d-a968ba82dd30",
+          "kind": "element-anchor",
+          "elementId": "e5dfd261-55a3-4dc7-a295-0ee9b2f0ac27",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-ab107af7-4861-4681-8cd2-af61149ce7a3",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 0
+        },
+        {
+          "id": "connection-node-2d90d29e-9a88-46fc-8088-96598900dcac",
+          "kind": "element-anchor",
+          "elementId": "1482725b-6edf-4bc6-a604-ac8ae104600a",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-2a30b244-3e9f-4eff-a247-f0d020530956",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 48
+        },
+        {
+          "id": "connection-node-aa0ee63b-b907-4a20-b2b7-6da1ddf22591",
+          "kind": "element-anchor",
+          "elementId": "e11964eb-7e9c-4361-9f81-ebcadc98f414",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-c23170da-5472-4eb0-9bab-cf61c2558ac5",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 96
+        },
+        {
+          "id": "connection-node-b2da8354-4b2b-4598-abfd-8056dc11db58",
+          "kind": "element-anchor",
+          "elementId": "fa718755-f64f-4940-9ed1-8595883c9e0c",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-edd202c2-8564-460b-a682-76f8565bbbcf",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 144
+        },
+        {
+          "id": "connection-node-a78e2451-e6d5-4bd2-9228-aadcb57d93a1",
+          "kind": "element-anchor",
+          "elementId": "a90a008f-049c-4cb5-a655-30fb52c14da2",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-007e6fc8-86e6-4465-b026-adbaa6257c81",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 192
+        },
+        {
+          "id": "connection-node-462e847f-58ca-4a61-abc6-6ea5552f5bd5",
+          "kind": "element-anchor",
+          "elementId": "7bc28519-797e-4173-948a-7b4cb3498648",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-15fac416-f2ed-441e-9253-76117a87db00",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 240
+        },
+        {
+          "id": "connection-node-04deab74-c898-4122-9823-65abab7bd16d",
+          "kind": "element-anchor",
+          "elementId": "94e6ba9c-7a0e-40fb-93e6-bfa4e8262e4a",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-db4ff454-bb22-4b27-a35b-13ce73a7b94c",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 288
+        },
+        {
+          "id": "connection-node-8d5f28c9-a05f-4f16-955e-adf1aa8a13f7",
+          "kind": "element-anchor",
+          "elementId": "dfd9e1e2-2f8b-4c48-89d6-6c09cbb55347",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-aa5e748d-9868-4437-b6ad-2e91a837072f",
+          "kind": "busbar-tap",
+          "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
+          "offset": 328
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-bbb60b29-f571-4d87-b31d-7e61a7d93aa0",
+          "sourceNodeId": "connection-node-74b17af6-5704-462c-b722-14355ef1b1a3",
+          "targetNodeId": "connection-busbar-tap-b86a7050-97db-4cef-95c2-fac95dddb01d"
+        },
+        {
+          "id": "connection-edge-05f5a252-41d8-4310-a0f6-f756450078ea",
+          "sourceNodeId": "connection-node-def81c40-0fed-4449-ba38-18bda6100ab3",
+          "targetNodeId": "connection-busbar-tap-c2ce1d99-72c8-4e23-9950-e5b65c8d9a8c"
+        },
+        {
+          "id": "connection-edge-14e37d98-1d08-4a6f-8844-d6e9c6d6af68",
+          "sourceNodeId": "connection-node-392fc220-7de6-4130-b27d-a968ba82dd30",
+          "targetNodeId": "connection-busbar-tap-ab107af7-4861-4681-8cd2-af61149ce7a3"
+        },
+        {
+          "id": "connection-edge-411b5136-8c2b-45fa-89f5-93cc52afe74f",
+          "sourceNodeId": "connection-node-2d90d29e-9a88-46fc-8088-96598900dcac",
+          "targetNodeId": "connection-busbar-tap-2a30b244-3e9f-4eff-a247-f0d020530956"
+        },
+        {
+          "id": "connection-edge-55cdc4e7-c158-4f13-bd24-a757ece0ab71",
+          "sourceNodeId": "connection-node-aa0ee63b-b907-4a20-b2b7-6da1ddf22591",
+          "targetNodeId": "connection-busbar-tap-c23170da-5472-4eb0-9bab-cf61c2558ac5"
+        },
+        {
+          "id": "connection-edge-ac27d707-91de-4181-b49a-1b29ee07d60b",
+          "sourceNodeId": "connection-node-b2da8354-4b2b-4598-abfd-8056dc11db58",
+          "targetNodeId": "connection-busbar-tap-edd202c2-8564-460b-a682-76f8565bbbcf"
+        },
+        {
+          "id": "connection-edge-8af99f75-8356-4942-945f-ecde87c9877c",
+          "sourceNodeId": "connection-node-a78e2451-e6d5-4bd2-9228-aadcb57d93a1",
+          "targetNodeId": "connection-busbar-tap-007e6fc8-86e6-4465-b026-adbaa6257c81"
+        },
+        {
+          "id": "connection-edge-588ecd54-7aa2-4366-94a2-dcc9c249d087",
+          "sourceNodeId": "connection-node-462e847f-58ca-4a61-abc6-6ea5552f5bd5",
+          "targetNodeId": "connection-busbar-tap-15fac416-f2ed-441e-9253-76117a87db00"
+        },
+        {
+          "id": "connection-edge-621902b8-6fbc-4876-9d99-f235c7a1b62e",
+          "sourceNodeId": "connection-node-04deab74-c898-4122-9823-65abab7bd16d",
+          "targetNodeId": "connection-busbar-tap-db4ff454-bb22-4b27-a35b-13ce73a7b94c"
+        },
+        {
+          "id": "connection-edge-efeb3ba9-9fe9-40c0-99e9-05a030f2d541",
+          "sourceNodeId": "connection-node-8d5f28c9-a05f-4f16-955e-adf1aa8a13f7",
+          "targetNodeId": "connection-busbar-tap-aa5e748d-9868-4437-b6ad-2e91a837072f"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-0b07fdcc-92ac-44a3-9f57-d8c8bf1fc982",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-6f7e5c89-48b7-4917-aaf1-bbb3daebb560",
+          "kind": "element-anchor",
+          "elementId": "bca4d339-63d9-4e0b-b471-62800dec4ed4",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-ac7d6576-28f3-4e46-836d-552abf8bdf17",
+          "kind": "element-anchor",
+          "elementId": "f6a198df-53db-4d2b-a80f-c260fc3f9c94",
+          "anchorId": "anchor-b598429b-da5b-423e-afed-066437101542"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-d1cb10bf-be61-4a40-b57c-ffb99a743f50",
+          "sourceNodeId": "connection-node-6f7e5c89-48b7-4917-aaf1-bbb3daebb560",
+          "targetNodeId": "connection-node-ac7d6576-28f3-4e46-836d-552abf8bdf17"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-d24b2f71-080e-4f7f-a728-405f33a89ec2",
+      "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-2e138b80-cd0d-4607-9079-bf4bef1af2bd",
+          "kind": "element-anchor",
+          "elementId": "c5c21ce2-4e3b-4711-b2a7-7c03412fbc8f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-6fce9023-2133-468a-97cf-6bec2c332878",
+          "kind": "element-anchor",
+          "elementId": "901008a5-bea5-4ade-806a-7fcabcc9bb87",
+          "anchorId": "anchor-b598429b-da5b-423e-afed-066437101542"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-89ce7c01-2147-40b0-b01d-0ed60091698c",
+          "sourceNodeId": "connection-node-2e138b80-cd0d-4607-9079-bf4bef1af2bd",
+          "targetNodeId": "connection-node-6fce9023-2133-468a-97cf-6bec2c332878"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "key": "2-wv",
+      "name": "2WV",
+      "category": "冷却",
+      "source": "src/assets/symbols/2WV.svg",
+      "intrinsicWidth": 32,
+      "intrinsicHeight": 32,
+      "anchors": []
+    },
+    {
+      "key": "cdu",
+      "name": "CDU",
+      "category": "冷却",
+      "source": "src/assets/symbols/CDU.svg",
+      "intrinsicWidth": 96,
+      "intrinsicHeight": 96,
+      "anchors": [
+        {
+          "id": "anchor-311981ca-e049-44bb-83ad-ee2845c16328",
+          "name": "一次回路冷 3",
+          "x": 80,
+          "y": 0,
+          "direction": "top",
+          "type": "cooling-primary-cold"
+        },
+        {
+          "id": "anchor-e0aeca37-33bc-4128-bd70-a0e8d99f9f11",
+          "name": "一次回路冷 1",
+          "x": 0,
+          "y": 16,
+          "direction": "left",
+          "type": "cooling-primary-cold"
+        },
+        {
+          "id": "anchor-c02928fa-9682-4df9-a99b-17b9c8731b28",
+          "name": "一次回路热 2",
+          "x": 96,
+          "y": 80,
+          "direction": "right",
+          "type": "cooling-primary-hot"
+        },
+        {
+          "id": "anchor-d5808484-3602-4799-8bd1-5fa5696d0eb7",
+          "name": "一次回路热 3",
+          "x": 16,
+          "y": 96,
+          "direction": "bottom",
+          "type": "cooling-primary-hot"
+        },
+        {
+          "id": "anchor-72ecc778-0c39-48d7-880f-4d9081991d8c",
+          "name": "一次回路热 4",
+          "x": 16,
+          "y": 0,
+          "direction": "top",
+          "type": "cooling-primary-hot"
+        },
+        {
+          "id": "anchor-bc7a7b53-6f3a-46cd-848a-eab867929a60",
+          "name": "一次回路冷 2",
+          "x": 96,
+          "y": 16,
+          "direction": "right",
+          "type": "cooling-primary-cold"
+        },
+        {
+          "id": "anchor-b1aa3716-940d-4823-82c7-e73aca165970",
+          "name": "一次回路热 1",
+          "x": 0,
+          "y": 80,
+          "direction": "left",
+          "type": "cooling-primary-hot"
+        },
+        {
+          "id": "anchor-50fb2e27-2d45-440c-a4a2-7952a1d741a5",
+          "name": "一次回路冷 4",
+          "x": 80,
+          "y": 96,
+          "direction": "bottom",
+          "type": "cooling-primary-cold"
+        }
+      ]
+    },
+    {
+      "key": "chwp",
+      "name": "CHWP",
+      "category": "冷却",
+      "source": "src/assets/symbols/CHWP.svg",
+      "intrinsicWidth": 200,
+      "intrinsicHeight": 80,
+      "anchors": []
+    },
+    {
+      "key": "ct",
+      "name": "CT",
+      "category": "冷却",
+      "source": "src/assets/symbols/CT.svg",
+      "intrinsicWidth": 160,
+      "intrinsicHeight": 160,
+      "anchors": []
+    },
+    {
+      "key": "cv",
+      "name": "CV",
+      "category": "冷却",
+      "source": "src/assets/symbols/CV.svg",
+      "intrinsicWidth": 32,
+      "intrinsicHeight": 32,
+      "anchors": []
+    },
+    {
+      "key": "cwp",
+      "name": "CWP",
+      "category": "冷却",
+      "source": "src/assets/symbols/CWP.svg",
+      "intrinsicWidth": 200,
+      "intrinsicHeight": 80,
+      "anchors": []
+    },
+    {
+      "key": "fm",
+      "name": "FM",
+      "category": "电力",
+      "source": "src/assets/symbols/FM.svg",
+      "intrinsicWidth": 64,
+      "intrinsicHeight": 64,
+      "anchors": [
+        {
+          "id": "anchor-93696726-dc5b-4dce-a0a2-22cfa6bb899a",
+          "name": "电路 2",
+          "x": 0,
+          "y": 32,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-45324736-2bdf-4d03-abb7-585aa4c88ab2",
+          "name": "电路 3",
+          "x": 64,
+          "y": 32,
+          "direction": "right",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "mp",
+      "name": "MP",
+      "category": "冷却",
+      "source": "src/assets/symbols/MP.svg",
+      "intrinsicWidth": 32,
+      "intrinsicHeight": 32,
+      "anchors": []
+    },
+    {
+      "key": "phe",
+      "name": "PHE",
+      "category": "冷却",
+      "source": "src/assets/symbols/PHE.svg",
+      "intrinsicWidth": 80,
+      "intrinsicHeight": 160,
+      "anchors": []
+    },
+    {
+      "key": "wmt",
+      "name": "WMT",
+      "category": "冷却",
+      "source": "src/assets/symbols/WMT.svg",
+      "intrinsicWidth": 80,
+      "intrinsicHeight": 80,
+      "anchors": []
+    },
+    {
+      "key": "battery",
+      "name": "Battery",
+      "category": "电力",
+      "source": "src/assets/symbols/Battery.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-a09657f7-52cd-4691-a963-096542bc078a",
+          "name": "电路 1",
+          "x": 24,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-38862d00-63e5-4d5b-8ab7-98e6339320a1",
+          "name": "电路 2",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-feeb79d8-13b4-4126-b076-679f55aacdde",
+          "name": "电路 3",
+          "x": 24,
+          "y": 48,
+          "direction": "bottom",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-37fd7cfb-ed34-4cb2-8196-4d00cf4b78c8",
+          "name": "电路 4",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "generator",
+      "name": "Generator",
+      "category": "电力",
+      "source": "src/assets/symbols/Generator.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-197720ae-65cf-41d5-a322-935f1b487d61",
+          "name": "电路 1",
+          "x": 24,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-dc881595-f86e-474a-8391-49e15080d8a5",
+          "name": "电路 2",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-236a7eec-b450-4835-94c7-2bd8519b0cb4",
+          "name": "电路 3",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b",
+          "name": "电路 4",
+          "x": 24,
+          "y": 48,
+          "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "grid",
+      "name": "Grid",
+      "category": "电力",
+      "source": "src/assets/symbols/Grid.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-01634144-1bd1-4b62-9b4e-6b8faa07354c",
+          "name": "电路 1",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-5fe54af5-0857-4e44-a1f7-fbae646c57eb",
+          "name": "电路 2",
+          "x": 24,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-b71d12cb-7fa6-4a3d-a6cf-61afd7d55078",
+          "name": "电路 3",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-88e4eab8-42fb-40cb-9d65-076759bb935a",
+          "name": "电路 4",
+          "x": 24,
+          "y": 48,
+          "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "switch",
+      "name": "Switch",
+      "category": "电力",
+      "source": "src/assets/symbols/SwitchOff.svg",
+      "intrinsicWidth": 32,
+      "intrinsicHeight": 32,
+      "anchors": [
+        {
+          "id": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8",
+          "name": "电路 1",
+          "x": 16,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee",
+          "name": "电路 2",
+          "x": 16,
+          "y": 32,
+          "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "transformer",
+      "name": "Transformer",
+      "category": "电力",
+      "source": "src/assets/symbols/Transformer.svg",
+      "intrinsicWidth": 64,
+      "intrinsicHeight": 64,
+      "anchors": [
+        {
+          "id": "anchor-8f729400-5496-4e7a-8153-5e8ba500795a",
+          "name": "电路 1",
+          "x": 32,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-36d09ecb-5bb2-453a-8222-b7bb1c962814",
+          "name": "电路 2",
+          "x": 32,
+          "y": 64,
+          "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "ups",
+      "name": "UPS",
+      "category": "电力",
+      "source": "src/assets/symbols/UPS.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-8318bccf-9417-4bb3-866d-091cce589aac",
+          "name": "电路 1",
+          "x": 24,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d",
+          "name": "电路 2",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d",
+          "name": "电路 3",
+          "x": 24,
+          "y": 48,
+          "direction": "bottom",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583",
+          "name": "电路 4",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "cpd",
+      "name": "CPD",
+      "category": "冷却",
+      "source": "src/assets/symbols/CPD.svg",
+      "intrinsicWidth": 80,
+      "intrinsicHeight": 80,
+      "anchors": []
+    },
+    {
+      "key": "cabinet",
+      "name": "Cabinet",
+      "category": "电力",
+      "source": "src/assets/symbols/Cabinet.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-1e254790-7799-40ae-bbd7-70c07ef6fb76",
+          "name": "电路 1",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-22b41b4e-780e-4895-8a86-f52d66ab2932",
+          "name": "电路 4",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "compute-pod",
+      "name": "算力 POD",
+      "category": "电力",
+      "source": "src/assets/symbols/ComputePOD.svg",
+      "intrinsicWidth": 64,
+      "intrinsicHeight": 64,
+      "anchors": [
+        {
+          "id": "anchor-d91ceb34-f2ba-493c-bd52-7715af465069",
+          "name": "电路 1",
+          "x": 32,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-b598429b-da5b-423e-afed-066437101542",
+          "name": "电路 2",
+          "x": 0,
+          "y": 32,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-03536bc8-da2c-4354-ae28-6690daa0655e",
+          "name": "电路 3",
+          "x": 32,
+          "y": 64,
+          "direction": "bottom",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-742b2660-a980-46ff-b10e-14717a0c2fd2",
+          "name": "电路 4",
+          "x": 64,
+          "y": 32,
+          "direction": "right",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "power-pod",
+      "name": "动力 POD",
+      "category": "电力",
+      "source": "src/assets/symbols/PowerPOD.svg",
+      "intrinsicWidth": 64,
+      "intrinsicHeight": 64,
+      "anchors": [
+        {
+          "id": "anchor-a60d7016-37ad-41eb-885e-f63841259d7f",
+          "name": "电路 1",
+          "x": 32,
+          "y": 0,
+          "direction": "top",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-6cdfcc83-10fd-4d50-9672-1f78b3b13765",
+          "name": "电路 2",
+          "x": 0,
+          "y": 32,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-eaea26a6-5d5f-49e2-87f6-0b7972e74ec6",
+          "name": "电路 3",
+          "x": 64,
+          "y": 32,
+          "direction": "right",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-ee7069d9-901a-45b5-a9c9-31b34e6577e4",
+          "name": "电路 4",
+          "x": 32,
+          "y": 64,
+          "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    }
+  ],
+  "extensions": {
+    "ports": [],
+    "edges": [],
+    "monitorBindings": []
+  }
+}

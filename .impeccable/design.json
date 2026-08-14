@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-14T10:49:00+08:00",
+  "title": "Design System: AIDC 一次接线图",
+  "extensions": {
+    "colorMeta": {
+      "canvas": { "role": "neutral", "displayName": "画布", "canonical": "#141518", "tonalRamp": ["#101114", "#141518", "#1b1d20", "#232529", "#2f3136", "#595e63", "#858784", "#f2f3ef"] },
+      "ink": { "role": "primary", "displayName": "中性强调", "canonical": "#f2f3ef", "tonalRamp": ["#2f3136", "#595e63", "#858784", "#b6b8b4", "#f2f3ef"] },
+      "cooling": { "role": "secondary", "displayName": "冷却语义", "canonical": "#77b4bf", "tonalRamp": ["#17262a", "#31545b", "#52838d", "#77b4bf", "#b9dce2"] },
+      "electrical": { "role": "secondary", "displayName": "电力语义", "canonical": "#d5b96f", "tonalRamp": ["#2e2717", "#66582f", "#9d874f", "#d5b96f", "#eddfba"] },
+      "danger": { "role": "tertiary", "displayName": "危险", "canonical": "#df816f", "tonalRamp": ["#321a17", "#6a332b", "#aa5546", "#df816f", "#f2c0b6"] }
+    },
+    "typographyMeta": {
+      "interface": { "displayName": "Google Sans Code 界面字体", "purpose": "工作区控件、数据、标签与中文回退。" },
+      "label": { "displayName": "紧凑标签", "purpose": "面板、属性、坐标和计数。" }
+    },
+    "shadows": [
+      { "name": "panel", "value": "0 14px 34px rgba(0, 0, 0, 0.28)", "purpose": "仅用于弹层、侧滑面板与 Toast。" }
+    ],
+    "motion": [
+      { "name": "control-state", "value": "140ms cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "控件颜色和边界状态变化。" }
+    ],
+    "breakpoints": [
+      { "name": "desktop-min", "value": "1180px" }
+    ]
+  },
+  "components": [
+    { "name": "Button", "kind": "button", "description": "28px 高的中性软底、幽灵、主操作和危险变体。" },
+    { "name": "IconButton", "kind": "button", "description": "28px 方形工具命令，必须具有可访问名称。" },
+    { "name": "Field", "kind": "input", "description": "32px 高的文本、数字与下拉字段，标签不得依赖 placeholder。" },
+    { "name": "StatusTag", "kind": "custom", "description": "22px 高的短状态标签，可使用冷却、电力和告警语义色。" },
+    { "name": "Single-line Tree Row", "kind": "nav", "description": "28px 固定高度，名称省略且层级类型保留。" },
+    { "name": "Hybrid Drawing Canvas", "kind": "custom", "description": "WebGL 网格底层、SVG 图元/线路/母线/变换/拖动十字对齐覆盖层和双标尺。" },
+    { "name": "Symbol Anchor Editor", "kind": "dialog", "description": "双栏资产级锚点编辑器，复用素材浏览、8px边缘锚点画布和顶部即时编辑命令。" },
+    { "name": "Busbar Tool", "kind": "custom", "description": "电力图纸中的可拖入直线拓扑骨干，使用电力语义色和母线专用选择、长度及旋转控件。" }
+  ],
+  "narrative": {
+    "northStar": "安静的运行台",
+    "overview": "连续的中性深色工作面、紧凑等宽界面字体和克制语义色，让图纸成为第一视觉焦点。",
+    "keyCharacteristics": [
+      "Token 与 Recipe 是唯一视觉真源。",
+      "固定工作区由表面明度和一像素分隔建立结构。",
+      "冷却、电力和告警颜色只表达语义。",
+      "树、面包屑和状态数据保持单行。"
+    ],
+    "rules": [
+      { "name": "Canvas First", "body": "功能优先进入既有工具栏或侧栏，不遮挡图纸。", "section": "layout" },
+      { "name": "Semantic Color", "body": "彩色只表示冷却、电力或状态语义。", "section": "colors" },
+      { "name": "Compact but Legible", "body": "持久文本不得小于 10px。", "section": "typography" },
+      { "name": "Primitive Boundary", "body": "视觉原语拥有外观，业务组件拥有布局与状态。", "section": "components" }
+    ],
+    "dos": ["使用设计 Token。", "保持树节点单行。", "让画布成为第一视觉焦点。"],
+    "donts": ["不新增第二套组件库。", "不使用装饰霓虹或无意义卡片。", "不把视觉验收交给截图自动化。"]
+  }
+}

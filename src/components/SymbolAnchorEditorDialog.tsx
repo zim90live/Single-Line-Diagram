@@ -1,0 +1,601 @@
+import { Redo2, Trash2, Undo2, X } from 'lucide-react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react'
+
+import {
+  EDITOR_GRID_SIZE,
+  type AnchorType,
+  type AssetDefinition,
+  type SymbolAnchor,
+} from '../domain/project'
+import {
+  ANCHOR_TYPE_OPTIONS,
+  constrainAnchorDrag,
+  createSymbolAnchor,
+  getLegalAnchorPoints,
+  getNextAnchorName,
+  isAutomaticAnchorName,
+  type AnchorPoint,
+} from '../editor/anchors'
+import { GRID_DOT_SCREEN_RADIUS } from '../editor/gridScale'
+import { symbolCatalog, symbolsByKey } from '../editor/symbolCatalog'
+import { SymbolBrowser } from './SymbolBrowser'
+import { IconButton, SelectField, TextField } from './ui'
+
+interface SymbolAnchorEditorDialogProps {
+  initialAssetKey: string
+  assets: AssetDefinition[]
+  onChangeAnchors: (assetKey: string, anchors: SymbolAnchor[]) => void
+  onClose: () => void
+}
+
+interface AnchorHistoryEntry {
+  assetKey: string
+  before: SymbolAnchor[]
+  after: SymbolAnchor[]
+  selectedBefore: string | null
+  selectedAfter: string | null
+  coalesceKey?: string
+}
+
+interface AnchorHistory {
+  past: AnchorHistoryEntry[]
+  future: AnchorHistoryEntry[]
+}
+
+interface DragState {
+  pointerId: number
+  anchorId: string
+  preview: AnchorPoint
+}
+
+const HISTORY_LIMIT = 100
+
+function cloneAnchors(anchors: SymbolAnchor[]) {
+  return anchors.map((anchor) => ({ ...anchor }))
+}
+
+function anchorsEqual(left: SymbolAnchor[], right: SymbolAnchor[]) {
+  return left.length === right.length && left.every((anchor, index) => {
+    const candidate = right[index]
+    return candidate &&
+      anchor.id === candidate.id &&
+      anchor.name === candidate.name &&
+      anchor.x === candidate.x &&
+      anchor.y === candidate.y &&
+      anchor.direction === candidate.direction &&
+      anchor.type === candidate.type
+  })
+}
+
+function createAnchorMap(assets: AssetDefinition[]) {
+  const documentAssets = new Map(assets.map((asset) => [asset.key, asset]))
+  return Object.fromEntries(symbolCatalog.map((symbol) => [
+    symbol.key,
+    cloneAnchors(documentAssets.get(symbol.key)?.anchors ?? []),
+  ])) as Record<string, SymbolAnchor[]>
+}
+
+function clientToWorld(clientX: number, clientY: number, svg: SVGSVGElement) {
+  const matrix = svg.getScreenCTM()
+  if (!matrix) return null
+  const point = svg.createSVGPoint()
+  point.x = clientX
+  point.y = clientY
+  const world = point.matrixTransform(matrix.inverse())
+  return { x: world.x, y: world.y }
+}
+
+function directionVector(direction: SymbolAnchor['direction']) {
+  if (direction === 'top') return { x: 0, y: -1 }
+  if (direction === 'right') return { x: 1, y: 0 }
+  if (direction === 'bottom') return { x: 0, y: 1 }
+  return { x: -1, y: 0 }
+}
+
+export function SymbolAnchorEditorDialog({
+  initialAssetKey,
+  assets,
+  onChangeAnchors,
+  onClose,
+}: SymbolAnchorEditorDialogProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const patternId = `anchor-grid-${useId().replace(/:/g, '')}`
+  const initialAnchorMap = useMemo(() => createAnchorMap(assets), [])
+  const anchorsByAssetRef = useRef(initialAnchorMap)
+  const historyRef = useRef<AnchorHistory>({ past: [], future: [] })
+  const [anchorsByAsset, setAnchorsByAsset] = useState(initialAnchorMap)
+  const [selectedAssetKey, setSelectedAssetKey] = useState(initialAssetKey)
+  const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null)
+  const [dragState, setDragState] = useState<DragState | null>(null)
+  const [message, setMessage] = useState('在图元边缘的网格点单击添加锚点')
+  const [, setHistoryVersion] = useState(0)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    if (dialog && !dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal()
+      else dialog.setAttribute('open', '')
+    }
+    return () => returnFocusRef.current?.focus()
+  }, [])
+
+  const selectedSymbol = symbolsByKey.get(selectedAssetKey) ?? symbolCatalog[0]
+  const selectedAnchors = selectedSymbol
+    ? anchorsByAsset[selectedSymbol.key] ?? []
+    : []
+  const selectedAnchor = selectedAnchors.find((anchor) => anchor.id === selectedAnchorId)
+  const legalPoints = useMemo(
+    () => selectedSymbol ? getLegalAnchorPoints(selectedSymbol) : [],
+    [selectedSymbol],
+  )
+  const occupiedCoordinates = useMemo(
+    () => new Set(selectedAnchors.map((anchor) => `${anchor.x},${anchor.y}`)),
+    [selectedAnchors],
+  )
+
+  const publishAnchors = (assetKey: string, anchors: SymbolAnchor[]) => {
+    const nextAnchors = cloneAnchors(anchors)
+    anchorsByAssetRef.current = { ...anchorsByAssetRef.current, [assetKey]: nextAnchors }
+    setAnchorsByAsset(anchorsByAssetRef.current)
+    onChangeAnchors(assetKey, nextAnchors)
+  }
+
+  const refreshHistory = () => setHistoryVersion((version) => version + 1)
+
+  const commitAnchors = (
+    assetKey: string,
+    nextAnchors: SymbolAnchor[],
+    nextSelectedAnchorId: string | null,
+    coalesceKey?: string,
+  ) => {
+    const before = anchorsByAssetRef.current[assetKey] ?? []
+    if (anchorsEqual(before, nextAnchors)) return
+
+    const history = historyRef.current
+    const last = history.past.at(-1)
+    if (coalesceKey && last?.coalesceKey === coalesceKey && last.assetKey === assetKey) {
+      history.past = [
+        ...history.past.slice(0, -1),
+        { ...last, after: cloneAnchors(nextAnchors), selectedAfter: nextSelectedAnchorId },
+      ]
+    } else {
+      history.past = [
+        ...history.past.slice(-(HISTORY_LIMIT - 1)),
+        {
+          assetKey,
+          before: cloneAnchors(before),
+          after: cloneAnchors(nextAnchors),
+          selectedBefore: selectedAnchorId,
+          selectedAfter: nextSelectedAnchorId,
+          coalesceKey,
+        },
+      ]
+    }
+    history.future = []
+    publishAnchors(assetKey, nextAnchors)
+    setSelectedAnchorId(nextSelectedAnchorId)
+    refreshHistory()
+  }
+
+  const undo = () => {
+    const entry = historyRef.current.past.at(-1)
+    if (!entry) return
+    historyRef.current.past = historyRef.current.past.slice(0, -1)
+    historyRef.current.future = [entry, ...historyRef.current.future].slice(0, HISTORY_LIMIT)
+    publishAnchors(entry.assetKey, entry.before)
+    setSelectedAssetKey(entry.assetKey)
+    setSelectedAnchorId(entry.selectedBefore)
+    setMessage('已撤销锚点修改')
+    refreshHistory()
+  }
+
+  const redo = () => {
+    const entry = historyRef.current.future[0]
+    if (!entry) return
+    historyRef.current.future = historyRef.current.future.slice(1)
+    historyRef.current.past = [...historyRef.current.past, entry].slice(-HISTORY_LIMIT)
+    publishAnchors(entry.assetKey, entry.after)
+    setSelectedAssetKey(entry.assetKey)
+    setSelectedAnchorId(entry.selectedAfter)
+    setMessage('已重做锚点修改')
+    refreshHistory()
+  }
+
+  const handleSelectAsset = (assetKey: string) => {
+    setSelectedAssetKey(assetKey)
+    setSelectedAnchorId(null)
+    setDragState(null)
+    setMessage('在图元边缘的网格点单击添加锚点')
+  }
+
+  const addAnchor = (point: Pick<AnchorPoint, 'x' | 'y'>) => {
+    if (!selectedSymbol) return
+    try {
+      const anchor = createSymbolAnchor(
+        { ...selectedSymbol, anchors: selectedAnchors },
+        point,
+      )
+      commitAnchors(selectedSymbol.key, [...selectedAnchors, anchor], anchor.id)
+      setMessage(`已添加“${anchor.name}”`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '无法在该位置添加锚点。')
+    }
+  }
+
+  const updateSelectedAnchor = (
+    updater: (anchor: SymbolAnchor) => SymbolAnchor,
+    coalesceKey?: string,
+  ) => {
+    if (!selectedSymbol || !selectedAnchor) return
+    const next = selectedAnchors.map((anchor) =>
+      anchor.id === selectedAnchor.id ? updater(anchor) : anchor,
+    )
+    commitAnchors(selectedSymbol.key, next, selectedAnchor.id, coalesceKey)
+  }
+
+  const normalizeSelectedName = () => {
+    if (!selectedAnchor) return
+    const trimmed = selectedAnchor.name.trim()
+    if (trimmed) {
+      if (trimmed !== selectedAnchor.name) {
+        updateSelectedAnchor(
+          (anchor) => ({ ...anchor, name: trimmed }),
+          `${selectedSymbol.key}:${selectedAnchor.id}:name`,
+        )
+      }
+      return
+    }
+    const peers = selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id)
+    updateSelectedAnchor(
+      (anchor) => ({ ...anchor, name: getNextAnchorName(peers, anchor.type) }),
+      `${selectedSymbol.key}:${selectedAnchor.id}:name`,
+    )
+  }
+
+  const closeEditor = () => {
+    normalizeSelectedName()
+    onClose()
+  }
+
+  const changeSelectedType = (type: AnchorType) => {
+    if (!selectedAnchor) return
+    const peers = selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id)
+    const shouldRename = isAutomaticAnchorName(selectedAnchor.name, selectedAnchor.type)
+    updateSelectedAnchor((anchor) => ({
+      ...anchor,
+      type,
+      name: shouldRename ? getNextAnchorName(peers, type) : anchor.name,
+    }))
+    setMessage(`锚点类型已改为${ANCHOR_TYPE_OPTIONS.find((option) => option.value === type)?.label}`)
+  }
+
+  const deleteSelectedAnchor = () => {
+    if (!selectedSymbol || !selectedAnchor) return
+    commitAnchors(
+      selectedSymbol.key,
+      selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id),
+      null,
+    )
+    setMessage(`已删除“${selectedAnchor.name}”`)
+  }
+
+  const startAnchorDrag = (event: PointerEvent<SVGCircleElement>, anchor: SymbolAnchor) => {
+    if (event.button !== 0) return
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setSelectedAnchorId(anchor.id)
+    setDragState({
+      pointerId: event.pointerId,
+      anchorId: anchor.id,
+      preview: { x: anchor.x, y: anchor.y, direction: anchor.direction },
+    })
+  }
+
+  const moveAnchorDrag = (event: PointerEvent<SVGSVGElement>) => {
+    if (!dragState || dragState.pointerId !== event.pointerId || !selectedSymbol) return
+    const world = clientToWorld(event.clientX, event.clientY, event.currentTarget)
+    const anchor = selectedAnchors.find((candidate) => candidate.id === dragState.anchorId)
+    if (!world || !anchor) return
+    setDragState({
+      ...dragState,
+      preview: constrainAnchorDrag(anchor, world, selectedSymbol),
+    })
+  }
+
+  const finishAnchorDrag = (event: PointerEvent<SVGSVGElement>) => {
+    if (!dragState || dragState.pointerId !== event.pointerId || !selectedSymbol) return
+    const anchor = selectedAnchors.find((candidate) => candidate.id === dragState.anchorId)
+    const duplicate = selectedAnchors.some((candidate) =>
+      candidate.id !== dragState.anchorId &&
+      candidate.x === dragState.preview.x &&
+      candidate.y === dragState.preview.y,
+    )
+    if (anchor && duplicate) {
+      setMessage('该位置已有锚点。')
+    } else if (anchor && (anchor.x !== dragState.preview.x || anchor.y !== dragState.preview.y)) {
+      commitAnchors(
+        selectedSymbol.key,
+        selectedAnchors.map((candidate) => candidate.id === anchor.id
+          ? { ...candidate, ...dragState.preview }
+          : candidate),
+        anchor.id,
+      )
+      setMessage(`锚点已移动到 ${dragState.preview.x}, ${dragState.preview.y}`)
+    }
+    setDragState(null)
+  }
+
+  const handleCanvasClick = (event: PointerEvent<SVGSVGElement>) => {
+    const target = event.target as Element
+    if (event.target !== event.currentTarget && !target.classList?.contains('anchor-editor__canvas-background')) return
+    const world = clientToWorld(event.clientX, event.clientY, event.currentTarget)
+    if (!world || !selectedSymbol) return
+    const x = Math.round(world.x / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
+    const y = Math.round(world.y / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
+    const isCorner =
+      (x === 0 || x === selectedSymbol.intrinsicWidth) &&
+      (y === 0 || y === selectedSymbol.intrinsicHeight)
+    setMessage(isCorner ? '角点不能添加锚点。' : '锚点只能位于图元边缘的 8px 网格点。')
+  }
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
+    const target = event.target
+    const isField = target instanceof HTMLInputElement || target instanceof HTMLSelectElement
+    const modifier = event.ctrlKey || event.metaKey
+    if (!isField && modifier && event.key.toLowerCase() === 'z') {
+      event.preventDefault()
+      if (event.shiftKey) redo()
+      else undo()
+    } else if (!isField && modifier && event.key.toLowerCase() === 'y') {
+      event.preventDefault()
+      redo()
+    } else if (!isField && (event.key === 'Delete' || event.key === 'Backspace')) {
+      event.preventDefault()
+      deleteSelectedAnchor()
+    }
+  }
+
+  if (!selectedSymbol) return null
+
+  const padding = 64
+  const viewBox = [
+    -padding,
+    -padding,
+    selectedSymbol.intrinsicWidth + padding * 2,
+    selectedSymbol.intrinsicHeight + padding * 2,
+  ].join(' ')
+  const displayedAnchors = selectedAnchors.map((anchor) => {
+    if (dragState?.anchorId !== anchor.id) return anchor
+    return { ...anchor, ...dragState.preview }
+  })
+  const history = historyRef.current
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="anchor-editor-dialog"
+      aria-labelledby="anchor-editor-title"
+      aria-modal="true"
+      onCancel={(event) => {
+        event.preventDefault()
+        closeEditor()
+      }}
+      onKeyDown={handleDialogKeyDown}
+    >
+      <header className="anchor-editor-dialog__header">
+        <div>
+          <small>图元资产</small>
+          <h2 id="anchor-editor-title">接线锚点编辑器</h2>
+        </div>
+        <IconButton
+          label="关闭图元编辑器"
+          icon={<X />}
+          variant="neutral-ghost"
+          onClick={closeEditor}
+        />
+      </header>
+
+      <div className="anchor-editor-dialog__body">
+        <aside className="anchor-editor-dialog__library">
+          <SymbolBrowser
+            idPrefix="anchor-editor"
+            mode="select"
+            selectedKey={selectedSymbol.key}
+            onSelect={handleSelectAsset}
+          />
+        </aside>
+
+        <section className="anchor-editor" aria-label={`${selectedSymbol.name}锚点编辑区`}>
+          <div className="anchor-editor__toolbar">
+            <div className="anchor-editor__identity">
+              <strong>{selectedSymbol.name}</strong>
+              <span>{selectedSymbol.intrinsicWidth} × {selectedSymbol.intrinsicHeight} · {selectedAnchors.length} 个锚点</span>
+            </div>
+            <div className="anchor-editor__fields">
+              <TextField
+                label="锚点名称"
+                hideLabel
+                containerClassName="anchor-editor__name-field"
+                value={selectedAnchor?.name ?? ''}
+                disabled={!selectedAnchor}
+                placeholder="选择锚点后编辑名称"
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!selectedAnchor) return
+                  updateSelectedAnchor(
+                    (anchor) => ({ ...anchor, name: value }),
+                    `${selectedSymbol.key}:${selectedAnchor.id}:name`,
+                  )
+                }}
+                onBlur={normalizeSelectedName}
+              />
+              <SelectField
+                label="锚点类型"
+                hideLabel
+                containerClassName="anchor-editor__type-field"
+                value={selectedAnchor?.type ?? 'electrical'}
+                disabled={!selectedAnchor}
+                onChange={(event) => changeSelectedType(event.target.value as AnchorType)}
+              >
+                {ANCHOR_TYPE_OPTIONS.map((option) => (
+                  <option value={option.value} key={option.value}>{option.label}</option>
+                ))}
+              </SelectField>
+            </div>
+            <div className="anchor-editor__commands" aria-label="锚点编辑命令">
+              <IconButton
+                label="撤销锚点修改"
+                icon={<Undo2 />}
+                disabled={!history.past.length}
+                onClick={undo}
+              />
+              <IconButton
+                label="重做锚点修改"
+                icon={<Redo2 />}
+                disabled={!history.future.length}
+                onClick={redo}
+              />
+              <span className="toolbar-divider" />
+              <IconButton
+                label="删除所选锚点"
+                icon={<Trash2 />}
+                variant="danger-soft"
+                disabled={!selectedAnchor}
+                onClick={deleteSelectedAnchor}
+              />
+            </div>
+          </div>
+
+          <div className="anchor-editor__canvas-frame">
+            <svg
+              ref={svgRef}
+              className="anchor-editor__canvas"
+              data-testid="anchor-editor-canvas"
+              data-grid-size={EDITOR_GRID_SIZE}
+              data-selected-asset={selectedSymbol.key}
+              viewBox={viewBox}
+              aria-label={`${selectedSymbol.name} 8px 锚点网格`}
+              onClick={handleCanvasClick}
+              onPointerMove={moveAnchorDrag}
+              onPointerUp={finishAnchorDrag}
+              onPointerCancel={() => setDragState(null)}
+            >
+              <defs>
+                <pattern
+                  id={patternId}
+                  width={EDITOR_GRID_SIZE}
+                  height={EDITOR_GRID_SIZE}
+                  patternUnits="userSpaceOnUse"
+                >
+                  <circle className="anchor-grid-dot" cx="0" cy="0" r={GRID_DOT_SCREEN_RADIUS} />
+                </pattern>
+              </defs>
+              <rect
+                className="anchor-editor__canvas-background"
+                x={-padding}
+                y={-padding}
+                width={selectedSymbol.intrinsicWidth + padding * 2}
+                height={selectedSymbol.intrinsicHeight + padding * 2}
+                fill={`url(#${patternId})`}
+              />
+              <image
+                className="anchor-editor__symbol-image"
+                href={selectedSymbol.url}
+                x="0"
+                y="0"
+                width={selectedSymbol.intrinsicWidth}
+                height={selectedSymbol.intrinsicHeight}
+                preserveAspectRatio="xMidYMid meet"
+              />
+              <rect
+                className="anchor-editor__symbol-boundary"
+                x="0"
+                y="0"
+                width={selectedSymbol.intrinsicWidth}
+                height={selectedSymbol.intrinsicHeight}
+              />
+
+              {legalPoints.filter((point) => !occupiedCoordinates.has(`${point.x},${point.y}`)).map((point) => (
+                <circle
+                  className="anchor-candidate"
+                  key={`${point.x}-${point.y}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r="2.4"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`在 ${point.x}, ${point.y} 添加锚点`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    addAnchor(point)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      addAnchor(point)
+                    }
+                  }}
+                />
+              ))}
+
+              {displayedAnchors.map((anchor) => {
+                const vector = directionVector(anchor.direction)
+                return (
+                  <g
+                    className="anchor-node"
+                    data-anchor-type={anchor.type}
+                    data-selected={anchor.id === selectedAnchorId || undefined}
+                    key={anchor.id}
+                  >
+                    <line
+                      className="anchor-node__direction"
+                      x1={anchor.x}
+                      y1={anchor.y}
+                      x2={anchor.x + vector.x * 7}
+                      y2={anchor.y + vector.y * 7}
+                    />
+                    <circle
+                      className="anchor-node__point"
+                      cx={anchor.x}
+                      cy={anchor.y}
+                      r="3.6"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${anchor.name}，${anchor.x}, ${anchor.y}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedAnchorId(anchor.id)
+                        setMessage(`已选择“${anchor.name}”`)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setSelectedAnchorId(anchor.id)
+                        }
+                      }}
+                      onPointerDown={(event) => startAnchorDrag(event, anchor)}
+                    />
+                  </g>
+                )
+              })}
+            </svg>
+            <div className="anchor-editor__canvas-message" aria-live="polite">{message}</div>
+          </div>
+        </section>
+      </div>
+    </dialog>
+  )
+}

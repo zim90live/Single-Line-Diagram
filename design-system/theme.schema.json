@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["name", "tokens", "recipes"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "tokens": { "$ref": "#/$defs/entries" },
+    "recipes": { "$ref": "#/$defs/entries" }
+  },
+  "$defs": {
+    "entries": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "value"],
+        "properties": {
+          "type": { "type": "string", "minLength": 1 },
+          "value": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

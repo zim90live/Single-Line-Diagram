@@ -1,0 +1,52 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M64 1H6C4.89543 1 4 1.89543 4 3V78C4 79.1046 4.89543 80 6 80H64C65.1046 80 66 79.1046 66 78V3C66 1.89543 65.1046 1 64 1Z" fill="black"/>
+<path d="M64 2H6C5.44772 2 5 2.44772 5 3V78C5 78.5523 5.44772 79 6 79H64C64.5523 79 65 78.5523 65 78V3C65 2.44772 64.5523 2 64 2Z" stroke="url(#paint0_linear_592_316)" stroke-width="2"/>
+<path opacity="0.8" d="M64 24H6V78H64V24Z" fill="#4DF1FD"/>
+<g opacity="0.4">
+<path d="M70 3H76" stroke="white"/>
+<path d="M70 6H73" stroke="white"/>
+<path d="M70 9H73" stroke="white"/>
+<path d="M70 12H73" stroke="white"/>
+<path d="M70 15H73" stroke="white"/>
+<path d="M70 18H76" stroke="white"/>
+<path d="M70 21H73" stroke="white"/>
+<path d="M70 24H73" stroke="white"/>
+<path d="M70 27H73" stroke="white"/>
+<path d="M70 30H73" stroke="white"/>
+<path d="M70 33H76" stroke="white"/>
+<path d="M70 36H73" stroke="white"/>
+<path d="M70 39H73" stroke="white"/>
+<path d="M70 42H73" stroke="white"/>
+<path d="M70 45H73" stroke="white"/>
+<path d="M70 48H76" stroke="white"/>
+<path d="M70 51H73" stroke="white"/>
+<path d="M70 54H73" stroke="white"/>
+<path d="M70 57H73" stroke="white"/>
+<path d="M70 60H73" stroke="white"/>
+<path d="M70 63H76" stroke="white"/>
+<path d="M70 66H73" stroke="white"/>
+<path d="M70 69H73" stroke="white"/>
+<path d="M70 72H73" stroke="white"/>
+<path d="M70 75H73" stroke="white"/>
+<path d="M70 78H76" stroke="white"/>
+</g>
+<g filter="url(#filter0_i_592_316)">
+<path d="M64 3H6V78H64V3Z" fill="#232837" fill-opacity="0.1"/>
+</g>
+<defs>
+<filter id="filter0_i_592_316" x="6" y="3" width="58" height="75" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset/>
+<feGaussianBlur stdDeviation="2.66667"/>
+<feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.137255 0 0 0 0 0.156863 0 0 0 0 0.215686 0 0 0 0.5 0"/>
+<feBlend mode="normal" in2="shape" result="effect1_innerShadow_592_316"/>
+</filter>
+<linearGradient id="paint0_linear_592_316" x1="35" y1="1" x2="35" y2="80" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D4D9E2"/>
+<stop offset="1" stop-color="#848FA0"/>
+</linearGradient>
+</defs>
+</svg>

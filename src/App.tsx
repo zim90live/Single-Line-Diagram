@@ -1,0 +1,500 @@
+import {
+  ArrowLeft,
+  ClipboardPaste,
+  Copy,
+  Download,
+  FileJson,
+  FilePlus2,
+  FolderOpen,
+  Minus,
+  Plus,
+  Redo2,
+  Save,
+  Trash2,
+  Undo2,
+  Upload,
+  X,
+} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import { HierarchyPanel } from './components/HierarchyPanel'
+import { PropertiesPanel } from './components/PropertiesPanel'
+import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
+import { SymbolLibrary } from './components/SymbolLibrary'
+import { Button, IconButton, StatusTag, TextField } from './components/ui'
+import { getDiagramPath, parseProjectDocument } from './domain/project'
+import {
+  DiagramCanvas,
+  type DiagramCanvasHandle,
+  type EditorCommandState,
+  type PointerPosition,
+} from './editor/DiagramCanvas'
+import { getAnchorTypeLabel } from './editor/anchors'
+import { getAdaptiveGridScale } from './editor/gridScale'
+import { symbolAssets } from './editor/symbolCatalog'
+import { projectRepository, type ProjectSummary } from './storage/projectRepository'
+import { useAppStore } from './store/useAppStore'
+import { downloadProject, parseProjectText } from './utils/projectFile'
+
+const initialCommandState: EditorCommandState = {
+  canUndo: false,
+  canRedo: false,
+  canCopy: false,
+  hasSelection: false,
+  zoom: 1,
+  selectedConnection: false,
+  selectedBusbar: false,
+  wiringType: null,
+}
+
+interface ConfirmRequest {
+  title: string
+  content: string
+  confirmLabel: string
+  danger?: boolean
+  onConfirm: () => void | Promise<void>
+}
+
+interface ToastState {
+  id: string
+  message: string
+  tone: 'success' | 'danger'
+}
+
+function formatSavedTime(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function ConfirmDialog({ request, onClose }: { request: ConfirmRequest; onClose: () => void }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="dialog-backdrop" role="presentation" onPointerDown={onClose}>
+      <section
+        className="dialog-card"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-content"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div className="dialog-card__header">
+          <FileJson aria-hidden="true" />
+          <h2 id="confirm-title">{request.title}</h2>
+        </div>
+        <p id="confirm-content">{request.content}</p>
+        <div className="dialog-card__actions">
+          <Button disabled={busy} onClick={onClose}>取消</Button>
+          <Button
+            loading={busy}
+            variant={request.danger ? 'danger-soft' : 'primary-solid'}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                await request.onConfirm()
+                onClose()
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            {request.confirmLabel}
+          </Button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default function App() {
+  const editorRef = useRef<DiagramCanvasHandle>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [openPanel, setOpenPanel] = useState(false)
+  const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([])
+  const [loadingProjects, setLoadingProjects] = useState(false)
+  const [commandState, setCommandState] = useState(initialCommandState)
+  const [pointerPosition, setPointerPosition] = useState<PointerPosition | null>(null)
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null)
+  const [toast, setToast] = useState<ToastState | null>(null)
+  const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
+
+  const {
+    document,
+    documentEpoch,
+    currentDiagramId,
+    selectedElementIds,
+    dirty,
+    replaceDocument,
+    createProject,
+    setCurrentDiagram,
+    setSelectedElementIds,
+    replaceDiagramContent,
+    replaceAssetAnchors,
+    updateDiagramViewport,
+    renameProject,
+    markSaved,
+  } = useAppStore()
+
+  const showToast = (message: string, tone: ToastState['tone'] = 'success') => {
+    const id = crypto.randomUUID()
+    setToast({ id, message, tone })
+    window.setTimeout(() => {
+      setToast((current) => current?.id === id ? null : current)
+    }, 2600)
+  }
+
+  const currentDiagram = document.diagrams.find((diagram) => diagram.id === currentDiagramId)
+  const currentLine = document.lineSystems.find(
+    (lineSystem) => lineSystem.id === currentDiagram?.lineSystemId,
+  )
+  const diagramPath = getDiagramPath(document, currentDiagramId)
+  const currentElements = useMemo(
+    () => document.elements.filter((element) => element.diagramId === currentDiagramId),
+    [currentDiagramId, document.elements],
+  )
+  const currentConnections = useMemo(
+    () => document.connections.filter((network) => network.diagramId === currentDiagramId),
+    [currentDiagramId, document.connections],
+  )
+  const currentBusbars = useMemo(
+    () => document.busbars.filter((busbar) => busbar.diagramId === currentDiagramId),
+    [currentDiagramId, document.busbars],
+  )
+  const selectedElements = useMemo(
+    () => document.elements.filter((element) => selectedElementIds.includes(element.id)),
+    [document.elements, selectedElementIds],
+  )
+
+  const saveProject = async () => {
+    try {
+      await projectRepository.save(useAppStore.getState().document)
+      markSaved()
+      showToast('项目已保存到当前浏览器')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '项目保存失败，请重试。', 'danger')
+    }
+  }
+
+  useEffect(() => {
+    const handleSaveShortcut = (event: globalThis.KeyboardEvent) => {
+      if (
+        event.repeat ||
+        event.altKey ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.key.toLowerCase() !== 's'
+      ) return
+      event.preventDefault()
+      void saveProject()
+    }
+    window.addEventListener('keydown', handleSaveShortcut)
+    return () => window.removeEventListener('keydown', handleSaveShortcut)
+  }, [saveProject])
+
+  const confirmNewProject = () => {
+    const create = () => {
+      createProject()
+      showToast('已创建新项目')
+    }
+    if (!dirty) {
+      create()
+      return
+    }
+    setConfirmRequest({
+      title: '新建项目？',
+      content: '当前项目包含未保存修改。新建后仍可通过已导出的 JSON 或已保存项目恢复。',
+      confirmLabel: '继续新建',
+      onConfirm: create,
+    })
+  }
+
+  const refreshSavedProjects = async () => {
+    setLoadingProjects(true)
+    try {
+      setSavedProjects(await projectRepository.list())
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '无法读取本地项目。', 'danger')
+    } finally {
+      setLoadingProjects(false)
+    }
+  }
+
+  const showOpenPanel = () => {
+    setOpenPanel(true)
+    void refreshSavedProjects()
+  }
+
+  const openSavedProject = async (projectId: string) => {
+    const open = async () => {
+      try {
+        const stored = await projectRepository.get(projectId)
+        if (!stored) throw new Error('该项目不存在，可能已被其他标签页删除。')
+        replaceDocument(parseProjectDocument(stored, symbolAssets), { dirty: false })
+        setOpenPanel(false)
+        showToast('项目已打开')
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : '项目打开失败。', 'danger')
+      }
+    }
+
+    if (!useAppStore.getState().dirty) {
+      await open()
+      return
+    }
+    setConfirmRequest({
+      title: '打开其他项目？',
+      content: '当前项目包含未保存修改。继续打开将丢失这些修改。',
+      confirmLabel: '继续打开',
+      onConfirm: open,
+    })
+  }
+
+  const deleteSavedProject = (summary: ProjectSummary) => {
+    setConfirmRequest({
+      title: `删除“${summary.name}”？`,
+      content: '这只会删除当前浏览器中的本地副本，已导出的 JSON 文件不受影响。',
+      confirmLabel: '删除',
+      danger: true,
+      onConfirm: async () => {
+        await projectRepository.delete(summary.id)
+        await refreshSavedProjects()
+      },
+    })
+  }
+
+  const importProject = async (file: File) => {
+    try {
+      const imported = parseProjectText(await file.text())
+      const applyImport = () => {
+        replaceDocument(imported, { dirty: true })
+        showToast(`已导入 ${file.name}`)
+      }
+      if (useAppStore.getState().dirty) {
+        setConfirmRequest({
+          title: '导入并替换当前项目？',
+          content: '当前项目包含未保存修改。继续导入将丢失这些修改。',
+          confirmLabel: '继续导入',
+          onConfirm: applyImport,
+        })
+      } else {
+        applyImport()
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '项目导入失败。', 'danger')
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }
+
+  const exportProject = () => {
+    downloadProject(useAppStore.getState().document)
+    showToast('项目 JSON 已导出')
+  }
+
+  if (!currentDiagram) {
+    return <div className="fatal-state">当前项目缺少有效图纸，请重新导入项目文件。</div>
+  }
+
+  const parentDiagram = currentDiagram.parentId
+    ? document.diagrams.find((diagram) => diagram.id === currentDiagram.parentId)
+    : undefined
+
+  return (
+    <div className="app-shell" data-testid="app-shell">
+      <header className="workspace-header">
+        <div className="brand-block">
+          <div className="brand-mark" aria-hidden="true"><span /><span /></div>
+          <div>
+            <strong>AIDC 接线图</strong>
+            <small>编辑模式 · 第一阶段</small>
+          </div>
+        </div>
+
+        <div className="project-name-control">
+          <FileJson aria-hidden="true" />
+          <TextField
+            label="项目名称"
+            hideLabel
+            value={document.project.name}
+            onChange={(event) => renameProject(event.target.value || '未命名项目')}
+          />
+          <StatusTag tone={dirty ? 'warning' : 'success'} dot>
+            {dirty ? '未保存' : '已保存'}
+          </StatusTag>
+        </div>
+
+        <nav className="file-actions" aria-label="项目文件操作">
+          <Button leadingIcon={<FilePlus2 />} onClick={confirmNewProject}>新建</Button>
+          <Button leadingIcon={<FolderOpen />} onClick={showOpenPanel}>打开</Button>
+          <Button variant="primary-solid" leadingIcon={<Save />} onClick={() => void saveProject()}>保存</Button>
+          <span className="toolbar-divider" />
+          <Button leadingIcon={<Upload />} onClick={() => importInputRef.current?.click()}>导入</Button>
+          <Button leadingIcon={<Download />} onClick={exportProject}>导出</Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void importProject(file)
+            }}
+          />
+        </nav>
+      </header>
+
+      <div className="context-toolbar">
+        <div className="location-control">
+          <Button
+            variant="neutral-ghost"
+            aria-label="返回上一级"
+            leadingIcon={<ArrowLeft />}
+            disabled={!parentDiagram}
+            onClick={() => { if (parentDiagram) setCurrentDiagram(parentDiagram.id) }}
+          >
+            返回
+          </Button>
+          <StatusTag tone={currentLine?.type === 'cooling' ? 'cooling' : 'electrical'} dot>
+            {currentLine?.name}
+          </StatusTag>
+          <nav className="breadcrumbs" aria-label="当前图纸路径">
+            {diagramPath.map((diagram, index) => (
+              <span key={diagram.id}>
+                {index ? <span className="breadcrumb-separator">/</span> : null}
+                <button type="button" onClick={() => setCurrentDiagram(diagram.id)}>{diagram.name}</button>
+              </span>
+            ))}
+          </nav>
+        </div>
+
+        <div className="edit-actions" aria-label="画布编辑命令">
+          <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
+          <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
+          <span className="toolbar-divider" />
+          <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
+          <IconButton label="粘贴" icon={<ClipboardPaste />} onClick={() => editorRef.current?.paste()} />
+          <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
+          <span className="toolbar-divider" />
+          <IconButton label="缩小画布" icon={<Minus />} onClick={() => editorRef.current?.zoomOut()} />
+          <button type="button" className="zoom-readout" aria-label="重置画布缩放" onClick={() => editorRef.current?.zoomReset()}>
+            {Math.round(commandState.zoom * 100)}%
+          </button>
+          <IconButton label="放大画布" icon={<Plus />} onClick={() => editorRef.current?.zoomIn()} />
+        </div>
+      </div>
+
+      <main className="workspace-main">
+        <aside className="left-sidebar">
+          <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
+          <SymbolLibrary
+            onInsert={(symbolKey) => editorRef.current?.insertSymbol(symbolKey)}
+            onEdit={setAnchorEditorAssetKey}
+            onInsertBusbar={() => editorRef.current?.insertBusbar()}
+            canInsertBusbar={currentLine?.type === 'power'}
+          />
+        </aside>
+
+        <section className="canvas-column" aria-label={`${currentDiagram.name}编辑区`}>
+          <div className="canvas-titlebar">
+            <div><strong>{currentDiagram.name}</strong><span>{currentElements.length} 个图元 · {currentBusbars.length} 条母线 · {currentConnections.length} 个线路网络</span></div>
+            <span className="canvas-hint">滚轮缩放 · 鼠标中键移动画布</span>
+          </div>
+          <div className="canvas-frame">
+            <DiagramCanvas
+              ref={editorRef}
+              diagramId={currentDiagramId}
+              lineSystemType={currentLine?.type ?? 'cooling'}
+              documentEpoch={documentEpoch}
+              gridSize={currentDiagram.canvas.gridSize}
+              viewport={currentDiagram.canvas.viewport}
+              assets={document.assets}
+              elements={currentElements}
+              busbars={currentBusbars}
+              connections={currentConnections}
+              onDiagramChange={(nextElements, nextBusbars, nextConnections) => (
+                replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
+              )}
+              onViewportChange={(nextViewport) => updateDiagramViewport(currentDiagramId, nextViewport)}
+              onSelectionChange={setSelectedElementIds}
+              onCommandStateChange={setCommandState}
+              onPointerChange={setPointerPosition}
+            />
+            {currentElements.length === 0 && currentBusbars.length === 0 ? (
+              <div className="canvas-empty-guide" aria-hidden="true">
+                <strong>从左侧拖入图元</strong>
+                <span>或双击素材插入视口中心</span>
+              </div>
+            ) : null}
+          </div>
+          <footer className="status-bar">
+            <span>X {pointerPosition?.x ?? '—'}&nbsp;&nbsp;Y {pointerPosition?.y ?? '—'}</span>
+            <span>
+              网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
+            </span>
+            <span>
+              {commandState.wiringType
+                ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
+                : commandState.selectedConnection
+                  ? '已选择线路'
+                  : commandState.selectedBusbar
+                    ? '已选择母线'
+                  : selectedElements.length
+                    ? `已选择 ${selectedElements.length}`
+                    : '未选择图元'}
+            </span>
+            <span className="status-spacer" />
+            <span>图纸 ID {currentDiagram.id.slice(0, 12)}</span>
+          </footer>
+        </section>
+
+        <PropertiesPanel
+          selectedElements={selectedElements}
+          onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
+          onColorPreview={(elementId, color) => (
+            editorRef.current?.previewElementColor(elementId, color)
+          )}
+          onDelete={() => editorRef.current?.deleteSelected()}
+        />
+      </main>
+
+      {openPanel ? (
+        <div className="side-panel-backdrop" role="presentation" onPointerDown={() => setOpenPanel(false)}>
+          <aside className="open-project-panel" role="dialog" aria-modal="true" aria-labelledby="open-project-title" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="open-project-panel__header">
+              <div><small>本地工作区</small><h2 id="open-project-title">打开项目</h2></div>
+              <IconButton label="关闭打开项目面板" icon={<X />} variant="neutral-ghost" onClick={() => setOpenPanel(false)} />
+            </div>
+            <p className="open-project-panel__intro">项目保存在当前浏览器。跨设备使用请导出并导入 JSON。</p>
+            <div className="saved-project-list" aria-live="polite">
+              {loadingProjects ? <div className="panel-empty">正在读取本地项目…</div> : null}
+              {!loadingProjects && !savedProjects.length ? <div className="panel-empty">还没有本地项目，请先保存当前项目。</div> : null}
+              {savedProjects.map((summary) => (
+                <article className="saved-project" key={summary.id}>
+                  <div><strong>{summary.name}</strong><span>保存于 {formatSavedTime(summary.updatedAt)}</span></div>
+                  <div>
+                    <Button variant="neutral-ghost" onClick={() => void openSavedProject(summary.id)}>打开</Button>
+                    <IconButton label={`删除项目 ${summary.name}`} variant="danger-soft" icon={<Trash2 />} onClick={() => deleteSavedProject(summary)} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {confirmRequest ? <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} /> : null}
+      {anchorEditorAssetKey ? (
+        <SymbolAnchorEditorDialog
+          initialAssetKey={anchorEditorAssetKey}
+          assets={document.assets}
+          onChangeAnchors={replaceAssetAnchors}
+          onClose={() => setAnchorEditorAssetKey(null)}
+        />
+      ) : null}
+      {toast ? <div className="toast" data-tone={toast.tone} role="status">{toast.message}</div> : null}
+    </div>
+  )
+}
