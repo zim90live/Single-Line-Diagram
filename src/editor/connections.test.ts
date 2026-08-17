@@ -7,6 +7,7 @@ import type {
   DiagramElement,
 } from '../domain/project'
 import {
+  bridgedPathData,
   connectTerminals,
   connectionTypesCompatible,
   crossingPointKeys,
@@ -341,6 +342,31 @@ describe('connection topology and routing', () => {
     expect(preview?.at(-1)).toEqual({ x: 192, y: 160 })
   })
 
+  it('keeps an interactive preview visible across a long diagram span', () => {
+    const source = powerElement('long-preview-source', 0, 0)
+    const target = powerElement('long-preview-target', 3200, 1600)
+    const preview = routeConnectionPreview(
+      {
+        kind: 'anchor', elementId: source.id,
+        anchorId: 'bottom-electrical', type: 'electrical',
+      },
+      { x: 3232, y: 1600 },
+      [],
+      [source, target],
+      [directionalElectricalAsset],
+      8,
+      [],
+      undefined,
+      {
+        kind: 'anchor', elementId: target.id,
+        anchorId: 'top-electrical', type: 'electrical',
+      },
+    )
+
+    expect(preview).not.toBeNull()
+    expect(preview?.at(-1)).toEqual({ x: 3232, y: 1600 })
+  })
+
   it('routes network edges from actual anchors without crossing the middle symbol', () => {
     const left = element('left', 0, 0)
     const middle = element('middle', 96, 0, 32, 64)
@@ -405,7 +431,32 @@ describe('connection topology and routing', () => {
       underEdgeId: 'horizontal',
     }])
     expect(crossingPointKeys(routed.crossings).has('40,0')).toBe(true)
-    expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8)).toContain(' Q ')
+    const renderedBridge = bridgedPathData(routed.edges[1], routed.crossings, 8)
+    expect(renderedBridge.linePath).toContain(' A 4 4 0 0 1 ')
+    expect(renderedBridge.bridgeCasingPath).toContain('M ')
+    expect(renderedBridge.bridgeCasingPath).not.toContain(' L ')
+    expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8))
+      .toBe(renderedBridge.linePath)
+  })
+
+  it('compresses adjacent bridge arcs without adding per-crossing topology', () => {
+    const route = {
+      networkId: 'bridge-network',
+      edgeId: 'bridge-edge',
+      type: 'electrical' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      points: [{ x: 0, y: 0 }, { x: 32, y: 0 }],
+      order: 0,
+    }
+    const rendered = bridgedPathData(route, [
+      { x: 8, y: 0, bridgeEdgeId: route.edgeId, underEdgeId: 'under-a' },
+      { x: 16, y: 0, bridgeEdgeId: route.edgeId, underEdgeId: 'under-b' },
+    ], 8)
+
+    expect(rendered.linePath.match(/A 4 4/g)).toHaveLength(2)
+    expect(rendered.bridgeCasingPath.match(/M /g)).toHaveLength(2)
+    expect(rendered.bridgeCasingPath.match(/A 4 4/g)).toHaveLength(2)
   })
 
   it('merges ordinary electrical branches through implicit taps on one busbar', () => {
@@ -536,7 +587,8 @@ describe('connection topology and routing', () => {
       bridgeEdgeId: 'crossing-edge',
       underEdgeId: 'busbar:busbar-bridge',
     })
-    expect(pathDataWithBridges(crossing.edges[0], crossing.crossings, 8)).toContain(' Q ')
+    expect(pathDataWithBridges(crossing.edges[0], crossing.crossings, 8))
+      .toContain(' A 4 4 0 0 1 ')
 
     const collinearNetwork: ConnectionNetwork = {
       ...crossingNetwork,
@@ -594,6 +646,98 @@ describe('connection topology and routing', () => {
     expect(routed.edges[0].points).toEqual([
       { x: 40, y: 80 },
       { x: 40, y: 0 },
+    ])
+  })
+
+  it('lets taps on opposite busbar sides share the same resolved grid point', () => {
+    const busbar: Busbar = {
+      id: 'opposite-side-busbar', diagramId: 'diagram-power', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 80, length: 160,
+    }
+    const upper = powerElement('upper-device', 8, 0)
+    const lower = powerElement('lower-device', 8, 96)
+    const network: ConnectionNetwork = {
+      id: 'opposite-side-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'upper-anchor', kind: 'element-anchor',
+          elementId: upper.id, anchorId: 'bottom-electrical',
+        },
+        { id: 'upper-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 16 },
+        {
+          id: 'lower-anchor', kind: 'element-anchor',
+          elementId: lower.id, anchorId: 'top-electrical',
+        },
+        { id: 'lower-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 120 },
+      ],
+      edges: [
+        { id: 'upper-edge', sourceNodeId: 'upper-anchor', targetNodeId: 'upper-tap' },
+        { id: 'lower-edge', sourceNodeId: 'lower-anchor', targetNodeId: 'lower-tap' },
+      ],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [upper, lower],
+      [directionalElectricalAsset],
+      8,
+      [busbar],
+    )
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(routed.resolvedBusbarTapOffsets).toMatchObject({
+      'upper-tap': 40,
+      'lower-tap': 40,
+    })
+    expect(routed.edges.map((edge) => edge.points)).toEqual([
+      [{ x: 40, y: 64 }, { x: 40, y: 80 }],
+      [{ x: 40, y: 96 }, { x: 40, y: 80 }],
+    ])
+  })
+
+  it('applies opposite-side tap sharing to vertical busbars', () => {
+    const busbar: Busbar = {
+      id: 'vertical-opposite-side-busbar', diagramId: 'diagram-power', type: 'electrical',
+      orientation: 'vertical', x: 80, y: 0, length: 160,
+    }
+    const left = powerElement('left-device', 0, 8)
+    const right = powerElement('right-device', 96, 8)
+    const network: ConnectionNetwork = {
+      id: 'vertical-opposite-side-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'left-anchor', kind: 'element-anchor',
+          elementId: left.id, anchorId: 'right-electrical',
+        },
+        { id: 'left-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 16 },
+        {
+          id: 'right-anchor', kind: 'element-anchor',
+          elementId: right.id, anchorId: 'left-electrical',
+        },
+        { id: 'right-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 120 },
+      ],
+      edges: [
+        { id: 'left-edge', sourceNodeId: 'left-anchor', targetNodeId: 'left-tap' },
+        { id: 'right-edge', sourceNodeId: 'right-anchor', targetNodeId: 'right-tap' },
+      ],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [left, right],
+      [directionalElectricalAsset],
+      8,
+      [busbar],
+    )
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(routed.resolvedBusbarTapOffsets).toMatchObject({
+      'left-tap': 40,
+      'right-tap': 40,
+    })
+    expect(routed.edges.map((edge) => edge.points)).toEqual([
+      [{ x: 64, y: 40 }, { x: 80, y: 40 }],
+      [{ x: 96, y: 40 }, { x: 80, y: 40 }],
     ])
   })
 

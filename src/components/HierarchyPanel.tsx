@@ -1,4 +1,5 @@
 import { Building2, ChevronRight, CircuitBoard, Cpu, Network, Snowflake, Zap } from 'lucide-react'
+import { memo } from 'react'
 
 import type { Diagram, LineSystem, ProjectDocument } from '../domain/project'
 import { Pressable, StatusTag } from './ui'
@@ -106,7 +107,11 @@ function LineBranch({
   )
 }
 
-export function HierarchyPanel({ document, currentDiagramId, onSelectDiagram }: HierarchyPanelProps) {
+export const HierarchyPanel = memo(function HierarchyPanel({
+  document,
+  currentDiagramId,
+  onSelectDiagram,
+}: HierarchyPanelProps) {
   return (
     <section className="sidebar-section hierarchy-section" aria-labelledby="hierarchy-title">
       <div className="panel-heading">
@@ -126,4 +131,9 @@ export function HierarchyPanel({ document, currentDiagramId, onSelectDiagram }: 
       </ul>
     </section>
   )
-}
+}, (previous, next) => (
+  previous.document.diagrams === next.document.diagrams &&
+  previous.document.lineSystems === next.document.lineSystems &&
+  previous.currentDiagramId === next.currentDiagramId &&
+  previous.onSelectDiagram === next.onSelectDiagram
+))

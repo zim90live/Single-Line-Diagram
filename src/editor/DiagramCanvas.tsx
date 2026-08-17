@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import {
   forwardRef,
+  memo,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -18,6 +19,7 @@ import type {
   AnchorType,
   AssetDefinition,
   Busbar,
+  ConnectionEdge,
   ConnectionNetwork,
   DiagramElement,
   DiagramViewport,
@@ -29,25 +31,42 @@ import {
   minimumBusbarLengthForConnections,
 } from './busbars'
 import {
+  busbarLabelEndpointForPointer,
+  layoutBusbarLabels,
+  type BusbarLabelLayout,
+} from './busbarLabels'
+import {
+  replaceCanvasColor,
+  resolvedBusbarColor,
+  resolvedConnectionColor,
+  resolvedElementColor,
+  type CanvasColorTarget,
+} from './canvasColors'
+import {
+  connectionLabelPlacementForPointer,
+  layoutConnectionLabels,
+  type ConnectionLabelLayout,
+  type ConnectionLabelPlacement,
+} from './connectionLabels'
+import {
   busbarEndPoint,
   busbarPoint,
+  bridgedPathData,
   connectTerminals,
   connectionTypesCompatible,
   crossingPointKeys,
-  deleteConnectionEdge,
   nearestPointOnBusbar,
   normalizeConnectionNetworks,
   occupiedAnchorKeys,
   pathData,
-  pathDataWithBridges,
+  prepareConnectionPreview,
   previewConnectionRoutesForDiagram,
   resolveElementAnchor,
-  routeConnectionNetworks,
-  routeConnectionPreview,
+  routeConnectionPreviewWithContext,
   type ConnectionTerminal,
   type RoutedConnectionEdge,
 } from './connections'
-import { createLatestFrameScheduler } from './frameScheduler'
+import { createLatestFrameScheduler, createTrailingScheduler } from './frameScheduler'
 import {
   busbarInsideRect,
   clampZoom,
@@ -66,7 +85,20 @@ import {
 } from './geometry'
 import { GridSurface, type GridRenderState } from './GridSurface'
 import { GRID_PRESENTATION, getAdaptiveGridScale } from './gridScale'
+import {
+  labelPlacementForPointer,
+  layoutElementLabels,
+  nextDeviceIdentifier,
+  type ElementLabelLayout,
+} from './elementLabels'
+import { DEFAULT_BUSBAR_COLOR, defaultConnectionColor, normalizeHexColor } from './objectColors'
 import { Rulers } from './Rulers'
+import { useRoutedConnections } from './useRoutedConnections'
+import {
+  copyConnectionsWithinSelection,
+  instantiateCopiedConnections,
+  type DiagramSelectionClipboard,
+} from './selectionClipboard'
 import {
   getSymbolStateUrl,
   getScaledSymbolSize,
@@ -83,6 +115,9 @@ export interface EditorCommandState {
   zoom: number
   selectedConnection: boolean
   selectedBusbar: boolean
+  selectedConnectionId: string | null
+  selectedConnectionEdgeIds: string[]
+  selectedBusbarIds: string[]
   wiringType: AnchorType | null
 }
 
@@ -105,7 +140,13 @@ export interface DiagramCanvasHandle {
   insertSymbol: (symbolKey: string) => void
   insertBusbar: () => void
   previewElementColor: (elementId: string, color: string | null) => void
+  previewSelectionColor: (color: string | null) => void
+  updateSelectionColor: (color: string | null) => void
+  previewCanvasColor: (target: CanvasColorTarget, color: string | null) => void
+  updateCanvasColor: (target: CanvasColorTarget, color: string) => void
   updateElement: (elementId: string, patch: Partial<DiagramElement>) => void
+  updateBusbar: (busbarId: string, patch: Partial<Busbar>) => void
+  updateConnectionEdge: (edgeId: string, patch: Partial<ConnectionEdge>) => void
 }
 
 interface DiagramCanvasProps {
@@ -151,6 +192,320 @@ interface BusbarCandidate {
   offset: number
 }
 
+interface ProvisionalConnectionRoute {
+  scopeKey: string
+  route: RoutedConnectionEdge
+}
+
+interface HandlerRef<Handler> {
+  current: Handler
+}
+
+interface ElementLabelItemProps {
+  layout: ElementLabelLayout
+  interactive: boolean
+  selected: boolean
+  startDrag: HandlerRef<(
+    event: PointerEvent<SVGRectElement>,
+    elementId: string,
+  ) => void>
+}
+
+const ElementLabelItem = memo(function ElementLabelItem({
+  layout,
+  interactive,
+  selected,
+  startDrag,
+}: ElementLabelItemProps) {
+  return (
+    <g
+      className="element-label"
+      data-element-id={layout.elementId}
+      data-placement={layout.placement}
+      data-interactive={interactive || undefined}
+      data-selected={selected || undefined}
+    >
+      <rect
+        className="element-label__hit"
+        x={layout.bounds.x}
+        y={layout.bounds.y}
+        width={layout.bounds.width}
+        height={layout.bounds.height}
+        onPointerDown={interactive
+          ? (event) => startDrag.current(event, layout.elementId)
+          : undefined}
+      />
+      <text
+        className="element-label__text"
+        x={layout.textX}
+        y={layout.textY}
+      >
+        {layout.text}
+      </text>
+    </g>
+  )
+})
+
+interface BusbarLabelItemProps {
+  layout: BusbarLabelLayout
+  interactive: boolean
+  selected: boolean
+  startDrag: HandlerRef<(
+    event: PointerEvent<SVGRectElement>,
+    busbarId: string,
+  ) => void>
+}
+
+const BusbarLabelItem = memo(function BusbarLabelItem({
+  layout,
+  interactive,
+  selected,
+  startDrag,
+}: BusbarLabelItemProps) {
+  return (
+    <g
+      className="element-label busbar-label"
+      data-busbar-id={layout.busbarId}
+      data-endpoint={layout.endpoint}
+      data-interactive={interactive || undefined}
+      data-selected={selected || undefined}
+    >
+      <rect
+        className="element-label__hit"
+        x={layout.bounds.x}
+        y={layout.bounds.y}
+        width={layout.bounds.width}
+        height={layout.bounds.height}
+        onPointerDown={interactive
+          ? (event) => startDrag.current(event, layout.busbarId)
+          : undefined}
+      />
+      <text
+        className="element-label__text"
+        x={layout.textX}
+        y={layout.textY}
+      >
+        {layout.text}
+      </text>
+    </g>
+  )
+})
+
+interface ConnectionLabelItemProps {
+  layout: ConnectionLabelLayout
+  interactive: boolean
+  selected: boolean
+  startDrag: HandlerRef<(
+    event: PointerEvent<SVGRectElement>,
+    edgeId: string,
+  ) => void>
+}
+
+const ConnectionLabelItem = memo(function ConnectionLabelItem({
+  layout,
+  interactive,
+  selected,
+  startDrag,
+}: ConnectionLabelItemProps) {
+  return (
+    <g
+      className="element-label connection-label"
+      data-edge-id={layout.edgeId}
+      data-endpoint={layout.endpoint}
+      data-side={layout.side}
+      data-orientation={layout.orientation}
+      data-interactive={interactive || undefined}
+      data-selected={selected || undefined}
+    >
+      <rect
+        className="element-label__hit"
+        x={layout.bounds.x}
+        y={layout.bounds.y}
+        width={layout.bounds.width}
+        height={layout.bounds.height}
+        onPointerDown={interactive
+          ? (event) => startDrag.current(event, layout.edgeId)
+          : undefined}
+      />
+      <text
+        className="element-label__text"
+        x={layout.textX}
+        y={layout.textY}
+      >
+        {layout.text}
+      </text>
+    </g>
+  )
+})
+
+interface DiagramElementItemProps {
+  element: DiagramElement
+  asset?: AssetDefinition
+  symbol?: SymbolDefinition
+  symbolColor?: string
+  selected: boolean
+  wiringType: AnchorType | null
+  lineSystemType: LineSystemType
+  occupiedAnchors: Set<string>
+  zoom: number
+  elementNodes: HandlerRef<Map<string, SVGGElement>>
+  startMove: HandlerRef<(event: PointerEvent<SVGImageElement>, elementId: string) => void>
+  enterAnchor: HandlerRef<(elementId: string, anchorId: string, type: AnchorType) => void>
+  leaveAnchor: HandlerRef<(elementId: string, anchorId: string) => void>
+  pressAnchor: HandlerRef<(
+    event: PointerEvent<SVGCircleElement>,
+    elementId: string,
+    anchorId: string,
+    type: AnchorType,
+  ) => void>
+}
+
+const DiagramElementItem = memo(function DiagramElementItem({
+  element,
+  asset,
+  symbol,
+  symbolColor,
+  selected,
+  wiringType,
+  lineSystemType,
+  occupiedAnchors,
+  zoom,
+  elementNodes,
+  startMove,
+  enterAnchor,
+  leaveAnchor,
+  pressAnchor,
+}: DiagramElementItemProps) {
+  const centerX = element.x + element.width / 2
+  const centerY = element.y + element.height / 2
+  const colorFilterId = `symbol-color-filter-${element.id}`
+  return (
+    <g
+      ref={(node) => {
+        if (node) elementNodes.current.set(element.id, node)
+        else elementNodes.current.delete(element.id)
+      }}
+      className="diagram-element"
+      data-element-id={element.id}
+      data-asset-key={element.assetKey}
+      data-selected={selected || undefined}
+      transform={`rotate(${element.rotation} ${centerX} ${centerY})`}
+    >
+      {symbol ? (
+        <>
+          {symbolColor ? (
+            <defs>
+              <filter
+                id={colorFilterId}
+                x="-5%"
+                y="-5%"
+                width="110%"
+                height="110%"
+                colorInterpolationFilters="sRGB"
+              >
+                <feFlood floodColor={symbolColor} result="symbol-color" />
+                <feComposite in="symbol-color" in2="SourceAlpha" operator="in" />
+              </filter>
+            </defs>
+          ) : null}
+          <image
+            className="diagram-element__image"
+            data-symbol-color={symbolColor}
+            data-symbol-state={symbol.defaultState}
+            filter={symbolColor ? `url(#${colorFilterId})` : undefined}
+            href={getSymbolStateUrl(symbol)}
+            x={element.x}
+            y={element.y}
+            width={element.width}
+            height={element.height}
+            preserveAspectRatio="xMidYMid meet"
+            onPointerDown={(event) => startMove.current(event, element.id)}
+          />
+          {asset?.anchors.map((anchor) => {
+            const resolved = resolveElementAnchor(element, asset, anchor)
+            const compatible = wiringType
+              ? connectionTypesCompatible(wiringType, anchor.type)
+              : lineSystemType === 'power'
+                ? anchor.type === 'electrical'
+                : anchor.type !== 'electrical'
+            const localX = element.x + (anchor.x / asset.intrinsicWidth) * element.width
+            const localY = element.y + (anchor.y / asset.intrinsicHeight) * element.height
+            return (
+              <circle
+                key={anchor.id}
+                className="connection-anchor"
+                data-anchor-id={anchor.id}
+                data-anchor-type={anchor.type}
+                data-compatible={compatible || undefined}
+                data-occupied={occupiedAnchors.has(`${element.id}::${anchor.id}`) || undefined}
+                data-world-x={resolved.point.x}
+                data-world-y={resolved.point.y}
+                cx={localX}
+                cy={localY}
+                r={5 / zoom}
+                onPointerEnter={() => enterAnchor.current(element.id, anchor.id, anchor.type)}
+                onPointerLeave={() => leaveAnchor.current(element.id, anchor.id)}
+                onPointerDown={compatible
+                  ? (event) => pressAnchor.current(event, element.id, anchor.id, anchor.type)
+                  : undefined}
+              />
+            )
+          })}
+        </>
+      ) : null}
+    </g>
+  )
+})
+
+interface ConnectionEdgeItemProps {
+  edgeId: string
+  networkId: string
+  type: AnchorType
+  color?: string
+  selected: boolean
+  linePath: string
+  bridgeCasingPath: string
+  pressEdge: HandlerRef<(event: PointerEvent<SVGPathElement>, edgeId: string) => void>
+  edgeNodes: HandlerRef<Map<string, SVGGElement>>
+}
+
+const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
+  edgeId,
+  networkId,
+  type,
+  color,
+  selected,
+  linePath,
+  bridgeCasingPath,
+  pressEdge,
+  edgeNodes,
+}: ConnectionEdgeItemProps) {
+  return (
+    <g
+      ref={(node) => {
+        if (node) edgeNodes.current.set(edgeId, node)
+        else edgeNodes.current.delete(edgeId)
+      }}
+      className="connection-edge"
+      data-edge-id={edgeId}
+      data-network-id={networkId}
+      data-connection-type={type}
+      data-selected={selected || undefined}
+      style={color ? { '--connection-color': color } as CSSProperties : undefined}
+    >
+      {bridgeCasingPath ? (
+        <path className="connection-edge__bridge-casing" d={bridgeCasingPath} />
+      ) : null}
+      <path className="connection-edge__line" d={linePath} />
+      <path
+        className="connection-edge__hit"
+        d={linePath}
+        onPointerDown={(event) => pressEdge.current(event, edgeId)}
+      />
+    </g>
+  )
+})
+
 interface AlignmentTarget {
   id: string
   center: Point
@@ -189,6 +544,25 @@ type Interaction =
       selectedIds: string[]
       selectedBusbarIds: string[]
       hasMoved: boolean
+    }
+  | {
+      kind: 'label'
+      pointerId: number
+      elementId: string
+      baseElements: DiagramElement[]
+    }
+  | {
+      kind: 'busbar-label'
+      pointerId: number
+      busbarId: string
+      baseBusbars: Busbar[]
+    }
+  | {
+      kind: 'connection-label'
+      pointerId: number
+      edgeId: string
+      route: RoutedConnectionEdge
+      baseConnections: ConnectionNetwork[]
     }
   | {
       kind: 'resize'
@@ -231,6 +605,8 @@ const SYMBOL_DRAG_TYPE_PREFIX = 'application/x-aidc-symbol-key--'
 const BUSBAR_DRAG_TYPE = 'application/x-aidc-busbar'
 const DEFAULT_BUSBAR_LENGTH = 160
 const NETWORK_SELECTION_PREFIX = 'network:'
+const MULTI_CONNECTION_SELECTION_PREFIX = 'edges:'
+const NUDGE_COMMIT_DELAY_MS = 120
 
 function networkSelectionToken(networkId: string) {
   return `${NETWORK_SELECTION_PREFIX}${networkId}`
@@ -242,6 +618,28 @@ function selectedNetworkId(selection: string | null) {
     : null
 }
 
+function selectedConnectionEdges(
+  selection: string | null,
+  networks: ConnectionNetwork[],
+) {
+  if (!selection) return []
+  const networkId = selectedNetworkId(selection)
+  if (networkId) return networks.find((network) => network.id === networkId)?.edges ?? []
+  const selectedEdgeIds = selection.startsWith(MULTI_CONNECTION_SELECTION_PREFIX)
+    ? new Set(selection.slice(MULTI_CONNECTION_SELECTION_PREFIX.length).split(',').filter(Boolean))
+    : new Set([selection])
+  return networks.flatMap((network) => (
+    network.edges.filter((edge) => selectedEdgeIds.has(edge.id))
+  ))
+}
+
+function connectionSelectionToken(edgeIds: string[]) {
+  const uniqueIds = [...new Set(edgeIds)]
+  if (uniqueIds.length === 0) return null
+  if (uniqueIds.length === 1) return uniqueIds[0]
+  return `${MULTI_CONNECTION_SELECTION_PREFIX}${uniqueIds.join(',')}`
+}
+
 function connectionSelectionExists(
   selection: string,
   networks: ConnectionNetwork[],
@@ -249,7 +647,7 @@ function connectionSelectionExists(
   const networkId = selectedNetworkId(selection)
   return networkId
     ? networks.some((network) => network.id === networkId)
-    : networks.some((network) => network.edges.some((edge) => edge.id === selection))
+    : selectedConnectionEdges(selection, networks).length > 0
 }
 
 function routeContainsGridPoint(
@@ -279,11 +677,36 @@ function cloneElement(element: DiagramElement): DiagramElement {
   }
 }
 
+function cloneBusbar(busbar: Busbar): Busbar {
+  return { ...busbar }
+}
+
+function copiedSelectionOffset(
+  elements: DiagramElement[],
+  busbars: Busbar[],
+  hasInternalConnections: boolean,
+  gridSize: number,
+  copyIndex = 1,
+): Point {
+  const baseOffset = gridSize * 2
+  if (!hasInternalConnections) {
+    return { x: baseOffset * copyIndex, y: baseOffset * copyIndex }
+  }
+  const bounds = diagramObjectsBounds(elements, busbars)
+  if (!bounds) return { x: baseOffset * copyIndex, y: baseOffset * copyIndex }
+  const clearX = Math.ceil((bounds.width + baseOffset) / gridSize) * gridSize
+  const clearY = Math.ceil((bounds.height + baseOffset) / gridSize) * gridSize
+  return clearX <= clearY
+    ? { x: clearX * copyIndex, y: baseOffset * copyIndex }
+    : { x: baseOffset * copyIndex, y: clearY * copyIndex }
+}
+
 function createElement(
   symbol: SymbolDefinition,
   diagramId: string,
   center: Point,
   gridSize: number,
+  elements: DiagramElement[],
 ): DiagramElement {
   return {
     id: crypto.randomUUID(),
@@ -295,7 +718,9 @@ function createElement(
     width: symbol.intrinsicWidth,
     height: symbol.intrinsicHeight,
     rotation: 0,
-    properties: {},
+    properties: {
+      tag: nextDeviceIdentifier(symbol.name, diagramId, elements),
+    },
     extensions: {},
   }
 }
@@ -423,7 +848,10 @@ function busbarsEqual(left: Busbar[], right: Busbar[]) {
       busbar.x === candidate.x &&
       busbar.y === candidate.y &&
       busbar.length === candidate.length &&
-      busbar.orientation === candidate.orientation
+      busbar.orientation === candidate.orientation &&
+      busbar.color === candidate.color &&
+      busbar.label === candidate.label &&
+      busbar.labelEndpoint === candidate.labelEndpoint
   })
 }
 
@@ -446,7 +874,7 @@ function useElementSize(elementRef: React.RefObject<HTMLElement | null>) {
   return size
 }
 
-export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(
+export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(
   function DiagramCanvas(
     {
       diagramId,
@@ -484,28 +912,77 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const wiringRef = useRef<WiringState | null>(null)
     const hoveredWiringTargetRef = useRef<ConnectionTerminal | null>(null)
     const historyRef = useRef<HistoryState>({ past: [], future: [] })
-    const clipboardRef = useRef<DiagramElement[]>([])
+    const clipboardRef = useRef<DiagramSelectionClipboard>({
+      elements: [],
+      busbars: [],
+      connections: [],
+    })
     const pasteCountRef = useRef(0)
     const interactionRef = useRef<Interaction | null>(null)
     const previewElementsRef = useRef<DiagramElement[] | null>(null)
     const previewBusbarsRef = useRef<Busbar[] | null>(null)
     const previewConnectionsRef = useRef<ConnectionNetwork[] | null>(null)
+    const connectionLabelPlacementPreviewRef = useRef<ConnectionLabelPlacement | null>(null)
+    const nudgeSessionActiveRef = useRef(false)
+    const nudgeCommitRef = useRef<() => void>(() => undefined)
     const elementNodeRefs = useRef(new Map<string, SVGGElement>())
+    const elementLabelLayoutCacheRef = useRef(new Map<string, ElementLabelLayout>())
+    const busbarNodeRefs = useRef(new Map<string, SVGGElement>())
+    const busbarTapNodeRefs = useRef(new Map<string, SVGCircleElement>())
+    const busbarCandidateNodeRef = useRef<SVGCircleElement | null>(null)
+    const connectionEdgeNodeRefs = useRef(new Map<string, SVGGElement>())
+    const startElementMoveRef = useRef<
+      (event: PointerEvent<SVGImageElement>, elementId: string) => void
+    >(() => undefined)
+    const startLabelDragRef = useRef<
+      (event: PointerEvent<SVGRectElement>, elementId: string) => void
+    >(() => undefined)
+    const startBusbarLabelDragRef = useRef<
+      (event: PointerEvent<SVGRectElement>, busbarId: string) => void
+    >(() => undefined)
+    const startConnectionLabelDragRef = useRef<
+      (event: PointerEvent<SVGRectElement>, edgeId: string) => void
+    >(() => undefined)
+    const enterAnchorRef = useRef<
+      (elementId: string, anchorId: string, type: AnchorType) => void
+    >(() => undefined)
+    const leaveAnchorRef = useRef<
+      (elementId: string, anchorId: string) => void
+    >(() => undefined)
+    const pressAnchorRef = useRef<(
+      event: PointerEvent<SVGCircleElement>,
+      elementId: string,
+      anchorId: string,
+      type: AnchorType,
+    ) => void>(() => undefined)
+    const pressConnectionEdgeRef = useRef<
+      (event: PointerEvent<SVGPathElement>, edgeId: string) => void
+    >(() => undefined)
     const previewElementColorsRef = useRef(new Map<string, string>())
     const [viewportValue, setViewportValue] = useState(viewport)
     const [selectedIds, setSelectedIdsState] = useState<string[]>([])
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
     const [selectedBusbarIds, setSelectedBusbarIdsState] = useState<string[]>([])
+    const [selectedLabelElementId, setSelectedLabelElementId] = useState<string | null>(null)
+    const [selectedLabelBusbarId, setSelectedLabelBusbarId] = useState<string | null>(null)
+    const [selectedLabelConnectionEdgeId, setSelectedLabelConnectionEdgeId] = useState<string | null>(null)
     const [wiring, setWiringState] = useState<WiringState | null>(null)
     const [hoveredWiringTarget, setHoveredWiringTarget] = useState<ConnectionTerminal | null>(null)
     const [busbarCandidate, setBusbarCandidate] = useState<BusbarCandidate | null>(null)
     const [previewElements, setPreviewElements] = useState<DiagramElement[] | null>(null)
     const [previewBusbars, setPreviewBusbars] = useState<Busbar[] | null>(null)
     const [previewConnections, setPreviewConnections] = useState<ConnectionNetwork[] | null>(null)
+    const [connectionLabelPlacementPreview, setConnectionLabelPlacementPreviewState] = useState<
+      ConnectionLabelPlacement | null
+    >(null)
+    const [provisionalConnectionRoutes, setProvisionalConnectionRoutes] = useState<
+      ProvisionalConnectionRoute[]
+    >([])
     const [marquee, setMarquee] = useState<Rect | null>(null)
     const [activeMoveElementIds, setActiveMoveElementIds] = useState<string[]>([])
     const [libraryDragTarget, setLibraryDragTarget] = useState<AlignmentTarget | null>(null)
     const lastPointerPositionRef = useRef<PointerPosition | null>(null)
+
     const diagramPreviewScheduler = useMemo(() => createLatestFrameScheduler(
       (callback) => window.requestAnimationFrame(callback),
       (handle) => window.cancelAnimationFrame(handle),
@@ -524,6 +1001,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       (callback) => window.requestAnimationFrame(callback),
       (handle) => window.cancelAnimationFrame(handle),
       (position: PointerPosition) => callbacksRef.current.onPointerChange(position),
+    ), [])
+    const nudgeCommitScheduler = useMemo(() => createTrailingScheduler(
+      (callback, delay) => window.setTimeout(callback, delay),
+      (handle) => window.clearTimeout(handle),
+      NUDGE_COMMIT_DELAY_MS,
+      () => nudgeCommitRef.current(),
     ), [])
     const canvasSize = useElementSize(viewportElementRef)
     const gridScale = getAdaptiveGridScale(gridSize, viewportValue.zoom)
@@ -558,7 +1041,9 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       callbacksRef.current.onCommandStateChange({
         canUndo: historyRef.current.past.length > 0,
         canRedo: historyRef.current.future.length > 0,
-        canCopy: selectedIdsRef.current.length > 0,
+        canCopy:
+          selectedIdsRef.current.length > 0 ||
+          selectedBusbarIdsRef.current.length > 0,
         hasSelection:
           selectedIdsRef.current.length > 0 ||
           selectedConnectionIdRef.current !== null ||
@@ -566,14 +1051,53 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         zoom: viewportValueRef.current.zoom,
         selectedConnection: selectedConnectionIdRef.current !== null,
         selectedBusbar: selectedBusbarIdsRef.current.length > 0,
+        selectedConnectionId: selectedConnectionIdRef.current,
+        selectedConnectionEdgeIds: selectedConnectionEdges(
+          selectedConnectionIdRef.current,
+          committedConnectionsRef.current,
+        ).map((edge) => edge.id),
+        selectedBusbarIds: [...selectedBusbarIdsRef.current],
         wiringType: wiringRef.current?.source.type ?? null,
       })
     }
 
-    const setObjectSelection = (elementIds: string[], busbarIds: string[]) => {
+    const setObjectSelection = (
+      elementIds: string[],
+      busbarIds: string[],
+      preserveConnections = false,
+    ) => {
       const uniqueElementIds = [...new Set(elementIds)]
       const uniqueBusbarIds = [...new Set(busbarIds)]
-      if (uniqueElementIds.length || uniqueBusbarIds.length) {
+      const selectionUnchanged =
+        uniqueElementIds.length === selectedIdsRef.current.length &&
+        uniqueElementIds.every((id, index) => id === selectedIdsRef.current[index]) &&
+        uniqueBusbarIds.length === selectedBusbarIdsRef.current.length &&
+        uniqueBusbarIds.every((id, index) => id === selectedBusbarIdsRef.current[index])
+      if (
+        uniqueElementIds.length !== 1 ||
+        uniqueBusbarIds.length !== 0 ||
+        uniqueElementIds[0] !== selectedIdsRef.current[0]
+      ) setSelectedLabelElementId(null)
+      if (
+        uniqueBusbarIds.length !== 1 ||
+        uniqueElementIds.length !== 0 ||
+        uniqueBusbarIds[0] !== selectedBusbarIdsRef.current[0]
+      ) setSelectedLabelBusbarId(null)
+      if (uniqueElementIds.length > 0 || uniqueBusbarIds.length > 0) {
+        setSelectedLabelConnectionEdgeId(null)
+        setConnectionLabelPlacementPreview(null)
+      }
+      if (
+        selectionUnchanged &&
+        (preserveConnections || selectedConnectionIdRef.current === null)
+      ) {
+        if (busbarCandidate) setBusbarCandidate(null)
+        return
+      }
+      if (
+        uniqueElementIds.length ||
+        (uniqueBusbarIds.length && !preserveConnections)
+      ) {
         selectedConnectionIdRef.current = null
         setSelectedConnectionId(null)
       }
@@ -590,14 +1114,23 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       setObjectSelection(ids, preserveBusbars ? selectedBusbarIdsRef.current : [])
     }
 
-    const selectConnection = (edgeId: string | null) => {
-      selectedConnectionIdRef.current = edgeId
-      setSelectedConnectionId(edgeId)
-      if (edgeId) {
+    const selectConnection = (
+      selection: string | null,
+      preserveBusbars = false,
+    ) => {
+      setSelectedLabelConnectionEdgeId(null)
+      setConnectionLabelPlacementPreview(null)
+      selectedConnectionIdRef.current = selection
+      setSelectedConnectionId(selection)
+      if (selection) {
+        setSelectedLabelElementId(null)
+        setSelectedLabelBusbarId(null)
         selectedIdsRef.current = []
-        selectedBusbarIdsRef.current = []
         setSelectedIdsState([])
-        setSelectedBusbarIdsState([])
+        if (!preserveBusbars) {
+          selectedBusbarIdsRef.current = []
+          setSelectedBusbarIdsState([])
+        }
         callbacksRef.current.onSelectionChange([])
       }
       queueMicrotask(emitCommandState)
@@ -694,6 +1227,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       setPreviewConnections(next)
     }
 
+    const setConnectionLabelPlacementPreview = (next: ConnectionLabelPlacement | null) => {
+      connectionLabelPlacementPreviewRef.current = next
+      setConnectionLabelPlacementPreviewState((current) => (
+        current?.edgeId === next?.edgeId &&
+        current?.endpoint === next?.endpoint &&
+        current?.side === next?.side
+          ? current
+          : next
+      ))
+    }
+
     const commitDiagram = (
       nextElements: DiagramElement[],
       nextBusbars: Busbar[],
@@ -745,6 +1289,22 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       nextConnections,
     )
 
+    const commitPendingNudge = () => {
+      if (!nudgeSessionActiveRef.current) return false
+      nudgeSessionActiveRef.current = false
+      return commitDiagram(
+        previewElementsRef.current ?? committedElementsRef.current,
+        previewBusbarsRef.current ?? committedBusbarsRef.current,
+        previewConnectionsRef.current ?? committedConnectionsRef.current,
+      )
+    }
+    nudgeCommitRef.current = commitPendingNudge
+
+    const flushPendingNudge = () => {
+      nudgeCommitScheduler.cancel()
+      commitPendingNudge()
+    }
+
     const applyViewport = (nextViewport: DiagramViewport, persist = true) => {
       viewportValueRef.current = nextViewport
       setViewportValue(nextViewport)
@@ -763,13 +1323,67 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const displayedElements = previewElements ?? elements
     const displayedBusbars = previewBusbars ?? busbars
     const displayedConnections = previewConnections ?? connections
-    const committedRoutedConnections = useMemo(() => routeConnectionNetworks(
-      connections,
+    const selectedConnectionEdgeIdSet = useMemo(() => new Set(
+      selectedConnectionEdges(selectedConnectionId, displayedConnections).map((edge) => edge.id),
+    ), [displayedConnections, selectedConnectionId])
+    const displayedConnectionEdgesById = useMemo(() => new Map(
+      displayedConnections.flatMap((network) => network.edges.map((edge) => [edge.id, edge] as const)),
+    ), [displayedConnections])
+    const routeInput = useMemo(() => ({
+      scopeKey: `${documentEpoch}:${diagramId}`,
+      networks: connections,
       elements,
       assets,
       gridSize,
       busbars,
-    ), [assets, busbars, connections, elements, gridSize])
+    }), [assets, busbars, connections, diagramId, documentEpoch, elements, gridSize])
+    const {
+      routed: computedRoutedConnections,
+      isRouting,
+    } = useRoutedConnections(routeInput)
+    const committedRoutedConnections = useMemo(() => {
+      const computedEdgeIds = new Set(
+        computedRoutedConnections.edges.map((edge) => edge.edgeId),
+      )
+      const currentEdges = new Map(connections.flatMap((network) => (
+        network.edges.map((edge) => [edge.id, { network, edge }] as const)
+      )))
+      const pending = provisionalConnectionRoutes.flatMap((provisional) => {
+        if (
+          provisional.scopeKey !== routeInput.scopeKey ||
+          computedEdgeIds.has(provisional.route.edgeId)
+        ) return []
+        const current = currentEdges.get(provisional.route.edgeId)
+        return current ? [{
+          ...provisional.route,
+          networkId: current.network.id,
+          type: current.network.type,
+          sourceNodeId: current.edge.sourceNodeId,
+          targetNodeId: current.edge.targetNodeId,
+          order: computedRoutedConnections.edges.length + provisional.route.order,
+        }] : []
+      })
+      return pending.length ? {
+        ...computedRoutedConnections,
+        edges: [...computedRoutedConnections.edges, ...pending],
+      } : computedRoutedConnections
+    }, [computedRoutedConnections, connections, provisionalConnectionRoutes, routeInput.scopeKey])
+    useEffect(() => {
+      const computedEdgeIds = new Set(
+        computedRoutedConnections.edges.map((edge) => edge.edgeId),
+      )
+      const currentEdgeIds = new Set(
+        connections.flatMap((network) => network.edges.map((edge) => edge.id)),
+      )
+      setProvisionalConnectionRoutes((current) => {
+        const next = current.filter((provisional) => (
+          provisional.scopeKey === routeInput.scopeKey &&
+          currentEdgeIds.has(provisional.route.edgeId) &&
+          !computedEdgeIds.has(provisional.route.edgeId)
+        ))
+        return next.length === current.length ? current : next
+      })
+    }, [computedRoutedConnections.edges, connections, routeInput.scopeKey])
     const routedConnections = useMemo(() => {
       if (previewElements || previewBusbars || previewConnections) {
         return previewConnectionRoutesForDiagram(
@@ -807,23 +1421,73 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       () => crossingPointKeys(routedConnections.crossings),
       [routedConnections.crossings],
     )
+    const renderedConnectionPaths = useMemo(() => new Map(
+      routedConnections.edges.map((route) => [
+        route.edgeId,
+        bridgedPathData(route, routedConnections.crossings, gridSize),
+      ]),
+    ), [gridSize, routedConnections.crossings, routedConnections.edges])
     const assetsByKey = useMemo(
       () => new Map(assets.map((asset) => [asset.key, asset])),
       [assets],
     )
-    const wiringPreview = useMemo(() => wiring
-      ? routeConnectionPreview(
+    const elementLabelLayouts = useMemo(() => {
+      const nextCache = new Map<string, ElementLabelLayout>()
+      const layouts = layoutElementLabels(displayedElements, assetsByKey).map((layout) => {
+        const previous = elementLabelLayoutCacheRef.current.get(layout.elementId)
+        const stable = previous &&
+          previous.text === layout.text &&
+          previous.placement === layout.placement &&
+          previous.bounds.x === layout.bounds.x &&
+          previous.bounds.y === layout.bounds.y &&
+          previous.bounds.width === layout.bounds.width &&
+          previous.bounds.height === layout.bounds.height
+          ? previous
+          : layout
+        nextCache.set(layout.elementId, stable)
+        return stable
+      })
+      elementLabelLayoutCacheRef.current = nextCache
+      return layouts
+    }, [assetsByKey, displayedElements])
+    const busbarLabelLayouts = useMemo(
+      () => layoutBusbarLabels(displayedBusbars),
+      [displayedBusbars],
+    )
+    const connectionLabelLayouts = useMemo(
+      () => layoutConnectionLabels(
+        routedConnections.edges,
+        displayedConnections,
+        connectionLabelPlacementPreview,
+      ),
+      [connectionLabelPlacementPreview, displayedConnections, routedConnections.edges],
+    )
+    const wiringPreviewContext = useMemo(() => wiring
+      ? prepareConnectionPreview(
           wiring.source,
-          busbarCandidate?.point ?? wiring.pointer,
           displayedConnections,
           displayedElements,
           assets,
           gridSize,
           displayedBusbars,
           routedConnections,
+        )
+      : null, [
+        assets,
+        displayedBusbars,
+        displayedConnections,
+        displayedElements,
+        gridSize,
+        routedConnections,
+        wiring?.source,
+      ])
+    const wiringPreview = useMemo(() => wiring && wiringPreviewContext
+      ? routeConnectionPreviewWithContext(
+          wiringPreviewContext,
+          busbarCandidate?.point ?? wiring.pointer,
           hoveredWiringTarget,
         )
-      : null, [assets, busbarCandidate, displayedBusbars, displayedConnections, displayedElements, gridSize, hoveredWiringTarget, routedConnections, wiring])
+      : null, [busbarCandidate, hoveredWiringTarget, wiring, wiringPreviewContext])
 
     const anchorAllowedOnDiagram = (type: AnchorType) => (
       lineSystemType === 'power' ? type === 'electrical' : type !== 'electrical'
@@ -845,14 +1509,40 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         target,
       )
       if (!next) return false
-      const routed = routeConnectionNetworks(
-        next,
-        committedElementsRef.current,
-        assets,
-        gridSize,
-        committedBusbarsRef.current,
-      )
-      if (routed.invalidEdgeIds.length) return false
+      const targetPoint = target.kind === 'anchor'
+        ? resolveAnchorByReferencePoint(target.elementId, target.anchorId)
+        : target.point
+      const route = targetPoint && wiringPreviewContext
+        ? routeConnectionPreviewWithContext(
+        wiringPreviewContext,
+        targetPoint,
+        target,
+      ) : null
+      if (!route) return false
+      const existingEdgeIds = new Set(committedConnectionsRef.current.flatMap((network) => (
+        network.edges.map((edge) => edge.id)
+      )))
+      const added = next.flatMap((network) => network.edges.flatMap((edge) => (
+        existingEdgeIds.has(edge.id) ? [] : [{ network, edge }]
+      )))[0]
+      if (added) {
+        const provisional: ProvisionalConnectionRoute = {
+          scopeKey: routeInput.scopeKey,
+          route: {
+            networkId: added.network.id,
+            edgeId: added.edge.id,
+            type: added.network.type,
+            sourceNodeId: added.edge.sourceNodeId,
+            targetNodeId: added.edge.targetNodeId,
+            points: route,
+            order: committedRoutedConnections.edges.length,
+          },
+        }
+        setProvisionalConnectionRoutes((current) => [
+          ...current.filter((candidate) => candidate.route.edgeId !== provisional.route.edgeId),
+          provisional,
+        ])
+      }
       commitConnections(next)
       setWiring(null)
       selectConnection(null)
@@ -934,9 +1624,29 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         candidate.networkId === route.networkId &&
         routeContainsGridPoint(candidate, point, gridSize)
       )).length
-      selectConnection(sharedRouteCount > 1
+      const clickedSelection = sharedRouteCount > 1
         ? networkSelectionToken(route.networkId)
-        : route.edgeId)
+        : route.edgeId
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey
+      if (!additive) {
+        selectConnection(clickedSelection)
+        return
+      }
+      const currentEdgeIds = selectedConnectionEdges(
+        selectedConnectionIdRef.current,
+        committedConnectionsRef.current,
+      ).map((edge) => edge.id)
+      const clickedEdgeIds = selectedConnectionEdges(
+        clickedSelection,
+        committedConnectionsRef.current,
+      ).map((edge) => edge.id)
+      const clickedSet = new Set(clickedEdgeIds)
+      const currentSet = new Set(currentEdgeIds)
+      const allClickedSelected = clickedEdgeIds.every((edgeId) => currentSet.has(edgeId))
+      const nextEdgeIds = allClickedSelected
+        ? currentEdgeIds.filter((edgeId) => !clickedSet.has(edgeId))
+        : [...currentEdgeIds, ...clickedEdgeIds.filter((edgeId) => !currentSet.has(edgeId))]
+      selectConnection(connectionSelectionToken(nextEdgeIds), true)
     }
 
     const candidateForBusbar = (busbar: Busbar, point: Point) => {
@@ -950,6 +1660,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         selectedBusbarIdsRef.current.length !== 1 ||
         selectedBusbarIdsRef.current[0] !== busbar.id ||
         selectedIdsRef.current.length > 0 ||
+        selectedConnectionIdRef.current !== null ||
         interactionRef.current !== null
       ) {
         return null
@@ -1011,12 +1722,15 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         })
         return
       }
+      setSelectedLabelElementId(null)
+      setSelectedLabelBusbarId(null)
       const additive = event.shiftKey || event.ctrlKey || event.metaKey
       const alreadySelected = selectedBusbarIdsRef.current.includes(busbar.id)
       if (additive && alreadySelected) {
         setObjectSelection(
           selectedIdsRef.current,
           selectedBusbarIdsRef.current.filter((id) => id !== busbar.id),
+          true,
         )
         return
       }
@@ -1026,7 +1740,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         : alreadySelected
           ? selectedBusbarIdsRef.current
           : [busbar.id]
-      setObjectSelection(nextElementSelection, nextBusbarSelection)
+      setObjectSelection(
+        nextElementSelection,
+        nextBusbarSelection,
+        additive && nextElementSelection.length === 0,
+      )
       interactionRef.current = {
         kind: 'move',
         pointerId: event.pointerId,
@@ -1041,18 +1759,32 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
 
     const deleteSelected = () => {
-      if (selectedConnectionIdRef.current) {
-        const networkId = selectedNetworkId(selectedConnectionIdRef.current)
-        const nextConnections = networkId
-          ? committedConnectionsRef.current.filter((network) => network.id !== networkId)
-          : deleteConnectionEdge(
-              committedConnectionsRef.current,
-              selectedConnectionIdRef.current,
-              committedElementsRef.current,
-              assets,
-              committedBusbarsRef.current,
-            )
-        if (commitConnections(nextConnections)) selectConnection(null)
+      const selectedConnectionEdgeIds = new Set(selectedConnectionEdges(
+        selectedConnectionIdRef.current,
+        committedConnectionsRef.current,
+      ).map((edge) => edge.id))
+      if (selectedConnectionEdgeIds.size > 0) {
+        const selectedBusbars = new Set(selectedBusbarIdsRef.current)
+        const nextBusbars = committedBusbarsRef.current.filter((busbar) => (
+          !selectedBusbars.has(busbar.id)
+        ))
+        const nextConnections = normalizeConnectionNetworks(
+          committedConnectionsRef.current.map((network) => ({
+            ...network,
+            edges: network.edges.filter((edge) => !selectedConnectionEdgeIds.has(edge.id)),
+          })),
+          committedElementsRef.current,
+          assets,
+          nextBusbars,
+        )
+        if (commitDiagram(
+          committedElementsRef.current,
+          nextBusbars,
+          nextConnections,
+        )) {
+          selectConnection(null)
+          setObjectSelection([], [])
+        }
         return
       }
       const selectedElements = new Set(selectedIdsRef.current)
@@ -1070,45 +1802,153 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     }
 
     const copySelected = () => {
-      const selected = new Set(selectedIdsRef.current)
-      clipboardRef.current = committedElementsRef.current
-        .filter((element) => selected.has(element.id))
-        .map(cloneElement)
+      const selectedElements = new Set(selectedIdsRef.current)
+      const selectedBusbars = new Set(selectedBusbarIdsRef.current)
+      clipboardRef.current = {
+        elements: committedElementsRef.current
+          .filter((element) => selectedElements.has(element.id))
+          .map(cloneElement),
+        busbars: committedBusbarsRef.current
+          .filter((busbar) => selectedBusbars.has(busbar.id))
+          .map(cloneBusbar),
+        connections: copyConnectionsWithinSelection(
+          committedConnectionsRef.current,
+          selectedElements,
+          selectedBusbars,
+        ),
+      }
       pasteCountRef.current = 0
     }
 
     const paste = () => {
-      if (!clipboardRef.current.length) return
+      const clipboard = clipboardRef.current
+      if (!clipboard.elements.length && !clipboard.busbars.length) return
       pasteCountRef.current += 1
-      const offset = gridSize * 2 * pasteCountRef.current
-      const pasted = clipboardRef.current.map((element) => ({
-        ...cloneElement(element),
-        id: crypto.randomUUID(),
+      const offset = copiedSelectionOffset(
+        clipboard.elements,
+        clipboard.busbars,
+        clipboard.connections.length > 0,
+        gridSize,
+        pasteCountRef.current,
+      )
+      const elementIdMap = new Map<string, string>()
+      const busbarIdMap = new Map<string, string>()
+      const pastedElements = clipboard.elements.map((element) => {
+        const id = crypto.randomUUID()
+        elementIdMap.set(element.id, id)
+        return {
+          ...cloneElement(element),
+          id,
+          diagramId,
+          x: snap(element.x + offset.x, gridSize),
+          y: snap(element.y + offset.y, gridSize),
+        }
+      })
+      const pastedBusbars = clipboard.busbars.map((busbar) => {
+        const id = crypto.randomUUID()
+        busbarIdMap.set(busbar.id, id)
+        return {
+          ...cloneBusbar(busbar),
+          id,
+          diagramId,
+          x: snap(busbar.x + offset.x, gridSize),
+          y: snap(busbar.y + offset.y, gridSize),
+        }
+      })
+      const nextElements = [...committedElementsRef.current, ...pastedElements]
+      const nextBusbars = [...committedBusbarsRef.current, ...pastedBusbars]
+      const pastedConnections = instantiateCopiedConnections(
+        clipboard.connections,
         diagramId,
-        x: snap(element.x + offset, gridSize),
-        y: snap(element.y + offset, gridSize),
-      }))
-      if (commitElements([...committedElementsRef.current, ...pasted])) {
-        setSelection(pasted.map((element) => element.id))
+        elementIdMap,
+        busbarIdMap,
+      )
+      const nextConnections = normalizeConnectionNetworks(
+        [...committedConnectionsRef.current, ...pastedConnections],
+        nextElements,
+        assets,
+        nextBusbars,
+      )
+      if (commitDiagram(
+        nextElements,
+        nextBusbars,
+        nextConnections,
+      )) {
+        setObjectSelection(
+          pastedElements.map((element) => element.id),
+          pastedBusbars.map((busbar) => busbar.id),
+        )
       }
     }
 
     const duplicateSelected = () => {
-      const selected = new Set(selectedIdsRef.current)
-      if (!selected.size) return
-      const offset = gridSize * 2
-      const duplicated = committedElementsRef.current.flatMap((element) => (
-        selected.has(element.id)
-          ? [{
-              ...cloneElement(element),
-              id: crypto.randomUUID(),
-              x: snap(element.x + offset, gridSize),
-              y: snap(element.y + offset, gridSize),
-            }]
-          : []
+      const selectedElements = new Set(selectedIdsRef.current)
+      const selectedBusbars = new Set(selectedBusbarIdsRef.current)
+      if (!selectedElements.size && !selectedBusbars.size) return
+      const duplicatedTopology = copyConnectionsWithinSelection(
+        committedConnectionsRef.current,
+        selectedElements,
+        selectedBusbars,
+      )
+      const sourceElements = committedElementsRef.current.filter((element) => (
+        selectedElements.has(element.id)
       ))
-      if (commitElements([...committedElementsRef.current, ...duplicated])) {
-        setSelection(duplicated.map((element) => element.id))
+      const sourceBusbars = committedBusbarsRef.current.filter((busbar) => (
+        selectedBusbars.has(busbar.id)
+      ))
+      const offset = copiedSelectionOffset(
+        sourceElements,
+        sourceBusbars,
+        duplicatedTopology.length > 0,
+        gridSize,
+      )
+      const elementIdMap = new Map<string, string>()
+      const busbarIdMap = new Map<string, string>()
+      const duplicatedElements = committedElementsRef.current.flatMap((element) => {
+        if (!selectedElements.has(element.id)) return []
+        const id = crypto.randomUUID()
+        elementIdMap.set(element.id, id)
+        return [{
+          ...cloneElement(element),
+          id,
+          x: snap(element.x + offset.x, gridSize),
+          y: snap(element.y + offset.y, gridSize),
+        }]
+      })
+      const duplicatedBusbars = committedBusbarsRef.current.flatMap((busbar) => {
+        if (!selectedBusbars.has(busbar.id)) return []
+        const id = crypto.randomUUID()
+        busbarIdMap.set(busbar.id, id)
+        return [{
+          ...cloneBusbar(busbar),
+          id,
+          x: snap(busbar.x + offset.x, gridSize),
+          y: snap(busbar.y + offset.y, gridSize),
+        }]
+      })
+      const duplicatedConnections = instantiateCopiedConnections(
+        duplicatedTopology,
+        diagramId,
+        elementIdMap,
+        busbarIdMap,
+      )
+      const nextElements = [...committedElementsRef.current, ...duplicatedElements]
+      const nextBusbars = [...committedBusbarsRef.current, ...duplicatedBusbars]
+      const nextConnections = normalizeConnectionNetworks(
+        [...committedConnectionsRef.current, ...duplicatedConnections],
+        nextElements,
+        assets,
+        nextBusbars,
+      )
+      if (commitDiagram(
+        nextElements,
+        nextBusbars,
+        nextConnections,
+      )) {
+        setObjectSelection(
+          duplicatedElements.map((element) => element.id),
+          duplicatedBusbars.map((busbar) => busbar.id),
+        )
       }
     }
 
@@ -1133,6 +1973,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       setObjectSelection(
         selectedIdsRef.current.filter((id) => previous.elements.some((element) => element.id === id)),
         selectedBusbarIdsRef.current.filter((id) => previous.busbars.some((busbar) => busbar.id === id)),
+        true,
       )
       if (
         selectedConnectionIdRef.current &&
@@ -1158,6 +1999,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       setObjectSelection(
         selectedIdsRef.current.filter((id) => next.elements.some((element) => element.id === id)),
         selectedBusbarIdsRef.current.filter((id) => next.busbars.some((busbar) => busbar.id === id)),
+        true,
       )
       if (
         selectedConnectionIdRef.current &&
@@ -1180,7 +2022,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         { x: canvasSize.width / 2, y: canvasSize.height / 2 },
         viewportValueRef.current,
       )
-      const element = createElement(symbol, diagramId, worldCenter, gridSize)
+      const element = createElement(
+        symbol,
+        diagramId,
+        worldCenter,
+        gridSize,
+        committedElementsRef.current,
+      )
       if (commitElements([...committedElementsRef.current, element])) setSelection([element.id])
     }
 
@@ -1223,6 +2071,11 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (normalizedPatch.y !== undefined) normalizedPatch.y = snap(normalizedPatch.y, gridSize)
         if (normalizedPatch.rotation !== undefined) {
           normalizedPatch.rotation = normalizeDegrees(Math.round(normalizedPatch.rotation / 90) * 90)
+          if (!element.labelPlacement) {
+            normalizedPatch.labelPlacement = elementLabelLayouts.find((layout) => (
+              layout.elementId === element.id
+            ))?.placement
+          }
         }
         if (symbol && (normalizedPatch.width !== undefined || normalizedPatch.height !== undefined)) {
           const requestedScale = normalizedPatch.width !== undefined
@@ -1234,7 +2087,180 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         }
         return { ...element, ...normalizedPatch }
       })
+      if (patch.labelVisible === false) setSelectedLabelElementId(null)
       commitElements(next)
+    }
+
+    const updateBusbar = (busbarId: string, patch: Partial<Busbar>) => {
+      const patchesLabel = Object.prototype.hasOwnProperty.call(patch, 'label')
+      const next = committedBusbarsRef.current.map((busbar) => {
+        if (busbar.id !== busbarId) return busbar
+        const updated: Busbar = { ...busbar, ...patch }
+        if (!patchesLabel) return updated
+        const label = patch.label?.trim()
+        if (label) return { ...updated, label }
+        const { label: _label, ...withoutLabel } = updated
+        return withoutLabel
+      })
+      if (
+        (patchesLabel && !patch.label?.trim()) ||
+        patch.labelVisible === false
+      ) setSelectedLabelBusbarId(null)
+      commitBusbars(next)
+    }
+
+    const updateConnectionEdge = (edgeId: string, patch: Partial<ConnectionEdge>) => {
+      const patchesLabel = Object.prototype.hasOwnProperty.call(patch, 'label')
+      const next = committedConnectionsRef.current.map((network) => ({
+        ...network,
+        edges: network.edges.map((edge) => {
+          if (edge.id !== edgeId) return edge
+          const updated: ConnectionEdge = { ...edge, ...patch }
+          if (!patchesLabel) return updated
+          const label = patch.label?.trim()
+          if (label) return { ...updated, label }
+          const { label: _label, ...withoutLabel } = updated
+          return withoutLabel
+        }),
+      }))
+      if (
+        (patchesLabel && !patch.label?.trim()) ||
+        patch.labelVisible === false
+      ) {
+        setSelectedLabelConnectionEdgeId(null)
+        setConnectionLabelPlacementPreview(null)
+      }
+      commitConnections(next)
+    }
+
+    const paintBusbarColor = (busbarId: string, color: string | null) => {
+      const busbarNode = busbarNodeRefs.current.get(busbarId)
+      if (color) busbarNode?.style.setProperty('--busbar-color', color)
+      else busbarNode?.style.removeProperty('--busbar-color')
+      for (const tapNode of busbarTapNodeRefs.current.values()) {
+        if (tapNode.dataset.busbarId === busbarId) {
+          if (color) tapNode.style.setProperty('--busbar-color', color)
+          else tapNode.style.removeProperty('--busbar-color')
+        }
+      }
+      const candidateNode = busbarCandidateNodeRef.current
+      if (candidateNode?.dataset.busbarId === busbarId) {
+        if (color) candidateNode.style.setProperty('--busbar-color', color)
+        else candidateNode.style.removeProperty('--busbar-color')
+      }
+    }
+
+    const paintSelectionColor = (color: string | null) => {
+      for (const busbarId of selectedBusbarIdsRef.current) {
+        const busbar = committedBusbarsRef.current.find((candidate) => candidate.id === busbarId)
+        if (!busbar) continue
+        const nextColor = color === null
+          ? busbar.color ?? null
+          : normalizeHexColor(color, DEFAULT_BUSBAR_COLOR)
+        paintBusbarColor(busbarId, nextColor)
+      }
+      const selectedEdgeIds = new Set(selectedConnectionEdges(
+        selectedConnectionIdRef.current,
+        committedConnectionsRef.current,
+      ).map((edge) => edge.id))
+      for (const network of committedConnectionsRef.current) {
+        const fallback = defaultConnectionColor(network.type)
+        for (const edge of network.edges) {
+          if (!selectedEdgeIds.has(edge.id)) continue
+          const node = connectionEdgeNodeRefs.current.get(edge.id)
+          const nextColor = color === null
+            ? edge.color
+            : normalizeHexColor(color, fallback)
+          if (nextColor) node?.style.setProperty('--connection-color', nextColor)
+          else node?.style.removeProperty('--connection-color')
+        }
+      }
+    }
+
+    const previewCanvasColor = (target: CanvasColorTarget, color: string | null) => {
+      const previewColor = color === null
+        ? null
+        : normalizeHexColor(color, target.color)
+
+      if (target.category === 'element') {
+        for (const element of committedElementsRef.current) {
+          const currentColor = resolvedElementColor(element)
+          if (currentColor !== target.color) continue
+          if (previewColor === null) previewElementColorsRef.current.delete(element.id)
+          else previewElementColorsRef.current.set(element.id, previewColor)
+          paintElementColor(element.id, previewColor ?? currentColor)
+        }
+        return
+      }
+
+      if (target.category === 'busbar') {
+        for (const busbar of committedBusbarsRef.current) {
+          const currentColor = resolvedBusbarColor(busbar)
+          if (currentColor !== target.color) continue
+          paintBusbarColor(busbar.id, previewColor ?? busbar.color ?? null)
+        }
+        return
+      }
+
+      for (const network of committedConnectionsRef.current) {
+        for (const edge of network.edges) {
+          const currentColor = resolvedConnectionColor(network, edge)
+          if (currentColor !== target.color) continue
+          const node = connectionEdgeNodeRefs.current.get(edge.id)
+          const nextColor = previewColor ?? edge.color ?? null
+          if (nextColor) node?.style.setProperty('--connection-color', nextColor)
+          else node?.style.removeProperty('--connection-color')
+        }
+      }
+    }
+
+    const updateCanvasColor = (target: CanvasColorTarget, color: string) => {
+      previewCanvasColor(target, null)
+      const next = replaceCanvasColor({
+        elements: committedElementsRef.current,
+        busbars: committedBusbarsRef.current,
+        connections: committedConnectionsRef.current,
+      }, target, color)
+      commitDiagram(next.elements, next.busbars, next.connections)
+    }
+
+    const updateSelectionColor = (color: string | null) => {
+      paintSelectionColor(null)
+      const selectedBusbars = new Set(selectedBusbarIdsRef.current)
+      const selectedEdgeIds = new Set(selectedConnectionEdges(
+        selectedConnectionIdRef.current,
+        committedConnectionsRef.current,
+      ).map((edge) => edge.id))
+      if (selectedBusbars.size === 0 && selectedEdgeIds.size === 0) return
+      const normalizedBusbarColor = color === null
+        ? null
+        : normalizeHexColor(color, DEFAULT_BUSBAR_COLOR)
+      const nextBusbars = committedBusbarsRef.current.map((busbar) => {
+        if (!selectedBusbars.has(busbar.id)) return busbar
+        if (normalizedBusbarColor) return { ...busbar, color: normalizedBusbarColor }
+        const { color: _color, ...rest } = busbar
+        return rest
+      })
+      const normalizedByType = new Map<AnchorType, string>()
+      const nextConnections = committedConnectionsRef.current.map((network) => {
+        return {
+          ...network,
+          edges: network.edges.map((edge) => {
+            if (!selectedEdgeIds.has(edge.id)) return edge
+            if (color === null) {
+              const { color: _color, ...rest } = edge
+              return rest
+            }
+            let normalized = normalizedByType.get(network.type)
+            if (!normalized) {
+              normalized = normalizeHexColor(color, defaultConnectionColor(network.type))
+              normalizedByType.set(network.type, normalized)
+            }
+            return { ...edge, color: normalized }
+          }),
+        }
+      })
+      commitDiagram(committedElementsRef.current, nextBusbars, nextConnections)
     }
 
     useImperativeHandle(ref, () => ({
@@ -1254,7 +2280,13 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       insertSymbol,
       insertBusbar,
       previewElementColor,
+      previewSelectionColor: paintSelectionColor,
+      updateSelectionColor,
+      previewCanvasColor,
+      updateCanvasColor,
       updateElement,
+      updateBusbar,
+      updateConnectionEdge,
     }))
 
     useEffect(() => {
@@ -1275,16 +2307,27 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       committedBusbarsRef.current = busbars
       committedConnectionsRef.current = connections
       historyRef.current = { past: [], future: [] }
-      clipboardRef.current = []
+      clipboardRef.current = { elements: [], busbars: [], connections: [] }
       pasteCountRef.current = 0
       previewElementColorsRef.current.clear()
+      elementLabelLayoutCacheRef.current.clear()
+      busbarNodeRefs.current.clear()
+      busbarTapNodeRefs.current.clear()
+      busbarCandidateNodeRef.current = null
+      connectionEdgeNodeRefs.current.clear()
       interactionRef.current = null
+      nudgeCommitScheduler.cancel()
+      nudgeSessionActiveRef.current = false
       setPreview(null)
       setBusbarPreview(null)
       setConnectionPreview(null)
       setMarquee(null)
       setActiveMoveElementIds([])
       setLibraryDragTarget(null)
+      setSelectedLabelElementId(null)
+      setSelectedLabelBusbarId(null)
+      setSelectedLabelConnectionEdgeId(null)
+      setConnectionLabelPlacementPreview(null)
       selectConnection(null)
       selectBusbar(null)
       setWiring(null)
@@ -1296,12 +2339,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       diagramPreviewScheduler.cancel()
       wiringPointerScheduler.cancel()
       pointerPositionScheduler.cancel()
-    }, [diagramPreviewScheduler, pointerPositionScheduler, wiringPointerScheduler])
+      nudgeCommitScheduler.cancel()
+    }, [diagramPreviewScheduler, nudgeCommitScheduler, pointerPositionScheduler, wiringPointerScheduler])
 
     const startElementMove = (event: PointerEvent<SVGImageElement>, elementId: string) => {
       if (event.button !== 0) return
       event.stopPropagation()
       viewportElementRef.current?.focus()
+      setSelectedLabelElementId(null)
+      setSelectedLabelBusbarId(null)
+      setSelectedLabelConnectionEdgeId(null)
+      setConnectionLabelPlacementPreview(null)
       const additive = event.shiftKey || event.ctrlKey || event.metaKey
       const alreadySelected = selectedIdsRef.current.includes(elementId)
 
@@ -1333,6 +2381,100 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         hasMoved: false,
       }
       event.currentTarget.setPointerCapture(event.pointerId)
+    }
+    startElementMoveRef.current = startElementMove
+    const startLabelDrag = (
+      event: PointerEvent<SVGRectElement>,
+      elementId: string,
+    ) => {
+      if (
+        event.button !== 0 ||
+        selectedIdsRef.current.length !== 1 ||
+        selectedIdsRef.current[0] !== elementId ||
+        selectedBusbarIdsRef.current.length > 0 ||
+        selectedConnectionIdRef.current !== null
+      ) return
+      event.preventDefault()
+      event.stopPropagation()
+      viewportElementRef.current?.focus()
+      setSelectedLabelElementId(elementId)
+      setSelectedLabelConnectionEdgeId(null)
+      interactionRef.current = {
+        kind: 'label',
+        pointerId: event.pointerId,
+        elementId,
+        baseElements: committedElementsRef.current,
+      }
+      viewportElementRef.current?.setPointerCapture(event.pointerId)
+    }
+    startLabelDragRef.current = startLabelDrag
+    const startBusbarLabelDrag = (
+      event: PointerEvent<SVGRectElement>,
+      busbarId: string,
+    ) => {
+      if (
+        event.button !== 0 ||
+        selectedBusbarIdsRef.current.length !== 1 ||
+        selectedBusbarIdsRef.current[0] !== busbarId ||
+        selectedIdsRef.current.length > 0 ||
+        selectedConnectionIdRef.current !== null
+      ) return
+      event.preventDefault()
+      event.stopPropagation()
+      viewportElementRef.current?.focus()
+      setSelectedLabelElementId(null)
+      setSelectedLabelBusbarId(busbarId)
+      setSelectedLabelConnectionEdgeId(null)
+      setConnectionLabelPlacementPreview(null)
+      interactionRef.current = {
+        kind: 'busbar-label',
+        pointerId: event.pointerId,
+        busbarId,
+        baseBusbars: committedBusbarsRef.current,
+      }
+      viewportElementRef.current?.setPointerCapture(event.pointerId)
+    }
+    startBusbarLabelDragRef.current = startBusbarLabelDrag
+    const startConnectionLabelDrag = (
+      event: PointerEvent<SVGRectElement>,
+      edgeId: string,
+    ) => {
+      const selectedEdges = selectedConnectionEdges(
+        selectedConnectionIdRef.current,
+        committedConnectionsRef.current,
+      )
+      const route = routedConnections.edges.find((candidate) => candidate.edgeId === edgeId)
+      if (
+        event.button !== 0 ||
+        selectedEdges.length !== 1 ||
+        selectedEdges[0].id !== edgeId ||
+        selectedIdsRef.current.length > 0 ||
+        selectedBusbarIdsRef.current.length > 0 ||
+        !route
+      ) return
+      event.preventDefault()
+      event.stopPropagation()
+      viewportElementRef.current?.focus()
+      setSelectedLabelElementId(null)
+      setSelectedLabelBusbarId(null)
+      setSelectedLabelConnectionEdgeId(edgeId)
+      setConnectionLabelPlacementPreview(null)
+      interactionRef.current = {
+        kind: 'connection-label',
+        pointerId: event.pointerId,
+        edgeId,
+        route,
+        baseConnections: committedConnectionsRef.current,
+      }
+      viewportElementRef.current?.setPointerCapture(event.pointerId)
+    }
+    startConnectionLabelDragRef.current = startConnectionLabelDrag
+    enterAnchorRef.current = handleAnchorPointerEnter
+    leaveAnchorRef.current = handleAnchorPointerLeave
+    pressAnchorRef.current = handleAnchorPointerDown
+    pressConnectionEdgeRef.current = (event, edgeId) => {
+      const route = routedConnections.edges.find((candidate) => candidate.edgeId === edgeId)
+      if (route) handleConnectionPointerDown(event, route)
     }
 
     const startResize = (event: PointerEvent<SVGCircleElement>) => {
@@ -1369,6 +2511,15 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       ))
       const bounds = diagramObjectsBounds(selected, selectedBusbars)
       if (!bounds) return
+      const selectedSet = new Set(selectedIds)
+      const currentLabelPlacements = new Map(elementLabelLayouts.map((layout) => (
+        [layout.elementId, layout.placement] as const
+      )))
+      const baseElements = committedElementsRef.current.map((element) => {
+        if (!selectedSet.has(element.id) || element.labelPlacement) return element
+        const labelPlacement = currentLabelPlacements.get(element.id)
+        return labelPlacement ? { ...element, labelPlacement } : element
+      })
       const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
       const point = worldPoint(event.clientX, event.clientY)
       interactionRef.current = {
@@ -1376,7 +2527,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         pointerId: event.pointerId,
         center,
         startAngle: Math.atan2(point.y - center.y, point.x - center.x),
-        baseElements: committedElementsRef.current,
+        baseElements,
         baseBusbars: committedBusbarsRef.current,
         selectedIds,
         selectedBusbarIds,
@@ -1500,6 +2651,44 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       if (interaction.kind === 'marquee') {
         interaction.currentWorld = world
         setMarquee(normalizedRect(interaction.startWorld, world))
+        return
+      }
+
+      if (interaction.kind === 'label') {
+        const selected = interaction.baseElements.find((element) => (
+          element.id === interaction.elementId
+        ))
+        if (!selected) return
+        const labelPlacement = labelPlacementForPointer(selected, world)
+        schedulePreview(interaction.baseElements.map((element) => (
+          element.id === selected.id && element.labelPlacement !== labelPlacement
+            ? { ...element, labelPlacement }
+            : element
+        )))
+        return
+      }
+
+      if (interaction.kind === 'busbar-label') {
+        const selected = interaction.baseBusbars.find((busbar) => (
+          busbar.id === interaction.busbarId
+        ))
+        if (!selected) return
+        const labelEndpoint = busbarLabelEndpointForPointer(selected, world)
+        scheduleDiagramPreview(null, interaction.baseBusbars.map((busbar) => (
+          busbar.id === selected.id && busbar.labelEndpoint !== labelEndpoint
+            ? { ...busbar, labelEndpoint }
+            : busbar
+        )), null)
+        return
+      }
+
+      if (interaction.kind === 'connection-label') {
+        const placement = connectionLabelPlacementForPointer(interaction.route, world)
+        if (!placement) return
+        setConnectionLabelPlacementPreview({
+          edgeId: interaction.edgeId,
+          ...placement,
+        })
         return
       }
 
@@ -1683,6 +2872,21 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
             : busbarMatches,
         )
         setMarquee(null)
+      } else if (interaction.kind === 'connection-label') {
+        const placement = connectionLabelPlacementPreviewRef.current
+        if (placement?.edgeId === interaction.edgeId) {
+          commitConnections(interaction.baseConnections.map((network) => ({
+            ...network,
+            edges: network.edges.map((edge) => edge.id === interaction.edgeId
+              ? {
+                  ...edge,
+                  labelEndpoint: placement.endpoint,
+                  labelSide: placement.side,
+                }
+              : edge),
+          })))
+        }
+        setConnectionLabelPlacementPreview(null)
       } else if (previewElementsRef.current || previewBusbarsRef.current) {
         commitDiagram(
           previewElementsRef.current ?? committedElementsRef.current,
@@ -1707,6 +2911,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       setPreview(null)
       setBusbarPreview(null)
       setConnectionPreview(null)
+      setConnectionLabelPlacementPreview(null)
       setMarquee(null)
     }
 
@@ -1722,21 +2927,28 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const nudgeSelection = (x: number, y: number) => {
       const selected = new Set(selectedIdsRef.current)
       const selectedBusbars = new Set(selectedBusbarIdsRef.current)
-      if (!selected.size && !selectedBusbars.size) return
-      commitDiagram(
-        committedElementsRef.current.map((element) => selected.has(element.id)
+      if ((!selected.size && !selectedBusbars.size) || interactionRef.current) return false
+      const currentElements = previewElementsRef.current ?? committedElementsRef.current
+      const currentBusbars = previewBusbarsRef.current ?? committedBusbarsRef.current
+      nudgeSessionActiveRef.current = true
+      scheduleDiagramPreview(
+        currentElements.map((element) => selected.has(element.id)
           ? { ...element, x: snap(element.x + x, gridSize), y: snap(element.y + y, gridSize) }
           : element),
-        committedBusbarsRef.current.map((busbar) => selectedBusbars.has(busbar.id)
+        currentBusbars.map((busbar) => selectedBusbars.has(busbar.id)
           ? { ...busbar, x: snap(busbar.x + x, gridSize), y: snap(busbar.y + y, gridSize) }
           : busbar),
-        committedConnectionsRef.current,
+        null,
       )
+      return true
     }
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
       const modifier = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
+      const isArrowKey = event.key.startsWith('Arrow')
+      if (isArrowKey) nudgeCommitScheduler.cancel()
+      else flushPendingNudge()
       if (event.key === 'Escape') {
         event.preventDefault()
         setWiring(null)
@@ -1765,7 +2977,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         deleteSelected()
-      } else if (event.key.startsWith('Arrow')) {
+      } else if (isArrowKey) {
         event.preventDefault()
         const distance = gridSize
         if (event.key === 'ArrowLeft') nudgeSelection(-distance, 0)
@@ -1773,6 +2985,12 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         if (event.key === 'ArrowUp') nudgeSelection(0, -distance)
         if (event.key === 'ArrowDown') nudgeSelection(0, distance)
       }
+    }
+
+    const handleKeyUp = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (!event.key.startsWith('Arrow') || !nudgeSessionActiveRef.current) return
+      event.preventDefault()
+      nudgeCommitScheduler.schedule()
     }
 
     const handleDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -1853,6 +3071,10 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
     const selectedElements = displayedElements.filter((element) => selectedIdSet.has(element.id))
     const selectedBusbars = displayedBusbars.filter((busbar) => selectedBusbarIdSet.has(busbar.id))
     const selectedObjectCount = selectedElements.length + selectedBusbars.length
+    const selectedConnectionLabelEdgeId =
+      selectedObjectCount === 0 && selectedConnectionEdgeIdSet.size === 1
+        ? selectedConnectionEdgeIdSet.values().next().value as string
+        : null
     const selectionBounds = diagramObjectsBounds(selectedElements, selectedBusbars)
     const selectedElement = selectedObjectCount === 1 ? selectedElements[0] : undefined
     const selectedBusbar = selectedObjectCount === 1 ? selectedBusbars[0] : undefined
@@ -1892,6 +3114,7 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
         data-grid-visible-step={gridScale.worldStep}
         data-grid-screen-step={gridScale.screenStep}
         data-grid-screen-dot-radius={gridScale.dotScreenRadius}
+        data-routing-pending={isRouting || undefined}
       >
         <Rulers viewport={viewportValue} width={canvasSize.width} height={canvasSize.height} gridSize={gridSize} />
         <div
@@ -1907,9 +3130,14 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) flushPendingNudge()
+          }}
           onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
           onPointerCancel={cancelInteraction}
           onPointerDown={handlePointerDown}
+          onPointerDownCapture={flushPendingNudge}
           onPointerLeave={() => {
             if (!interactionRef.current) {
               pointerPositionScheduler.cancel()
@@ -1957,10 +3185,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                   return (
                     <g
                       key={busbar.id}
+                      ref={(node) => {
+                        if (node) busbarNodeRefs.current.set(busbar.id, node)
+                        else busbarNodeRefs.current.delete(busbar.id)
+                      }}
                       className="busbar"
                       data-busbar-id={busbar.id}
                       data-orientation={busbar.orientation}
                       data-selected={selectedBusbarIdSet.has(busbar.id) || undefined}
+                      style={busbar.color
+                        ? { '--busbar-color': busbar.color } as CSSProperties
+                        : undefined}
                     >
                       <path className="busbar__line" d={data} />
                       <path
@@ -1974,29 +3209,24 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 })}
               </g>
               <g className="connection-layer" data-testid="connection-layer">
-                {routedConnections.edges.map((route) => (
-                  <g
-                    key={route.edgeId}
-                    className="connection-edge"
-                    data-edge-id={route.edgeId}
-                    data-network-id={route.networkId}
-                    data-connection-type={route.type}
-                    data-selected={(
-                      selectedConnectionId === route.edgeId ||
-                      selectedNetworkId(selectedConnectionId) === route.networkId
-                    ) || undefined}
-                  >
-                    <path
-                      className="connection-edge__line"
-                      d={pathDataWithBridges(route, routedConnections.crossings, gridSize)}
+                {routedConnections.edges.map((route) => {
+                  const renderedPath = renderedConnectionPaths.get(route.edgeId)
+                  const linePath = renderedPath?.linePath ?? pathData(route.points)
+                  return (
+                    <ConnectionEdgeItem
+                      key={route.edgeId}
+                      edgeId={route.edgeId}
+                      networkId={route.networkId}
+                      type={route.type}
+                      color={displayedConnectionEdgesById.get(route.edgeId)?.color}
+                      selected={selectedConnectionEdgeIdSet.has(route.edgeId)}
+                      linePath={linePath}
+                      bridgeCasingPath={renderedPath?.bridgeCasingPath ?? ''}
+                      pressEdge={pressConnectionEdgeRef}
+                      edgeNodes={connectionEdgeNodeRefs}
                     />
-                    <path
-                      className="connection-edge__hit"
-                      d={pathData(route.points)}
-                      onPointerDown={(event) => handleConnectionPointerDown(event, route)}
-                    />
-                  </g>
-                ))}
+                  )
+                })}
                 {displayedConnections.flatMap((network) => network.nodes.flatMap((node) => {
                   if (node.kind === 'busbar-tap') {
                     const busbar = displayedBusbars.find((candidate) => candidate.id === node.busbarId)
@@ -2006,10 +3236,17 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                     return [(
                       <circle
                         key={node.id}
+                        ref={(circle) => {
+                          if (circle) busbarTapNodeRefs.current.set(node.id, circle)
+                          else busbarTapNodeRefs.current.delete(node.id)
+                        }}
                         className="busbar-tap"
                         data-connection-type="electrical"
                         data-busbar-id={node.busbarId}
                         data-busbar-offset={resolvedOffset}
+                        style={busbar.color
+                          ? { '--busbar-color': busbar.color } as CSSProperties
+                          : undefined}
                         cx={point.x}
                         cy={point.y}
                         r={2.5 / viewportValue.zoom}
@@ -2028,10 +3265,15 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 ) : null}
                 {busbarCandidate ? (
                   <circle
+                    ref={busbarCandidateNodeRef}
                     className="busbar-tap-candidate"
                     data-connection-type="electrical"
+                    data-busbar-id={busbarCandidate.busbar.id}
                     data-mode={wiring ? 'target' : 'source'}
                     data-testid="busbar-tap-candidate"
+                    style={busbarCandidate.busbar.color
+                      ? { '--busbar-color': busbarCandidate.busbar.color } as CSSProperties
+                      : undefined}
                     cx={busbarCandidate.point.x}
                     cy={busbarCandidate.point.y}
                     r={5 / viewportValue.zoom}
@@ -2084,112 +3326,65 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
                 </g>
               ) : null}
 
-              {displayedElements.map((element, index) => {
+              {displayedElements.map((element) => {
                 const symbol = symbolsByKey.get(element.assetKey)
-                const centerX = element.x + element.width / 2
-                const centerY = element.y + element.height / 2
                 const symbolColor = symbol?.configurableColor
                   ? previewElementColorsRef.current.get(element.id) ??
                     normalizeSymbolColor(element.properties.color)
                   : undefined
-                const colorFilterId = `symbol-color-filter-${index}`
                 return (
-                  <g
+                  <DiagramElementItem
                     key={element.id}
-                    ref={(node) => {
-                      if (node) elementNodeRefs.current.set(element.id, node)
-                      else elementNodeRefs.current.delete(element.id)
-                    }}
-                    className="diagram-element"
-                    data-element-id={element.id}
-                    data-asset-key={element.assetKey}
-                    data-selected={selectedIds.includes(element.id) || undefined}
-                    transform={`rotate(${element.rotation} ${centerX} ${centerY})`}
-                  >
-                    {symbol ? (
-                      <>
-                        {symbolColor ? (
-                          <defs>
-                            <filter
-                              id={colorFilterId}
-                              x="-5%"
-                              y="-5%"
-                              width="110%"
-                              height="110%"
-                              colorInterpolationFilters="sRGB"
-                            >
-                              <feFlood floodColor={symbolColor} result="symbol-color" />
-                              <feComposite
-                                in="symbol-color"
-                                in2="SourceAlpha"
-                                operator="in"
-                              />
-                            </filter>
-                          </defs>
-                        ) : null}
-                        <image
-                          className="diagram-element__image"
-                          data-symbol-color={symbolColor}
-                          data-symbol-state={symbol.defaultState}
-                          filter={symbolColor ? `url(#${colorFilterId})` : undefined}
-                          href={getSymbolStateUrl(symbol)}
-                          x={element.x}
-                          y={element.y}
-                          width={element.width}
-                          height={element.height}
-                          preserveAspectRatio="xMidYMid meet"
-                          onPointerDown={(event) => startElementMove(event, element.id)}
-                        />
-                        {assetsByKey.get(element.assetKey)?.anchors.map((anchor) => {
-                          const resolved = resolveElementAnchor(
-                            element,
-                            assetsByKey.get(element.assetKey)!,
-                            anchor,
-                          )
-                          const occupied = occupiedAnchors.has(`${element.id}::${anchor.id}`)
-                          const compatible = wiring
-                            ? connectionTypesCompatible(wiring.source.type, anchor.type)
-                            : anchorAllowedOnDiagram(anchor.type)
-                          const localX = element.x + (anchor.x / assetsByKey.get(element.assetKey)!.intrinsicWidth) * element.width
-                          const localY = element.y + (anchor.y / assetsByKey.get(element.assetKey)!.intrinsicHeight) * element.height
-                          return (
-                            <circle
-                              key={anchor.id}
-                              className="connection-anchor"
-                              data-anchor-id={anchor.id}
-                              data-anchor-type={anchor.type}
-                              data-compatible={compatible || undefined}
-                              data-occupied={occupied || undefined}
-                              data-world-x={resolved.point.x}
-                              data-world-y={resolved.point.y}
-                              cx={localX}
-                              cy={localY}
-                              r={5 / viewportValue.zoom}
-                              onPointerEnter={() => handleAnchorPointerEnter(
-                                element.id,
-                                anchor.id,
-                                anchor.type,
-                              )}
-                              onPointerLeave={() => handleAnchorPointerLeave(
-                                element.id,
-                                anchor.id,
-                              )}
-                              onPointerDown={compatible
-                                ? (event) => handleAnchorPointerDown(
-                                    event,
-                                    element.id,
-                                    anchor.id,
-                                    anchor.type,
-                                  )
-                                : undefined}
-                            />
-                          )
-                        })}
-                      </>
-                    ) : null}
-                  </g>
+                    element={element}
+                    asset={assetsByKey.get(element.assetKey)}
+                    symbol={symbol}
+                    symbolColor={symbolColor}
+                    selected={selectedIdSet.has(element.id)}
+                    wiringType={wiring?.source.type ?? null}
+                    lineSystemType={lineSystemType}
+                    occupiedAnchors={occupiedAnchors}
+                    zoom={viewportValue.zoom}
+                    elementNodes={elementNodeRefs}
+                    startMove={startElementMoveRef}
+                    enterAnchor={enterAnchorRef}
+                    leaveAnchor={leaveAnchorRef}
+                    pressAnchor={pressAnchorRef}
+                  />
                 )
               })}
+
+              <g className="element-label-layer" data-testid="element-label-layer">
+                {elementLabelLayouts.map((layout) => (
+                  <ElementLabelItem
+                    key={layout.elementId}
+                    layout={layout}
+                    interactive={selectedElement?.id === layout.elementId}
+                    selected={selectedLabelElementId === layout.elementId}
+                    startDrag={startLabelDragRef}
+                  />
+                ))}
+                {busbarLabelLayouts.map((layout) => (
+                  <BusbarLabelItem
+                    key={layout.busbarId}
+                    layout={layout}
+                    interactive={
+                      selectedBusbar?.id === layout.busbarId &&
+                      selectedConnectionId === null
+                    }
+                    selected={selectedLabelBusbarId === layout.busbarId}
+                    startDrag={startBusbarLabelDragRef}
+                  />
+                ))}
+                {connectionLabelLayouts.map((layout) => (
+                  <ConnectionLabelItem
+                    key={layout.edgeId}
+                    layout={layout}
+                    interactive={selectedConnectionLabelEdgeId === layout.edgeId}
+                    selected={selectedLabelConnectionEdgeId === layout.edgeId}
+                    startDrag={startConnectionLabelDragRef}
+                  />
+                ))}
+              </g>
 
               {selectedObjectCount > 1 ? selectedElements.map((element) => (
                 <g
@@ -2335,4 +3530,4 @@ export const DiagramCanvas = forwardRef<DiagramCanvasHandle, DiagramCanvasProps>
       </div>
     )
   },
-)
+))

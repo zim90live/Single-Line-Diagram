@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { AssetDefinition, Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
 import {
+  prepareConnectionPreview,
   previewConnectionRoutesForDiagram,
   previewConnectionRoutesForElements,
   routeConnectionNetworks,
   routeConnectionPreview,
+  routeConnectionPreviewWithContext,
 } from './connections'
 
 const asset: AssetDefinition = {
@@ -135,6 +137,35 @@ describe('routing interaction performance fixture', () => {
     expect(invalid).toBe(0)
   })
 
+  it('keeps repeated keyboard nudge previews cheaper than full-network reroutes', () => {
+    const base = fixture()
+    const routed = routeConnectionNetworks([base.network], base.elements, [asset], 8)
+    const previewStart = performance.now()
+    for (let step = 1; step <= 8; step += 1) {
+      const current = fixture(448 + step * 8)
+      previewConnectionRoutesForElements(
+        routed,
+        [base.network],
+        base.elements,
+        current.elements,
+        [asset],
+        8,
+      )
+    }
+    const previewDuration = performance.now() - previewStart
+    const rerouteStart = performance.now()
+    for (let step = 1; step <= 8; step += 1) {
+      const current = fixture(448 + step * 8)
+      routeConnectionNetworks([base.network], current.elements, [asset], 8)
+    }
+    const rerouteDuration = performance.now() - rerouteStart
+    console.info(
+      `KEYBOARD_NUDGE_PREVIEW_PERF_MS=${previewDuration.toFixed(2)} ` +
+      `KEYBOARD_NUDGE_FULL_REROUTE_MS=${rerouteDuration.toFixed(2)}`,
+    )
+    expect(previewDuration).toBeLessThan(rerouteDuration)
+  })
+
   it('measures shared-network wiring previews', () => {
     const base = fixture()
     const routed = routeConnectionNetworks([base.network], base.elements, [asset], 8)
@@ -144,18 +175,21 @@ describe('routing interaction performance fixture', () => {
       anchorId: 'bottom',
       type: 'electrical' as const,
     }
+    const context = prepareConnectionPreview(
+      source,
+      [base.network],
+      base.elements,
+      [asset],
+      8,
+      [],
+      routed,
+    )
     const start = performance.now()
     let valid = 0
     for (let step = 0; step < 6; step += 1) {
-      const preview = routeConnectionPreview(
-        source,
+      const preview = routeConnectionPreviewWithContext(
+        context,
         { x: 1040 + step * 8, y: 256 + step * 16 },
-        [base.network],
-        base.elements,
-        [asset],
-        8,
-        [],
-        routed,
       )
       valid += Number(preview !== null)
     }

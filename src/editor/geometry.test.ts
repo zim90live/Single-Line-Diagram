@@ -6,6 +6,7 @@ import {
   diagramObjectsBounds,
   elementInsideRect,
   elementsBounds,
+  elementsEqual,
   screenToWorld,
   snap,
   worldToScreen,
@@ -62,6 +63,10 @@ describe('editor geometry', () => {
       createElement({ id: 'element-2', x: 80, y: 0, width: 40, height: 20, rotation: 90 }),
     ])
     expect(bounds).toEqual({ x: 0, y: -10, width: 110, height: 40 })
+  })
+
+  it('treats label visibility as an element history change', () => {
+    expect(elementsEqual([createElement()], [createElement({ labelVisible: false })])).toBe(false)
   })
 
   it('includes complete busbars in marquee selection and mixed bounds', () => {

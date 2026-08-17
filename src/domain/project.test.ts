@@ -5,6 +5,7 @@ import {
   EDITOR_GRID_SIZE,
   getDiagramPath,
   parseProjectDocument,
+  SCHEMA_VERSION,
 } from './project'
 
 const asset = {
@@ -72,7 +73,7 @@ describe('project document', () => {
 
     const parsed = parseProjectDocument(legacy, [asset])
 
-    expect(parsed.schemaVersion).toBe(6)
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
     expect(parsed.busbars).toEqual([])
     expect(parsed.connections).toEqual([])
     expect(parsed.assets[0]).toMatchObject({
@@ -88,7 +89,7 @@ describe('project document', () => {
     delete legacy.busbars
 
     const parsed = parseProjectDocument(legacy, [asset])
-    expect(parsed.schemaVersion).toBe(6)
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
     expect(parsed.busbars).toEqual([])
   })
 
@@ -139,10 +140,156 @@ describe('project document', () => {
 
     const parsed = parseProjectDocument(legacy, [connectedAsset])
 
-    expect(parsed.schemaVersion).toBe(6)
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
     expect(parsed.connections[0].nodes).toHaveLength(3)
     expect(parsed.connections[0].edges).toHaveLength(2)
     expect(parsed.connections[0].nodes.map((node) => node.kind)).not.toContain('junction')
+  })
+
+  it('migrates schema v6 documents to the color-capable schema', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('颜色迁移', [asset])))
+    legacy.schemaVersion = 6
+
+    const parsed = parseProjectDocument(legacy, [asset])
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(parsed.busbars).toEqual([])
+    expect(parsed.connections).toEqual([])
+  })
+
+  it('migrates schema v7 elements to device identifiers and preserves label placement', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('标签迁移', [asset])))
+    legacy.schemaVersion = 7
+    legacy.elements = [
+      {
+        id: 'automatic-label',
+        diagramId: legacy.diagrams[0].id,
+        assetKey: asset.key,
+        name: '测试图元',
+        x: 0,
+        y: 0,
+        width: 64,
+        height: 64,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'manual-label',
+        diagramId: legacy.diagrams[0].id,
+        assetKey: asset.key,
+        name: '测试图元',
+        x: 80,
+        y: 0,
+        width: 64,
+        height: 64,
+        rotation: 90,
+        labelPlacement: 'left',
+        properties: { tag: 'CUSTOM-01' },
+        extensions: {},
+      },
+    ]
+
+    const parsed = parseProjectDocument(legacy, [asset])
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(parsed.elements[0].properties.tag).toBe('测试图元-01')
+    expect(parsed.elements[0].labelPlacement).toBeUndefined()
+    expect(parsed.elements[1].properties.tag).toBe('CUSTOM-01')
+    expect(parsed.elements[1].labelPlacement).toBe('left')
+  })
+
+  it('migrates schema v8 busbars without labels and round-trips endpoint labels', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('母线标签迁移', [asset])))
+    const powerDiagramId = legacy.lineSystems.find((line: { type: string }) => (
+      line.type === 'power'
+    )).rootDiagramId
+    legacy.schemaVersion = 8
+    legacy.busbars = [{
+      id: 'busbar-without-label',
+      diagramId: powerDiagramId,
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+    }]
+
+    const migrated = parseProjectDocument(legacy, [asset])
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.busbars[0].label).toBeUndefined()
+
+    const labelled = structuredClone(migrated)
+    labelled.busbars[0].label = '市电母线'
+    labelled.busbars[0].labelEndpoint = 'start'
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(labelled)), [asset]).busbars[0])
+      .toMatchObject({ label: '市电母线', labelEndpoint: 'start' })
+  })
+
+  it('migrates schema v9 elements to visible labels and preserves per-element visibility', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('图元标签显隐迁移', [asset])))
+    legacy.schemaVersion = 9
+    legacy.elements = [{
+      id: 'label-visibility-element',
+      diagramId: legacy.diagrams[0].id,
+      assetKey: asset.key,
+      name: asset.name,
+      x: 0,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: { tag: 'TEST-01' },
+      extensions: {},
+    }]
+
+    const migrated = parseProjectDocument(legacy, [asset])
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.elements[0].labelVisible).toBeUndefined()
+
+    migrated.elements[0].labelVisible = false
+    const roundTripped = parseProjectDocument(JSON.parse(JSON.stringify(migrated)), [asset])
+    expect(roundTripped.elements[0].labelVisible).toBe(false)
+  })
+
+  it('drops the superseded diagram-level label setting from interim schema v10 files', () => {
+    const interim = JSON.parse(JSON.stringify(createDefaultProject('旧开关清理', [asset])))
+    interim.schemaVersion = 10
+    interim.diagrams[0].canvas.showElementLabels = false
+
+    const parsed = parseProjectDocument(interim, [asset])
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect('showElementLabels' in parsed.diagrams[0].canvas).toBe(false)
+  })
+
+  it('migrates schema v10 busbars to visible labels and preserves hidden labels', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('母线标签显隐迁移', [asset])))
+    const powerDiagramId = legacy.lineSystems.find((line: { type: string }) => (
+      line.type === 'power'
+    )).rootDiagramId
+    legacy.schemaVersion = 10
+    legacy.busbars = [{
+      id: 'busbar-label-visibility',
+      diagramId: powerDiagramId,
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      label: '市电母线',
+    }]
+
+    const migrated = parseProjectDocument(legacy, [asset])
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.busbars[0].labelVisible).toBeUndefined()
+
+    migrated.busbars[0].labelVisible = false
+    const roundTripped = parseProjectDocument(JSON.parse(JSON.stringify(migrated)), [asset])
+    expect(roundTripped.busbars[0]).toMatchObject({
+      label: '市电母线',
+      labelVisible: false,
+    })
   })
 
   it('migrates legacy Switch On and Switch Off assets into one Switch asset', () => {
@@ -445,7 +592,7 @@ describe('project document', () => {
     document.busbars.push(
       {
         id: 'child-busbar-a', diagramId, type: 'electrical', orientation: 'horizontal',
-        x: 0, y: 0, length: 160,
+        x: 0, y: 0, length: 160, color: '#77B4BF',
       },
       {
         id: 'child-busbar-b', diagramId, type: 'electrical', orientation: 'horizontal',
@@ -458,10 +605,48 @@ describe('project document', () => {
         { id: 'child-tap-a', kind: 'busbar-tap', busbarId: 'child-busbar-a', offset: 16 },
         { id: 'child-tap-b', kind: 'busbar-tap', busbarId: 'child-busbar-b', offset: 80 },
       ],
-      edges: [{ id: 'child-edge', sourceNodeId: 'child-tap-a', targetNodeId: 'child-tap-b' }],
+      edges: [{
+        id: 'child-edge',
+        sourceNodeId: 'child-tap-a',
+        targetNodeId: 'child-tap-b',
+        color: '#D5B96F',
+        label: '联络线 01',
+        labelVisible: false,
+        labelEndpoint: 'source',
+        labelSide: 'positive',
+      }],
     })
 
-    expect(parseProjectDocument(document).connections[0].edges).toHaveLength(1)
+    const parsed = parseProjectDocument(document)
+    expect(parsed.busbars[0].color).toBe('#77B4BF')
+    expect(parsed.connections[0].edges[0].color).toBe('#D5B96F')
+    expect(parsed.connections[0].edges[0]).toMatchObject({
+      label: '联络线 01',
+      labelVisible: false,
+      labelEndpoint: 'source',
+      labelSide: 'positive',
+    })
+
+    const legacy = JSON.parse(JSON.stringify(document))
+    legacy.schemaVersion = 11
+    delete legacy.connections[0].edges[0].label
+    delete legacy.connections[0].edges[0].labelVisible
+    delete legacy.connections[0].edges[0].labelEndpoint
+    delete legacy.connections[0].edges[0].labelSide
+    expect(parseProjectDocument(legacy).connections[0].edges[0]).toEqual({
+      id: 'child-edge',
+      sourceNodeId: 'child-tap-a',
+      targetNodeId: 'child-tap-b',
+      color: '#D5B96F',
+    })
+
+    const invalidBusbarColor = structuredClone(document)
+    invalidBusbarColor.busbars[0].color = 'blue'
+    expect(() => parseProjectDocument(invalidBusbarColor)).toThrow('颜色必须是六位十六进制值')
+
+    const invalidEdgeColor = structuredClone(document)
+    invalidEdgeColor.connections[0].edges[0].color = 'blue'
+    expect(() => parseProjectDocument(invalidEdgeColor)).toThrow('颜色必须是六位十六进制值')
 
     const targetTap = document.connections[0].nodes[1]
     if (targetTap.kind === 'busbar-tap') targetTap.busbarId = 'child-busbar-a'

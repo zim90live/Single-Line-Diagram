@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test'
 
 import { GRID_DOT_SCREEN_RADIUS } from '../src/editor/gridScale'
+import { defaultConnectionColor } from '../src/editor/objectColors'
 
 test('loads the hybrid editor and completes the phase-one editing path', async ({ page }) => {
   await page.addInitScript(() => {
@@ -212,14 +213,39 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   ).__symbolLibraryAlignmentCross)).toEqual({ width: 48, height: 48 })
   await expect(page.getByTestId('alignment-cross')).toHaveCount(0)
   await expect(page.locator('.diagram-element')).toHaveCount(2)
+  await expect(page.locator('.element-label')).toHaveCount(2)
+  await expect(page.locator('.element-label__text')).toHaveText(['CHWP-01', 'UPS-01'])
   await expect(page.getByText('2 个图元')).toBeVisible()
 
   const firstElement = page.locator('.diagram-element').first()
   const firstImage = firstElement.locator('.diagram-element__image')
+  const firstElementId = await firstElement.getAttribute('data-element-id')
+  if (!firstElementId) throw new Error('无法读取图元 ID')
+  const firstLabel = page.locator(`.element-label[data-element-id="${firstElementId}"]`)
   await expect(firstElement.locator('image')).toHaveCount(1)
   await expect(firstElement.locator('rect, text')).toHaveCount(0)
   await firstElement.click()
   await expect(firstElement).toHaveAttribute('data-selected', 'true')
+  await expect(firstLabel).toHaveAttribute('data-interactive', 'true')
+  const initialLabelPlacement = await firstLabel.getAttribute('data-placement')
+  const initialLabelBox = await firstLabel.locator('.element-label__hit').boundingBox()
+  const labelTargetElementBox = await firstImage.boundingBox()
+  if (!initialLabelBox || !labelTargetElementBox) throw new Error('无法读取图元标签位置')
+  await page.mouse.move(
+    initialLabelBox.x + initialLabelBox.width / 2,
+    initialLabelBox.y + initialLabelBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    labelTargetElementBox.x - 24,
+    labelTargetElementBox.y + labelTargetElementBox.height / 2,
+    { steps: 4 },
+  )
+  await page.mouse.up()
+  await expect(firstLabel).toHaveAttribute('data-placement', 'left')
+  await expect(firstLabel).toHaveAttribute('data-selected', 'true')
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(firstLabel).toHaveAttribute('data-placement', initialLabelPlacement ?? 'bottom')
   const initialTransform = await firstElement.getAttribute('transform')
   const firstBox = await firstElement.boundingBox()
   if (!firstBox) throw new Error('无法读取图元尺寸')
@@ -297,6 +323,7 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   await expect.poll(() => firstImage.getAttribute('width')).toBe(initialWidth)
 
   const rotateHandle = page.locator('.transform-handle--rotate')
+  const labelPlacementBeforeRotation = await firstLabel.getAttribute('data-placement')
   const rotateBox = await rotateHandle.boundingBox()
   if (!rotateBox) throw new Error('无法读取旋转控制柄')
   await page.mouse.move(rotateBox.x + rotateBox.width / 2, rotateBox.y + rotateBox.height / 2)
@@ -304,12 +331,14 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   await page.mouse.move(rotateBox.x + rotateBox.width / 2 + 40, rotateBox.y + rotateBox.height / 2 + 32, { steps: 5 })
   await page.mouse.up()
   await expect.poll(() => firstElement.getAttribute('transform')).toContain('rotate(90 ')
+  await expect(firstLabel).toHaveAttribute('data-placement', labelPlacementBeforeRotation ?? 'bottom')
   await page.getByRole('button', { name: '撤销' }).click()
   await expect.poll(() => firstElement.getAttribute('transform')).toBe(initialTransform)
 
   const secondElement = page.locator('.diagram-element').last()
   await secondElement.click({ modifiers: ['Shift'] })
   await expect(page.locator('.diagram-element[data-selected="true"]')).toHaveCount(2)
+  await expect(page.locator('.element-label[data-interactive="true"]')).toHaveCount(0)
   await expect(page.locator('.selection-member')).toHaveCount(2)
   await expect(page.locator('.transform-controls')).toHaveAttribute('data-selection-count', '2')
 
@@ -435,6 +464,38 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   await expect(page.getByTestId('connection-preview')).toHaveCount(0)
   await expect(page.getByText(/1 个线路网络/)).toBeVisible()
 
+  await chwpElements.first().locator('.diagram-element__image').click({ force: true })
+  await chwpElements.last().locator('.diagram-element__image').click({
+    force: true,
+    modifiers: ['Control'],
+  })
+  await expect(page.locator('.diagram-element[data-asset-key="chwp"][data-selected="true"]'))
+    .toHaveCount(2)
+
+  await page.keyboard.press('Control+c')
+  await page.keyboard.press('Control+v')
+  await expect(chwpElements).toHaveCount(4)
+  await expect(page.getByText(/2 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(chwpElements).toHaveCount(2)
+  await expect(page.getByText(/1 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
+  await chwpElements.first().locator('.diagram-element__image').click({ force: true })
+  await chwpElements.last().locator('.diagram-element__image').click({
+    force: true,
+    modifiers: ['Control'],
+  })
+  await page.keyboard.press('Control+d')
+  await expect(chwpElements).toHaveCount(4)
+  await expect(page.getByText(/2 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(chwpElements).toHaveCount(2)
+  await expect(page.getByText(/1 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
   await page
     .getByTitle('拖动或双击插入CHWP')
     .dragTo(canvas, { targetPosition: { x: canvasBox.width - 180, y: canvasBox.height - 160 } })
@@ -481,19 +542,10 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   const switchImage = switchElement.locator('.diagram-element__image')
   await expect(switchImage).toHaveAttribute('data-symbol-state', 'off')
   await expect(switchImage).toHaveAttribute('data-symbol-color', '#777777')
-  await page.getByLabel('图元颜色').evaluate((node) => {
-    const input = node as HTMLInputElement
-    const valueSetter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      'value',
-    )?.set
-    valueSetter?.call(input, '#77b4bf')
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
+  const symbolHex = page.getByLabel('图元颜色 HEX')
+  await symbolHex.fill('#77B4BF')
   await expect(switchImage).toHaveAttribute('data-symbol-color', '#77B4BF')
-  await page.getByLabel('图元颜色').evaluate((node) => {
-    node.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+  await symbolHex.press('Enter')
   await page.getByRole('button', { name: '撤销' }).click()
   await expect(switchImage).toHaveAttribute('data-symbol-color', '#777777')
   await page.getByRole('button', { name: '重做' }).click()
@@ -504,6 +556,131 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   await expect(page.getByText('已保存', { exact: true })).toBeVisible()
 
   expect(pageErrors).toEqual([])
+})
+
+test('keeps real-scene connected moves clear of full-route main-thread blocking', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles('scene-archives/WuHu AIDC 0814.json')
+  await expect(page.getByText('已导入 WuHu AIDC 0814.json')).toBeVisible()
+
+  const powerTree = page.locator('.tree-line').filter({ hasText: '电力线路' })
+  await powerTree.locator('.tree-row').first().click()
+
+  const stage = page.getByTestId('diagram-canvas')
+  await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })
+  await expect.poll(
+    () => page.locator('.connection-edge').count(),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(1)
+
+  const connectionHits = page.locator('.connection-edge__hit')
+  const visibleConnections = await connectionHits.evaluateAll((nodes) => nodes.flatMap((node, index) => {
+    const rect = node.getBoundingClientRect()
+    const networkId = (node.parentElement as SVGGElement | null)?.dataset.networkId ?? ''
+    const visible = rect.right >= 0 && rect.bottom >= 0 &&
+      rect.left <= window.innerWidth && rect.top <= window.innerHeight
+    return visible ? [{ index, networkId }] : []
+  }))
+  const firstVisibleConnection = visibleConnections[0]
+  const secondVisibleConnection = visibleConnections.find((candidate) => (
+    candidate.networkId !== firstVisibleConnection?.networkId
+  ))
+  if (!firstVisibleConnection || !secondVisibleConnection) {
+    throw new Error('真实归档可视区域缺少两个可用于多选的线路网络')
+  }
+  await connectionHits.nth(firstVisibleConnection.index).dispatchEvent('pointerdown', {
+    button: 0,
+    clientX: 0,
+    clientY: 0,
+    pointerId: 1,
+  })
+  const firstSelectionCount = await page.locator('.connection-edge[data-selected="true"]').count()
+  await connectionHits.nth(secondVisibleConnection.index).dispatchEvent('pointerdown', {
+    button: 0,
+    clientX: 0,
+    clientY: 0,
+    pointerId: 2,
+    shiftKey: true,
+  })
+  await expect.poll(() => page.locator('.connection-edge[data-selected="true"]').count())
+    .toBeGreaterThan(firstSelectionCount)
+
+  await expect(page.getByLabel('子线颜色 HEX')).toBeVisible()
+
+  const selectedEdgeColorsBefore = await page
+    .locator('.connection-edge[data-selected="true"]')
+    .evaluateAll((nodes) => nodes.map((node) => (
+      (node as SVGGElement).style.getPropertyValue('--connection-color')
+    )))
+  const replacementColor = defaultConnectionColor('cooling-secondary-cold')
+  await page.getByLabel('子线颜色 HEX').fill(replacementColor)
+  expect(await page.locator('.connection-edge[data-selected="true"]').evaluateAll((nodes, expected) => (
+    nodes.every((node) => (
+      (node as SVGGElement).style.getPropertyValue('--connection-color') === expected
+    ))
+  ), replacementColor)).toBe(true)
+  await page.getByLabel('子线颜色 HEX').press('Enter')
+  await page.getByRole('button', { name: '撤销' }).click()
+  expect(await page.locator('.connection-edge[data-selected="true"]').evaluateAll((nodes) => (
+    nodes.map((node) => (
+      (node as SVGGElement).style.getPropertyValue('--connection-color')
+    ))
+  ))).toEqual(selectedEdgeColorsBefore)
+  await page.getByLabel('一次接线图编辑画布').focus()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(0)
+
+  const connectedElement = page.locator(
+    '.diagram-element[data-element-id="2a3ad201-e791-402a-aa7b-63a75c6de1b7"] .diagram-element__image',
+  )
+
+  await page.evaluate(() => {
+    const runtimeWindow = window as typeof window & {
+      __routingLongTasks: Array<{ start: number; duration: number }>
+      __routingMarks: Record<string, number>
+    }
+    runtimeWindow.__routingLongTasks = []
+    runtimeWindow.__routingMarks = { start: performance.now() }
+    new PerformanceObserver((entries) => {
+      runtimeWindow.__routingLongTasks.push(...entries.getEntries().map((entry) => ({
+        start: entry.startTime,
+        duration: entry.duration,
+      })))
+    }).observe({ type: 'longtask', buffered: false })
+  })
+
+  const box = await connectedElement.boundingBox()
+  if (!box) throw new Error('无法读取真实归档中已接线图元的位置')
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.evaluate(() => {
+    (window as typeof window & { __routingMarks: Record<string, number> })
+      .__routingMarks.afterDown = performance.now()
+  })
+  await page.mouse.move(center.x + 16, center.y, { steps: 2 })
+  await page.evaluate(() => {
+    (window as typeof window & { __routingMarks: Record<string, number> })
+      .__routingMarks.afterMove = performance.now()
+  })
+  await page.mouse.up()
+  await page.evaluate(() => {
+    (window as typeof window & { __routingMarks: Record<string, number> })
+      .__routingMarks.afterUp = performance.now()
+  })
+
+  await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })
+  await page.waitForTimeout(50)
+  const metrics = await page.evaluate(() => {
+    const runtimeWindow = window as typeof window & {
+      __routingLongTasks: Array<{ start: number; duration: number }>
+      __routingMarks: Record<string, number>
+    }
+    return { tasks: runtimeWindow.__routingLongTasks, marks: runtimeWindow.__routingMarks }
+  })
+  console.info(`REAL_SCENE_ROUTING_METRICS=${JSON.stringify(metrics)}`)
+  expect(Math.max(0, ...metrics.tasks.map((task) => task.duration))).toBeLessThan(120)
+  expect(metrics.marks.afterUp - metrics.marks.start).toBeLessThan(300)
 })
 
 test('creates, connects, edits, and deletes an electrical busbar', async ({ page }) => {
@@ -587,6 +764,23 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
 
   const mixedElementX = await sourceElement.locator('image').getAttribute('x')
   const mixedBusbarPath = await busbarHit.getAttribute('d')
+  const mixedElementXValue = Number(mixedElementX)
+  const mixedBusbarStartX = await busbarHit.evaluate((node) => (
+    (node as SVGPathElement).getPointAtLength(0).x
+  ))
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => sourceElement.locator('image').getAttribute('x'))
+    .toBe(String(mixedElementXValue + 24))
+  await expect.poll(() => busbarHit.evaluate((node) => (
+    (node as SVGPathElement).getPointAtLength(0).x
+  ))).toBe(mixedBusbarStartX + 24)
+  await page.waitForTimeout(160)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect.poll(() => sourceElement.locator('image').getAttribute('x')).toBe(mixedElementX)
+  await expect.poll(() => busbarHit.getAttribute('d')).toBe(mixedBusbarPath)
+
   await page.mouse.move(
     mixedElementBox.x + mixedElementBox.width / 2,
     mixedElementBox.y + mixedElementBox.height / 2,
@@ -638,6 +832,92 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await page.mouse.click(busbarQuarterPoint.x, busbarQuarterPoint.y)
   await expect(page.locator('.busbar')).toHaveAttribute('data-selected', 'true')
   await expect(page.locator('.busbar-controls')).toHaveCount(1)
+  const busbarHex = page.getByLabel('母线颜色 HEX')
+  await expect(busbarHex).toHaveValue('#D5B96F')
+  await busbarHex.fill('#77B4BF')
+  await expect.poll(() => page.locator('.busbar-tap').evaluate((node) => (
+    (node as SVGCircleElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('#77B4BF')
+  await busbarHex.press('Enter')
+  await expect.poll(() => page.locator('.busbar').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('#77B4BF')
+  await expect.poll(() => page.locator('.busbar-tap').evaluate((node) => (
+    (node as SVGCircleElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('#77B4BF')
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect.poll(() => page.locator('.busbar').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('')
+  await expect.poll(() => page.locator('.busbar-tap').evaluate((node) => (
+    (node as SVGCircleElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('')
+  await page.getByRole('button', { name: '重做' }).click()
+  await expect.poll(() => page.locator('.busbar').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('#77B4BF')
+  await page.mouse.click(busbarQuarterPoint.x, busbarQuarterPoint.y)
+
+  await page.keyboard.press('Control+c')
+  await page.keyboard.press('Control+v')
+  await expect(page.locator('.busbar')).toHaveCount(2)
+  expect(await page.locator('.busbar').evaluateAll((nodes) => nodes.every((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color') === '#77B4BF'
+  )))).toBe(true)
+  await expect(page.locator('.busbar[data-selected="true"]')).toHaveCount(1)
+  await expect(page.locator('.busbar-tap')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
+  await page.keyboard.press('Control+d')
+  await expect(page.locator('.busbar')).toHaveCount(3)
+  await expect(page.locator('.busbar[data-selected="true"]')).toHaveCount(1)
+  await expect(page.locator('.busbar-tap')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.busbar')).toHaveCount(2)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.busbar')).toHaveCount(1)
+  await page.mouse.click(busbarQuarterPoint.x, busbarQuarterPoint.y)
+  await expect(page.locator('.busbar')).toHaveAttribute('data-selected', 'true')
+
+  await sourceElement.locator('.diagram-element__image').click({
+    force: true,
+    modifiers: ['Control'],
+  })
+  await expect(sourceElement).toHaveAttribute('data-selected', 'true')
+  await expect(page.locator('.busbar')).toHaveAttribute('data-selected', 'true')
+  await page.keyboard.press('Control+c')
+  await page.keyboard.press('Control+v')
+  await expect(page.locator('.diagram-element[data-asset-key="grid"]')).toHaveCount(2)
+  await expect(page.locator('.busbar')).toHaveCount(2)
+  await expect(page.locator('.busbar-tap')).toHaveCount(2)
+  await expect(page.getByText(/2 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.diagram-element[data-asset-key="grid"]')).toHaveCount(1)
+  await expect(page.locator('.busbar')).toHaveCount(1)
+  await expect(page.locator('.busbar-tap')).toHaveCount(1)
+  await expect(page.getByText(/1 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
+  await page.mouse.click(busbarQuarterPoint.x, busbarQuarterPoint.y)
+  await sourceElement.locator('.diagram-element__image').click({
+    force: true,
+    modifiers: ['Control'],
+  })
+  await page.keyboard.press('Control+d')
+  await expect(page.locator('.diagram-element[data-asset-key="grid"]')).toHaveCount(2)
+  await expect(page.locator('.busbar')).toHaveCount(2)
+  await expect(page.locator('.busbar-tap')).toHaveCount(2)
+  await expect(page.getByText(/2 个线路网络/)).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.diagram-element[data-asset-key="grid"]')).toHaveCount(1)
+  await expect(page.locator('.busbar')).toHaveCount(1)
+  await expect(page.locator('.busbar-tap')).toHaveCount(1)
+  await page.mouse.click(busbarQuarterPoint.x, busbarQuarterPoint.y)
+  await expect(page.locator('.busbar')).toHaveAttribute('data-selected', 'true')
 
   const endHandle = page.locator('.busbar-handle--end')
   const endHandleBox = await endHandle.boundingBox()
@@ -746,6 +1026,98 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
 
   await page.locator('.connection-edge__hit').click({ force: true })
   await expect(page.locator('.connection-edge')).toHaveAttribute('data-selected', 'true')
+  const childLineHex = page.getByLabel('子线颜色 HEX')
+  await expect(childLineHex).toHaveValue('#D5B96F')
+  await page.getByRole('button', { name: '打开子线颜色选择器' }).click()
+  await expect(page.getByRole('group', { name: '子线颜色 HEX 选择器' })).toBeVisible()
+  await expect(page.locator('input[type="color"]')).toHaveCount(0)
+  await page.getByLabel('子线颜色 选择器 HEX').fill('#77B4BF')
+  await page.getByRole('button', { name: '完成' }).click()
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe('#77B4BF')
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe('')
+  await page.getByRole('button', { name: '重做' }).click()
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe('#77B4BF')
+  const childCanvasBox = await canvas.boundingBox()
+  if (!childCanvasBox) throw new Error('无法读取子线测试画布尺寸')
+  await canvas.click({ position: { x: childCanvasBox.width - 24, y: childCanvasBox.height - 24 } })
+  await page.locator('.connection-edge__hit').click({ force: true })
+  await expect(page.getByLabel('子线颜色 HEX')).toHaveValue('#77B4BF')
+  await canvas.click({ position: { x: childCanvasBox.width - 24, y: childCanvasBox.height - 24 } })
+  const globalChildColor = page.getByRole('button', {
+    name: '全局修改子线颜色 #77B4BF',
+  })
+  await expect(globalChildColor).toContainText('1 条')
+  await globalChildColor.click()
+  const replacementColor = defaultConnectionColor('cooling-secondary-cold')
+  await page.getByLabel('全局替换子线颜色 选择器 HEX').fill(replacementColor)
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe(replacementColor)
+  await page.getByRole('button', { name: '完成' }).click()
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe('#77B4BF')
+
+  await page.locator('.connection-edge__hit').click({ force: true })
+  const firstQuarterPoint = await firstHit.evaluate((node) => {
+    const path = node as SVGPathElement
+    const point = path.getPointAtLength(path.getTotalLength() / 4)
+    const matrix = path.getScreenCTM()
+    if (!matrix) throw new Error('无法读取母线追加选择坐标')
+    return {
+      x: point.x * matrix.a + point.y * matrix.c + matrix.e,
+      y: point.x * matrix.b + point.y * matrix.d + matrix.f,
+    }
+  })
+  await page.keyboard.down('Shift')
+  await page.mouse.click(firstQuarterPoint.x, firstQuarterPoint.y)
+  await page.keyboard.up('Shift')
+
+  const selectedBusbar = page.locator('.busbar[data-selected="true"]')
+  await expect(selectedBusbar).toHaveCount(1)
+  await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(1)
+  const selectedBusbarId = await selectedBusbar.getAttribute('data-busbar-id')
+  if (!selectedBusbarId) throw new Error('无法读取混合选中母线 ID')
+  const selectedBusbarTap = page.locator(`.busbar-tap[data-busbar-id="${selectedBusbarId}"]`)
+  const mixedLineHex = page.getByLabel('线路颜色 HEX')
+  await expect(mixedLineHex).toHaveValue('')
+  await expect(mixedLineHex).toHaveAttribute('placeholder', '多种颜色')
+
+  const mixedReplacementColor = defaultConnectionColor('cooling-secondary-hot')
+  await mixedLineHex.fill(mixedReplacementColor)
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe(mixedReplacementColor)
+  await expect.poll(() => selectedBusbar.evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color')
+  ))).toBe(mixedReplacementColor)
+  await expect.poll(() => selectedBusbarTap.evaluate((node) => (
+    (node as SVGCircleElement).style.getPropertyValue('--busbar-color')
+  ))).toBe(mixedReplacementColor)
+  await mixedLineHex.press('Enter')
+
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect.poll(() => page.locator('.connection-edge').evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--connection-color')
+  ))).toBe('#77B4BF')
+  await expect.poll(() => selectedBusbar.evaluate((node) => (
+    (node as SVGGElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('')
+  await expect.poll(() => selectedBusbarTap.evaluate((node) => (
+    (node as SVGCircleElement).style.getPropertyValue('--busbar-color')
+  ))).toBe('')
+  await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(1)
+  await expect(selectedBusbar).toHaveCount(1)
+
+  await page.locator('.connection-edge__hit').click({ force: true })
   await page.getByRole('button', { name: '删除所选对象' }).click()
   await expect(page.locator('.connection-edge')).toHaveCount(0)
   await expect(page.locator('.busbar-tap')).toHaveCount(0)

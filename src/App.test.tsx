@@ -31,7 +31,13 @@ vi.mock('./editor/DiagramCanvas', () => ({
       insertSymbol: vi.fn(),
       insertBusbar: insertBusbarMock,
       previewElementColor: vi.fn(),
+      previewSelectionColor: vi.fn(),
+      updateSelectionColor: vi.fn(),
+      previewCanvasColor: vi.fn(),
+      updateCanvasColor: vi.fn(),
       updateElement: vi.fn(),
+      updateBusbar: vi.fn(),
+      updateConnectionEdge: vi.fn(),
     }))
     return <div data-testid="diagram-canvas">画布</div>
   }),
@@ -64,7 +70,7 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByTestId('diagram-canvas')).toBeInTheDocument()
     expect(screen.getByText('CHWP')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '母线' })).toBeDisabled()
-    expect(screen.getByText('选择一个图元查看属性')).toBeInTheDocument()
+    expect(screen.getByText('点击颜色，替换当前画布中同类同色对象。')).toBeInTheDocument()
   })
 
   it('enables the busbar tool only on power diagrams', async () => {

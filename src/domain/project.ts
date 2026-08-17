@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 6 as const
+export const SCHEMA_VERSION = 12 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -17,6 +17,7 @@ export const anchorTypeSchema = z.enum([
 ])
 
 export const anchorDirectionSchema = z.enum(['top', 'right', 'bottom', 'left'])
+export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
 
 export const symbolAnchorSchema = z.object({
   id: z.string().min(1),
@@ -47,6 +48,8 @@ export const diagramElementSchema = z.object({
   width: z.number().positive(),
   height: z.number().positive(),
   rotation: z.number().finite(),
+  labelVisible: z.boolean().optional(),
+  labelPlacement: elementLabelPlacementSchema.optional(),
   properties: z.record(
     z.string(),
     z.union([z.string(), z.number(), z.boolean(), z.null()]),
@@ -55,6 +58,7 @@ export const diagramElementSchema = z.object({
 })
 
 export const busbarOrientationSchema = z.enum(['horizontal', 'vertical'])
+export const busbarLabelEndpointSchema = z.enum(['start', 'end'])
 
 export const busbarSchema = z.object({
   id: z.string().min(1),
@@ -64,6 +68,10 @@ export const busbarSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),
   length: z.number().positive(),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
+  label: z.string().trim().min(1).optional(),
+  labelVisible: z.boolean().optional(),
+  labelEndpoint: busbarLabelEndpointSchema.optional(),
 })
 
 export const connectionNodeSchema = z.discriminatedUnion('kind', [
@@ -85,6 +93,11 @@ export const connectionEdgeSchema = z.object({
   id: z.string().min(1),
   sourceNodeId: z.string().min(1),
   targetNodeId: z.string().min(1),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
+  label: z.string().trim().min(1).optional(),
+  labelVisible: z.boolean().optional(),
+  labelEndpoint: z.enum(['source', 'target']).optional(),
+  labelSide: z.enum(['negative', 'positive']).optional(),
 })
 
 export const connectionNetworkSchema = z.object({
@@ -617,13 +630,17 @@ export type LineSystemType = z.infer<typeof lineSystemTypeSchema>
 export type DiagramLevel = z.infer<typeof diagramLevelSchema>
 export type AnchorType = z.infer<typeof anchorTypeSchema>
 export type AnchorDirection = z.infer<typeof anchorDirectionSchema>
+export type ElementLabelPlacement = z.infer<typeof elementLabelPlacementSchema>
 export type SymbolAnchor = z.infer<typeof symbolAnchorSchema>
 export type AssetDefinition = z.infer<typeof assetDefinitionSchema>
 export type DiagramElement = z.infer<typeof diagramElementSchema>
 export type BusbarOrientation = z.infer<typeof busbarOrientationSchema>
+export type BusbarLabelEndpoint = z.infer<typeof busbarLabelEndpointSchema>
 export type Busbar = z.infer<typeof busbarSchema>
 export type ConnectionNode = z.infer<typeof connectionNodeSchema>
 export type ConnectionEdge = z.infer<typeof connectionEdgeSchema>
+export type ConnectionLabelEndpoint = NonNullable<ConnectionEdge['labelEndpoint']>
+export type ConnectionLabelSide = NonNullable<ConnectionEdge['labelSide']>
 export type ConnectionNetwork = z.infer<typeof connectionNetworkSchema>
 export type Diagram = z.infer<typeof diagramSchema>
 export type DiagramViewport = Diagram['canvas']['viewport']
@@ -912,7 +929,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const withCurrentAssetShape = input.schemaVersion === 1 && Array.isArray(input.assets) ? {
@@ -929,7 +946,7 @@ function migrateProjectDocument(
     }),
   } : input
 
-  return migrateLegacySwitch({
+  const migrated = migrateLegacySwitch({
     ...withCurrentAssetShape,
     schemaVersion: SCHEMA_VERSION,
     busbars: Array.isArray(withCurrentAssetShape.busbars)
@@ -939,6 +956,44 @@ function migrateProjectDocument(
       ? migrateLegacyConnectionJunctions(withCurrentAssetShape.connections)
       : [],
   }, installedAssets)
+
+  if (!isRecord(migrated) || !Array.isArray(migrated.elements)) return migrated
+  const usedTagsByDiagram = new Map<string, Set<string>>()
+  for (const value of migrated.elements) {
+    if (!isRecord(value) || typeof value.diagramId !== 'string' || !isRecord(value.properties)) {
+      continue
+    }
+    const tag = value.properties.tag
+    if (typeof tag !== 'string' || !tag.trim()) continue
+    const used = usedTagsByDiagram.get(value.diagramId) ?? new Set<string>()
+    used.add(tag.trim())
+    usedTagsByDiagram.set(value.diagramId, used)
+  }
+
+  return {
+    ...migrated,
+    elements: migrated.elements.map((value) => {
+      if (!isRecord(value) || typeof value.diagramId !== 'string') return value
+      const properties = isRecord(value.properties) ? value.properties : {}
+      const currentTag = properties.tag
+      if (typeof currentTag === 'string' && currentTag.trim()) return value
+      const base = typeof value.name === 'string' && value.name.trim()
+        ? value.name.trim()
+        : typeof value.assetKey === 'string' && value.assetKey.trim()
+          ? value.assetKey.trim()
+          : '设备'
+      const used = usedTagsByDiagram.get(value.diagramId) ?? new Set<string>()
+      let index = 1
+      let tag = `${base}-${String(index).padStart(2, '0')}`
+      while (used.has(tag)) {
+        index += 1
+        tag = `${base}-${String(index).padStart(2, '0')}`
+      }
+      used.add(tag)
+      usedTagsByDiagram.set(value.diagramId, used)
+      return { ...value, properties: { ...properties, tag } }
+    }),
+  }
 }
 
 export function parseProjectDocument(

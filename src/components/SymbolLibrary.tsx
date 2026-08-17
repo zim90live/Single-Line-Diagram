@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import { SymbolBrowser } from './SymbolBrowser'
 
 interface SymbolLibraryProps {
@@ -7,7 +9,7 @@ interface SymbolLibraryProps {
   canInsertBusbar: boolean
 }
 
-export function SymbolLibrary({
+export const SymbolLibrary = memo(function SymbolLibrary({
   onInsert,
   onEdit,
   onInsertBusbar,
@@ -58,4 +60,4 @@ export function SymbolLibrary({
       </section>
     </section>
   )
-}
+})

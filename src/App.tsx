@@ -15,14 +15,21 @@ import {
   Upload,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { HierarchyPanel } from './components/HierarchyPanel'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
 import { SymbolLibrary } from './components/SymbolLibrary'
 import { Button, IconButton, StatusTag, TextField } from './components/ui'
-import { getDiagramPath, parseProjectDocument } from './domain/project'
+import {
+  getDiagramPath,
+  parseProjectDocument,
+  type Busbar,
+  type ConnectionNetwork,
+  type DiagramElement,
+  type DiagramViewport,
+} from './domain/project'
 import {
   DiagramCanvas,
   type DiagramCanvasHandle,
@@ -44,6 +51,9 @@ const initialCommandState: EditorCommandState = {
   zoom: 1,
   selectedConnection: false,
   selectedBusbar: false,
+  selectedConnectionId: null,
+  selectedConnectionEdgeIds: [],
+  selectedBusbarIds: [],
   wiringType: null,
 }
 
@@ -168,6 +178,57 @@ export default function App() {
     () => document.elements.filter((element) => selectedElementIds.includes(element.id)),
     [document.elements, selectedElementIds],
   )
+  const duplicateDeviceIdentifier = useMemo(() => {
+    if (selectedElements.length !== 1) return false
+    const tag = selectedElements[0].properties.tag
+    if (typeof tag !== 'string' || !tag.trim()) return false
+    return currentElements.filter((element) => (
+      typeof element.properties.tag === 'string' &&
+      element.properties.tag.trim() === tag.trim()
+    )).length > 1
+  }, [currentElements, selectedElements])
+  const selectedBusbars = useMemo(() => {
+    const ids = new Set(commandState.selectedBusbarIds)
+    return currentBusbars.filter((busbar) => ids.has(busbar.id))
+  }, [commandState.selectedBusbarIds, currentBusbars])
+  const selectedConnection = useMemo(() => {
+    if (!commandState.selectedConnectionId || !commandState.selectedConnectionEdgeIds.length) {
+      return null
+    }
+    const edgeIds = new Set(commandState.selectedConnectionEdgeIds)
+    const selections = currentConnections.flatMap((network) => (
+      network.edges.flatMap((edge) => edgeIds.has(edge.id) ? [{ network, edge }] : [])
+    ))
+    if (!selections.length) return null
+    return {
+      id: commandState.selectedConnectionId,
+      type: selections[0].network.type,
+      edgeTypes: Object.fromEntries(selections.map(({ network, edge }) => (
+        [edge.id, network.type]
+      ))),
+      edges: selections.map(({ edge }) => edge),
+      isNetwork: commandState.selectedConnectionId.startsWith('network:'),
+    }
+  }, [
+    commandState.selectedConnectionEdgeIds,
+    commandState.selectedConnectionId,
+    currentConnections,
+  ])
+  const insertSymbol = useCallback(
+    (symbolKey: string) => editorRef.current?.insertSymbol(symbolKey),
+    [],
+  )
+  const insertBusbar = useCallback(() => editorRef.current?.insertBusbar(), [])
+  const handleDiagramChange = useCallback((
+    nextElements: DiagramElement[],
+    nextBusbars: Busbar[],
+    nextConnections: ConnectionNetwork[],
+  ) => {
+    replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
+  }, [currentDiagramId, replaceDiagramContent])
+  const handleViewportChange = useCallback((nextViewport: DiagramViewport) => {
+    updateDiagramViewport(currentDiagramId, nextViewport)
+  }, [currentDiagramId, updateDiagramViewport])
 
   const saveProject = async () => {
     try {
@@ -390,9 +451,9 @@ export default function App() {
         <aside className="left-sidebar">
           <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
           <SymbolLibrary
-            onInsert={(symbolKey) => editorRef.current?.insertSymbol(symbolKey)}
+            onInsert={insertSymbol}
             onEdit={setAnchorEditorAssetKey}
-            onInsertBusbar={() => editorRef.current?.insertBusbar()}
+            onInsertBusbar={insertBusbar}
             canInsertBusbar={currentLine?.type === 'power'}
           />
         </aside>
@@ -414,10 +475,8 @@ export default function App() {
               elements={currentElements}
               busbars={currentBusbars}
               connections={currentConnections}
-              onDiagramChange={(nextElements, nextBusbars, nextConnections) => (
-                replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
-              )}
-              onViewportChange={(nextViewport) => updateDiagramViewport(currentDiagramId, nextViewport)}
+              onDiagramChange={handleDiagramChange}
+              onViewportChange={handleViewportChange}
               onSelectionChange={setSelectedElementIds}
               onCommandStateChange={setCommandState}
               onPointerChange={setPointerPosition}
@@ -437,8 +496,10 @@ export default function App() {
             <span>
               {commandState.wiringType
                 ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
-                : commandState.selectedConnection
-                  ? '已选择线路'
+                : commandState.selectedConnection && commandState.selectedBusbar
+                  ? '已选择母线与子线'
+                  : commandState.selectedConnection
+                    ? '已选择子线'
                   : commandState.selectedBusbar
                     ? '已选择母线'
                   : selectedElements.length
@@ -452,9 +513,27 @@ export default function App() {
 
         <PropertiesPanel
           selectedElements={selectedElements}
+          duplicateDeviceIdentifier={duplicateDeviceIdentifier}
+          selectedBusbars={selectedBusbars}
+          selectedConnection={selectedConnection}
+          canvasElements={currentElements}
+          canvasBusbars={currentBusbars}
+          canvasConnections={currentConnections}
           onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
+          onPatchBusbar={(busbarId, patch) => editorRef.current?.updateBusbar(busbarId, patch)}
+          onPatchConnectionEdge={(edgeId, patch) => (
+            editorRef.current?.updateConnectionEdge(edgeId, patch)
+          )}
           onColorPreview={(elementId, color) => (
             editorRef.current?.previewElementColor(elementId, color)
+          )}
+          onSelectionColorPreview={(color) => editorRef.current?.previewSelectionColor(color)}
+          onSelectionColorCommit={(color) => editorRef.current?.updateSelectionColor(color)}
+          onCanvasColorPreview={(target, color) => (
+            editorRef.current?.previewCanvasColor(target, color)
+          )}
+          onCanvasColorCommit={(target, color) => (
+            editorRef.current?.updateCanvasColor(target, color)
           )}
           onDelete={() => editorRef.current?.deleteSelected()}
         />

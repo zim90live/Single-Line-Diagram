@@ -763,9 +763,57 @@ button:focus-visible,
   pointer-events: all;
 }
 
+.element-label {
+  pointer-events: none;
+  user-select: none;
+}
+
+.element-label__text {
+  fill: var(--muted);
+  stroke: var(--canvas);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  font-family: var(--font-interface);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.element-label__hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.element-label[data-interactive='true'] .element-label__hit {
+  pointer-events: all;
+  cursor: grab;
+}
+
+.element-label[data-interactive='true']:hover .element-label__text,
+.element-label[data-selected='true'] .element-label__text {
+  fill: var(--ink);
+}
+
+.element-label[data-selected='true'] .element-label__hit {
+  stroke: color-mix(in srgb, var(--accent) 72%, transparent);
+  stroke-dasharray: 3 2;
+}
+
+.element-label[data-selected='true'] .element-label__hit:active {
+  cursor: grabbing;
+}
+
+.busbar {
+  --busbar-color: var(--electrical);
+}
+
 .busbar__line {
   fill: none;
-  stroke: var(--electrical);
+  stroke: var(--busbar-color);
   stroke-linecap: square;
   stroke-width: 4;
   vector-effect: non-scaling-stroke;
@@ -773,7 +821,7 @@ button:focus-visible,
 }
 
 .busbar[data-selected='true'] .busbar__line {
-  stroke: color-mix(in srgb, var(--electrical) 68%, var(--ink));
+  stroke: color-mix(in srgb, var(--busbar-color) 68%, var(--ink));
   stroke-width: 5;
 }
 
@@ -793,13 +841,15 @@ button:focus-visible,
 }
 
 .busbar-tap {
-  fill: var(--electrical);
+  --busbar-color: var(--electrical);
+  fill: var(--busbar-color);
   pointer-events: none;
 }
 
 .busbar-tap-candidate {
+  --busbar-color: var(--electrical);
   fill: var(--canvas);
-  stroke: var(--electrical);
+  stroke: var(--busbar-color);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
   pointer-events: all;
@@ -807,7 +857,7 @@ button:focus-visible,
 }
 
 .busbar-tap-candidate:hover {
-  fill: var(--electrical);
+  fill: var(--busbar-color);
 }
 
 .busbar-controls {
@@ -868,6 +918,16 @@ button:focus-visible,
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.connection-edge__bridge-casing {
+  fill: none;
+  stroke: var(--canvas);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 12;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -1050,6 +1110,178 @@ button:focus-visible,
   gap: 15px;
 }
 
+.property-toggle {
+  display: flex;
+  min-height: 44px;
+  padding: 7px 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--recipe-field-border);
+  border-radius: var(--recipe-field-radius);
+  background: var(--recipe-field-bg);
+}
+
+.property-toggle__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.property-toggle__copy > span {
+  color: var(--recipe-field-value);
+  font: var(--recipe-field-value-type);
+}
+
+.property-toggle__copy > small {
+  color: var(--dim);
+  font: var(--type-label);
+}
+
+.property-toggle__control {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  outline: 0;
+  background: var(--surface-control);
+  cursor: pointer;
+  transition: background var(--duration-standard) var(--ease-out-quart), border-color var(--duration-standard) var(--ease-out-quart);
+}
+
+.property-toggle__control > span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transform: translateX(0);
+  transition: transform var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart);
+}
+
+.property-toggle__control[aria-checked='true'] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-control));
+}
+
+.property-toggle__control[aria-checked='true'] > span {
+  background: var(--ink);
+  transform: translateX(14px);
+}
+
+.property-toggle__control:hover {
+  border-color: var(--recipe-field-hover-border);
+}
+
+.property-toggle__control:focus-visible {
+  border-color: var(--recipe-field-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--recipe-field-focus) 28%, transparent);
+}
+
+.canvas-color-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.canvas-color-overview__intro {
+  margin: 0;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+}
+
+.canvas-color-overview__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.canvas-color-overview__section + .canvas-color-overview__section {
+  padding-top: 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.canvas-color-overview__section-heading {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.canvas-color-overview__section-heading h3 {
+  margin: 0;
+  color: var(--muted);
+  font: var(--type-label);
+}
+
+.canvas-color-overview__section-heading span,
+.canvas-color-overview__empty {
+  color: var(--dim);
+  font-size: var(--text-caption);
+}
+
+.canvas-color-overview__list,
+.canvas-color-overview__item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.canvas-color-overview__color-button {
+  display: grid;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
+  align-items: center;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  outline: 0;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  text-align: left;
+}
+
+.canvas-color-overview__color-button:hover,
+.canvas-color-overview__color-button[aria-expanded='true'] {
+  border-color: var(--divider);
+  background: var(--panel-raised);
+}
+
+.canvas-color-overview__color-button:focus-visible {
+  border-color: var(--recipe-field-focus);
+  box-shadow: 0 0 0 1px var(--recipe-field-focus);
+}
+
+.canvas-color-overview__swatch {
+  width: 28px;
+  height: 20px;
+  border: 1px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.canvas-color-overview__color-button code {
+  overflow: hidden;
+  color: var(--muted);
+  font: var(--type-label);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.canvas-color-overview__item > .property-color-field {
+  padding: 4px 0 8px;
+}
+
 .property-color-field {
   display: flex;
   min-width: 0;
@@ -1085,7 +1317,6 @@ button:focus-visible,
   border: 1px solid var(--recipe-field-border);
   border-radius: var(--recipe-field-radius);
   background: var(--recipe-field-bg);
-  cursor: pointer;
 }
 
 .property-color-field__control:hover {
@@ -1097,11 +1328,13 @@ button:focus-visible,
   box-shadow: 0 0 0 1px var(--recipe-field-focus);
 }
 
-.property-color-field__control input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+.property-color-field__swatch-button {
+  display: grid;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
 }
 
 .property-color-field__swatch {
@@ -1112,17 +1345,124 @@ button:focus-visible,
   border-radius: var(--radius-sm);
 }
 
-.property-color-field__control code {
+.property-color-field__mode {
+  color: var(--dim);
+  font: var(--type-label);
+  letter-spacing: 0.06em;
+}
+
+.property-color-field__hex {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--muted);
   font: var(--type-label);
   font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
 }
 
-.property-color-field__control::after {
-  margin-left: auto;
+.property-color-field__hex::placeholder {
   color: var(--dim);
-  content: '选择';
+}
+
+.property-color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-control);
+  background: var(--panel-raised);
+}
+
+.property-color-picker__spectrum {
+  position: relative;
+  height: 112px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: var(--radius-sm);
+  background-image:
+    linear-gradient(to top, var(--canvas-deep), transparent),
+    linear-gradient(to right, var(--ink), transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.property-color-picker__marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--canvas-deep) 70%, transparent);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.property-color-picker__hue,
+.property-color-picker__hex-field {
+  display: grid;
+  align-items: center;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--dim);
   font: var(--type-label);
+}
+
+.property-color-picker__hue input {
+  width: 100%;
+  height: 8px;
+  margin: 0;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(in oklch longer hue to right, var(--error), var(--error));
+  cursor: ew-resize;
+}
+
+.property-color-picker__hue input::-webkit-slider-thumb {
+  width: 12px;
+  height: 16px;
+  appearance: none;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+}
+
+.property-color-picker__hue input::-moz-range-thumb {
+  width: 12px;
+  height: 16px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+}
+
+.property-color-picker__hex-field input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--recipe-field-border);
+  border-radius: var(--radius-sm);
+  outline: 0;
+  background: var(--recipe-field-bg);
+  color: var(--ink);
+  font: var(--type-label);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.property-color-picker__hex-field input:focus-visible {
+  border-color: var(--recipe-field-focus);
+  box-shadow: 0 0 0 1px var(--recipe-field-focus);
+}
+
+.property-color-picker__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .property-grid {

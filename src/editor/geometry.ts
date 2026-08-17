@@ -156,6 +156,8 @@ export function elementsEqual(left: DiagramElement[], right: DiagramElement[]) {
       element.width === candidate.width &&
       element.height === candidate.height &&
       element.rotation === candidate.rotation &&
+      element.labelVisible === candidate.labelVisible &&
+      element.labelPlacement === candidate.labelPlacement &&
       JSON.stringify(element.properties) === JSON.stringify(candidate.properties) &&
       JSON.stringify(element.extensions) === JSON.stringify(candidate.extensions)
     )
