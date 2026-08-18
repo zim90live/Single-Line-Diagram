@@ -32,8 +32,8 @@
 
 ## 数据与兼容
 
-- Schema v8 引入 `DiagramElement.labelPlacement`，保存可选的 `top | right | bottom | left`；Schema v10 在 `DiagramElement.labelVisible` 保存单图元显隐状态，当前 Schema v11 继续沿用，缺省表示显示。
-- v1–v10 项目载入时升级为当前 v11；旧图元默认显示标签，v1–v7 项目仍会为缺少设备标识的既有图元生成稳定默认标识。
+- Schema v8 引入 `DiagramElement.labelPlacement`，保存可选的 `top | right | bottom | left`；Schema v10 在 `DiagramElement.labelVisible` 保存单图元显隐状态，当前 Schema v13 继续沿用，缺省表示显示。
+- v1–v11 项目载入时升级为当前 v12；旧图元默认显示标签，v1–v7 项目仍会为缺少设备标识的既有图元生成稳定默认标识。
 - 标签方位进入 JSON、IndexedDB、撤销/重做及图元复制；自动计算出的具体坐标不持久化。
 - 单图元显隐设置与图元其他属性一样进入 JSON、IndexedDB、撤销/重做及复制，不改变设备标识内容。
 - 重复设备标识暂不阻止保存，右侧属性面板给出提示，由用户决定是否修正。

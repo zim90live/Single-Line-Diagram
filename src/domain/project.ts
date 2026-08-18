@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 12 as const
+export const SCHEMA_VERSION = 13 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -344,17 +344,18 @@ export const projectDocumentSchema = z
           message: `图元“${element.name}”引用了不存在的素材`,
         })
       }
-      if (
-        element.properties.color !== undefined &&
-        (
-          typeof element.properties.color !== 'string' ||
-          !/^#[0-9a-f]{6}$/i.test(element.properties.color)
-        )
-      ) {
+      for (const [property, label] of [
+        ['color', '颜色'],
+        ['switchOffColor', '关状态颜色'],
+        ['switchOnColor', '开状态颜色'],
+      ] as const) {
+        const value = element.properties[property]
+        if (value === undefined) continue
+        if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) continue
         context.addIssue({
           code: 'custom',
-          path: ['elements', element.id, 'properties', 'color'],
-          message: `图元“${element.name}”的颜色必须是六位十六进制值`,
+          path: ['elements', element.id, 'properties', property],
+          message: `图元“${element.name}”的${label}必须是六位十六进制值`,
         })
       }
     }
@@ -842,6 +843,29 @@ function migrateLegacySwitch(
   }
 }
 
+function migrateSwitchStateColors(input: Record<string, unknown>) {
+  if (!Array.isArray(input.elements)) return input
+  return {
+    ...input,
+    elements: input.elements.map((element) => {
+      if (
+        !isRecord(element) ||
+        element.assetKey !== 'switch' ||
+        !isRecord(element.properties)
+      ) return element
+      const legacyColor = element.properties.color
+      if (typeof legacyColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(legacyColor)) {
+        return element
+      }
+      const properties = { ...element.properties }
+      properties.switchOffColor ??= legacyColor.toUpperCase()
+      properties.switchOnColor ??= legacyColor.toUpperCase()
+      delete properties.color
+      return { ...element, properties }
+    }),
+  }
+}
+
 function migrateLegacyConnectionJunctions(connections: unknown[]) {
   return connections.map((value) => {
     if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) {
@@ -929,7 +953,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const withCurrentAssetShape = input.schemaVersion === 1 && Array.isArray(input.assets) ? {
@@ -946,7 +970,7 @@ function migrateProjectDocument(
     }),
   } : input
 
-  const migrated = migrateLegacySwitch({
+  const migrated = migrateSwitchStateColors(migrateLegacySwitch({
     ...withCurrentAssetShape,
     schemaVersion: SCHEMA_VERSION,
     busbars: Array.isArray(withCurrentAssetShape.busbars)
@@ -955,7 +979,7 @@ function migrateProjectDocument(
     connections: Array.isArray(withCurrentAssetShape.connections)
       ? migrateLegacyConnectionJunctions(withCurrentAssetShape.connections)
       : [],
-  }, installedAssets)
+  }, installedAssets))
 
   if (!isRecord(migrated) || !Array.isArray(migrated.elements)) return migrated
   const usedTagsByDiagram = new Map<string, Set<string>>()

@@ -11,8 +11,10 @@ import {
 import type { Point, Rect } from './geometry'
 
 export const CONNECTION_LABEL_ENDPOINT_GAP = 8
+export const CONNECTION_LABEL_ENDPOINT_PADDING = 8
 
 export type ConnectionLabelOrientation = 'horizontal' | 'vertical'
+export type ConnectionLabelAxisAlignment = 'left' | 'right' | 'top' | 'bottom'
 
 export interface ConnectionLabelPlacement {
   edgeId: string
@@ -23,14 +25,17 @@ export interface ConnectionLabelPlacement {
 export interface ConnectionLabelLayout extends ConnectionLabelPlacement {
   text: string
   orientation: ConnectionLabelOrientation
+  axisAlignment: ConnectionLabelAxisAlignment
   bounds: Rect
   textX: number
   textY: number
+  textAnchor: 'start' | 'end'
 }
 
 interface EndpointSegment {
   point: Point
   orientation: ConnectionLabelOrientation
+  direction: -1 | 1
 }
 
 function endpointSegment(
@@ -43,11 +48,15 @@ function endpointSegment(
     candidate.x !== point?.x || candidate.y !== point?.y
   ))
   if (!point || !adjacent) return null
+  const orientation = Math.abs(adjacent.x - point.x) >= Math.abs(adjacent.y - point.y)
+    ? 'horizontal'
+    : 'vertical'
   return {
     point,
-    orientation: Math.abs(adjacent.x - point.x) >= Math.abs(adjacent.y - point.y)
-      ? 'horizontal'
-      : 'vertical',
+    orientation,
+    direction: orientation === 'horizontal'
+      ? adjacent.x > point.x ? 1 : -1
+      : adjacent.y > point.y ? 1 : -1,
   }
 }
 
@@ -55,24 +64,46 @@ function placementBounds(
   segment: EndpointSegment,
   side: ConnectionLabelSide,
   labelWidth: number,
-): Rect {
+): Pick<ConnectionLabelLayout, 'axisAlignment' | 'bounds' | 'textX' | 'textY' | 'textAnchor'> {
   if (segment.orientation === 'horizontal') {
+    const axisAlignment = segment.direction > 0 ? 'left' : 'right'
+    const x = segment.direction > 0
+      ? segment.point.x + CONNECTION_LABEL_ENDPOINT_PADDING
+      : segment.point.x - CONNECTION_LABEL_ENDPOINT_PADDING - labelWidth
+    const y = side === 'negative'
+      ? segment.point.y - CONNECTION_LABEL_ENDPOINT_GAP - ELEMENT_LABEL_LINE_HEIGHT
+      : segment.point.y + CONNECTION_LABEL_ENDPOINT_GAP
     return {
-      x: segment.point.x - labelWidth / 2,
-      y: side === 'negative'
-        ? segment.point.y - CONNECTION_LABEL_ENDPOINT_GAP - ELEMENT_LABEL_LINE_HEIGHT
-        : segment.point.y + CONNECTION_LABEL_ENDPOINT_GAP,
-      width: labelWidth,
-      height: ELEMENT_LABEL_LINE_HEIGHT,
+      axisAlignment,
+      bounds: {
+        x,
+        y,
+        width: labelWidth,
+        height: ELEMENT_LABEL_LINE_HEIGHT,
+      },
+      textX: segment.direction > 0 ? x : x + labelWidth,
+      textY: y + 11,
+      textAnchor: segment.direction > 0 ? 'start' : 'end',
     }
   }
+  const axisAlignment = segment.direction > 0 ? 'top' : 'bottom'
+  const x = side === 'negative'
+    ? segment.point.x - CONNECTION_LABEL_ENDPOINT_GAP - labelWidth
+    : segment.point.x + CONNECTION_LABEL_ENDPOINT_GAP
+  const y = segment.direction > 0
+    ? segment.point.y + CONNECTION_LABEL_ENDPOINT_PADDING
+    : segment.point.y - CONNECTION_LABEL_ENDPOINT_PADDING - ELEMENT_LABEL_LINE_HEIGHT
   return {
-    x: side === 'negative'
-      ? segment.point.x - CONNECTION_LABEL_ENDPOINT_GAP - labelWidth
-      : segment.point.x + CONNECTION_LABEL_ENDPOINT_GAP,
-    y: segment.point.y - ELEMENT_LABEL_LINE_HEIGHT / 2,
-    width: labelWidth,
-    height: ELEMENT_LABEL_LINE_HEIGHT,
+    axisAlignment,
+    bounds: {
+      x,
+      y,
+      width: labelWidth,
+      height: ELEMENT_LABEL_LINE_HEIGHT,
+    },
+    textX: side === 'negative' ? x + labelWidth : x,
+    textY: y + 11,
+    textAnchor: side === 'negative' ? 'end' : 'start',
   }
 }
 
@@ -117,16 +148,14 @@ export function layoutConnectionLabels(
       : edge.labelSide ?? 'negative'
     const segment = endpointSegment(route, endpoint)
     if (!segment) return []
-    const bounds = placementBounds(segment, side, estimateLabelTextWidth(text))
+    const placement = placementBounds(segment, side, estimateLabelTextWidth(text))
     return [{
       edgeId: edge.id,
       text,
       endpoint,
       side,
       orientation: segment.orientation,
-      bounds,
-      textX: bounds.x + 2,
-      textY: bounds.y + 11,
+      ...placement,
     }]
   })
 }

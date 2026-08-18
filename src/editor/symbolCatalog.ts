@@ -1,4 +1,4 @@
-import type { AssetDefinition } from '../domain/project'
+import type { AssetDefinition, DiagramElement } from '../domain/project'
 
 const symbolUrls = import.meta.glob<string>('../assets/symbols/*.svg', {
   eager: true,
@@ -17,8 +17,11 @@ export interface SymbolDefinition extends AssetDefinition {
 }
 
 export type SymbolVisualState = 'off' | 'on'
+export type SymbolColorSlot = 'default' | 'switch-off' | 'switch-on'
 
 export const DEFAULT_CONFIGURABLE_SYMBOL_COLOR = '#777777'
+export const SWITCH_OFF_COLOR_PROPERTY = 'switchOffColor'
+export const SWITCH_ON_COLOR_PROPERTY = 'switchOnColor'
 
 interface SymbolMetadata {
   file: string
@@ -111,6 +114,36 @@ export function normalizeSymbolColor(value: unknown) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
     ? value.toUpperCase()
     : DEFAULT_CONFIGURABLE_SYMBOL_COLOR
+}
+
+export function symbolColorSlotForElement(
+  element: DiagramElement,
+  state: SymbolVisualState,
+): SymbolColorSlot {
+  if (element.assetKey !== 'switch') return 'default'
+  return state === 'on' ? 'switch-on' : 'switch-off'
+}
+
+export function symbolColorPropertyKey(slot: SymbolColorSlot) {
+  if (slot === 'switch-off') return SWITCH_OFF_COLOR_PROPERTY
+  if (slot === 'switch-on') return SWITCH_ON_COLOR_PROPERTY
+  return 'color'
+}
+
+export function resolvedSymbolColorForSlot(
+  element: DiagramElement,
+  slot: SymbolColorSlot,
+) {
+  const value = element.properties[symbolColorPropertyKey(slot)]
+  const legacySwitchColor = element.assetKey === 'switch' ? element.properties.color : undefined
+  return normalizeSymbolColor(value ?? legacySwitchColor)
+}
+
+export function resolvedSymbolColor(
+  element: DiagramElement,
+  state: SymbolVisualState = 'off',
+) {
+  return resolvedSymbolColorForSlot(element, symbolColorSlotForElement(element, state))
 }
 
 export function getSymbolStateUrl(

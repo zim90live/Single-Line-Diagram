@@ -3,6 +3,55 @@ import { expect, test, type Locator } from '@playwright/test'
 import { GRID_DOT_SCREEN_RADIUS } from '../src/editor/gridScale'
 import { defaultConnectionColor } from '../src/editor/objectColors'
 
+test('switches to monitor mode, locks editing, and toggles Switch runtime state', async ({ page }) => {
+  const offColor = defaultConnectionColor('cooling-secondary-cold')
+  const onColor = defaultConnectionColor('cooling-primary-hot')
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.goto('/')
+
+  await page.getByTitle('拖动或双击插入Switch').dblclick()
+  const element = page.locator('.diagram-element[data-asset-key="switch"]')
+  await expect(element).toHaveCount(1)
+  const image = element.locator('.diagram-element__image')
+  await expect(image).toHaveAttribute('data-symbol-state', 'off')
+  const stateToggle = page.getByRole('switch', { name: 'Switch 开关状态' })
+  await expect(stateToggle).toHaveAttribute('aria-checked', 'false')
+
+  const offColorInput = page.getByLabel('Switch 关状态颜色 HEX')
+  const onColorInput = page.getByLabel('Switch 开状态颜色 HEX')
+  await offColorInput.fill(offColor)
+  await expect(image).toHaveAttribute('data-symbol-color', offColor)
+  await offColorInput.press('Enter')
+  await onColorInput.fill(onColor)
+  await onColorInput.press('Enter')
+  await expect(image).toHaveAttribute('data-symbol-color', offColor)
+
+  await stateToggle.click()
+  await expect(stateToggle).toHaveAttribute('aria-checked', 'true')
+  await expect(image).toHaveAttribute('data-symbol-state', 'on')
+  await expect(image).toHaveAttribute('data-symbol-color', onColor)
+
+  await page.getByRole('tab', { name: '监控模式' }).click()
+  await expect(page.getByLabel('一次接线图监控画布')).toBeVisible()
+  await expect(page.locator('.symbol-section')).toHaveCount(0)
+  await expect(page.locator('.properties-panel')).toHaveCount(0)
+  await expect(page.getByLabel('项目名称')).toBeDisabled()
+
+  await expect(image).toHaveAttribute('data-symbol-state', 'on')
+  await image.click()
+  await expect(image).toHaveAttribute('data-symbol-state', 'off')
+  await expect(image).toHaveAttribute('data-symbol-color', offColor)
+
+  await page.getByLabel('一次接线图监控画布').press('Delete')
+  await expect(element).toHaveCount(1)
+
+  await page.getByRole('button', { name: '播放流动' }).click()
+  await expect(page.getByRole('button', { name: '暂停流动' })).toBeVisible()
+  await expect(page.getByText('动画运行中')).toBeVisible()
+  expect(pageErrors).toEqual([])
+})
+
 test('loads the hybrid editor and completes the phase-one editing path', async ({ page }) => {
   await page.addInitScript(() => {
     const runtimeWindow = window as typeof window & {
@@ -542,7 +591,7 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   const switchImage = switchElement.locator('.diagram-element__image')
   await expect(switchImage).toHaveAttribute('data-symbol-state', 'off')
   await expect(switchImage).toHaveAttribute('data-symbol-color', '#777777')
-  const symbolHex = page.getByLabel('图元颜色 HEX')
+  const symbolHex = page.getByLabel('Switch 关状态颜色 HEX')
   await symbolHex.fill('#77B4BF')
   await expect(switchImage).toHaveAttribute('data-symbol-color', '#77B4BF')
   await symbolHex.press('Enter')
@@ -1026,6 +1075,57 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
 
   await page.locator('.connection-edge__hit').click({ force: true })
   await expect(page.locator('.connection-edge')).toHaveAttribute('data-selected', 'true')
+  const childLineLabelInput = page.getByLabel('子线标签', { exact: true })
+  await expect(childLineLabelInput).toHaveValue('')
+  await childLineLabelInput.fill('联络线 01')
+  await childLineLabelInput.press('Enter')
+  const childLineLabel = page.locator('.connection-label')
+  await expect(childLineLabel).toHaveCount(1)
+  await expect(childLineLabel).toHaveText('联络线 01')
+  await expect(childLineLabel).toHaveAttribute('data-endpoint', 'target')
+  await expect(childLineLabel).toHaveAttribute('data-side', 'negative')
+  await expect(childLineLabel).toHaveAttribute('data-orientation', 'vertical')
+  await expect(childLineLabel).toHaveAttribute('data-axis-alignment', 'bottom')
+
+  const childLabelSwitch = page.getByRole('switch', { name: '显示子线标签' })
+  await expect(childLabelSwitch).toHaveAttribute('aria-checked', 'true')
+  await childLabelSwitch.click()
+  await expect(childLineLabel).toHaveCount(0)
+  await expect(childLineLabelInput).toHaveValue('联络线 01')
+  await childLabelSwitch.click()
+  await expect(childLineLabel).toHaveCount(1)
+
+  const childLabelHitBox = await childLineLabel.locator('.element-label__hit').boundingBox()
+  const sourceRightPoint = await page.locator('.connection-edge__line').evaluate((node) => {
+    const path = node as SVGPathElement
+    const point = path.getPointAtLength(0)
+    const matrix = path.getScreenCTM()
+    if (!matrix) throw new Error('无法读取子线标签拖动坐标')
+    return {
+      x: point.x * matrix.a + point.y * matrix.c + matrix.e + 40,
+      y: point.x * matrix.b + point.y * matrix.d + matrix.f,
+    }
+  })
+  if (!childLabelHitBox) throw new Error('无法读取子线标签命中区域')
+  await page.mouse.move(
+    childLabelHitBox.x + childLabelHitBox.width / 2,
+    childLabelHitBox.y + childLabelHitBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(sourceRightPoint.x, sourceRightPoint.y, { steps: 5 })
+  await page.mouse.up()
+  await expect(childLineLabel).toHaveAttribute('data-endpoint', 'source')
+  await expect(childLineLabel).toHaveAttribute('data-side', 'positive')
+  await expect(childLineLabel).toHaveAttribute('data-axis-alignment', 'top')
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(childLineLabel).toHaveAttribute('data-endpoint', 'target')
+  await expect(childLineLabel).toHaveAttribute('data-side', 'negative')
+  await expect(childLineLabel).toHaveAttribute('data-axis-alignment', 'bottom')
+  await page.getByRole('button', { name: '重做' }).click()
+  await expect(childLineLabel).toHaveAttribute('data-endpoint', 'source')
+  await expect(childLineLabel).toHaveAttribute('data-side', 'positive')
+  await expect(childLineLabel).toHaveAttribute('data-axis-alignment', 'top')
+
   const childLineHex = page.getByLabel('子线颜色 HEX')
   await expect(childLineHex).toHaveValue('#D5B96F')
   await page.getByRole('button', { name: '打开子线颜色选择器' }).click()
@@ -1120,10 +1220,12 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
   await page.locator('.connection-edge__hit').click({ force: true })
   await page.getByRole('button', { name: '删除所选对象' }).click()
   await expect(page.locator('.connection-edge')).toHaveCount(0)
+  await expect(page.locator('.connection-label')).toHaveCount(0)
   await expect(page.locator('.busbar-tap')).toHaveCount(0)
   await expect(page.locator('.busbar')).toHaveCount(2)
   await page.getByRole('button', { name: '撤销' }).click()
   await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.locator('.connection-label')).toHaveText('联络线 01')
   await expect(page.locator('.busbar-tap')).toHaveCount(2)
 
   expect(pageErrors).toEqual([])

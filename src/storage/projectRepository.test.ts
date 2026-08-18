@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createDefaultProject } from '../domain/project'
-import { projectRepository } from './projectRepository'
+import { monitorStateRepository, projectRepository } from './projectRepository'
 
 const createdIds: string[] = []
 
@@ -40,5 +40,23 @@ describe('project repository', () => {
 
     await projectRepository.delete(document.project.id)
     expect(await projectRepository.get(document.project.id)).toBeUndefined()
+  })
+
+  it('stores monitor switch state separately and removes it with the project', async () => {
+    const document = createDefaultProject('监控状态测试', [])
+    createdIds.push(document.project.id)
+    await projectRepository.save(document)
+
+    await monitorStateRepository.setSwitchState(document.project.id, 'switch-1', true)
+    await monitorStateRepository.setSwitchState(document.project.id, 'switch-2', false)
+
+    expect(await monitorStateRepository.getSwitchStates(document.project.id)).toEqual({
+      'switch-1': true,
+      'switch-2': false,
+    })
+    expect(await projectRepository.get(document.project.id)).toEqual(document)
+
+    await projectRepository.delete(document.project.id)
+    expect(await monitorStateRepository.getSwitchStates(document.project.id)).toEqual({})
   })
 })

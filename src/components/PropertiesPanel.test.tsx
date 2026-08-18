@@ -49,7 +49,7 @@ describe('PropertiesPanel color property', () => {
       diagramId: 'diagram-1',
       type: 'electrical',
       nodes: [
-        { id: 'node-1', kind: 'element-anchor', elementId: 'switch-element', anchorId: 'a' },
+        { id: 'node-1', kind: 'element-anchor', elementId: '2-wv-element', anchorId: 'a' },
         { id: 'node-2', kind: 'busbar-tap', busbarId: 'busbar-1', offset: 16 },
       ],
       edges: [{ id: 'edge-1', sourceNodeId: 'node-1', targetNodeId: 'node-2' }],
@@ -59,7 +59,7 @@ describe('PropertiesPanel color property', () => {
         selectedElements={[]}
         selectedBusbars={[]}
         selectedConnection={null}
-        canvasElements={[element('switch')]}
+        canvasElements={[element('2-wv')]}
         canvasBusbars={canvasBusbars}
         canvasConnections={canvasConnections}
         onPatch={vi.fn()}
@@ -184,12 +184,87 @@ describe('PropertiesPanel color property', () => {
     })
   })
 
+  it('controls Switch runtime state and commits off/on colors independently', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const onColorPreview = vi.fn()
+    const onSwitchStateChange = vi.fn()
+    const offReplacement = defaultConnectionColor('cooling-primary-hot')
+    const current = element('switch', {
+      tag: 'SW-01',
+      switchOffColor: '#556677',
+      switchOnColor: '#77B4BF',
+    })
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        switchStates={{ [current.id]: false }}
+        onSwitchStateChange={onSwitchStateChange}
+        onPatch={onPatch}
+        onColorPreview={onColorPreview}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const stateToggle = screen.getByRole('switch', { name: 'Switch 开关状态' })
+    expect(stateToggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('当前断开 · Off')).toBeInTheDocument()
+    await user.click(stateToggle)
+    expect(onSwitchStateChange).toHaveBeenCalledWith(current.id, true)
+
+    const offColor = screen.getByLabelText('Switch 关状态颜色 HEX')
+    const onColor = screen.getByLabelText('Switch 开状态颜色 HEX')
+    expect(offColor).toHaveValue('#556677')
+    expect(onColor).toHaveValue('#77B4BF')
+    fireEvent.change(offColor, { target: { value: offReplacement } })
+    expect(onColorPreview).toHaveBeenLastCalledWith(current.id, offReplacement, 'switch-off')
+    fireEvent.blur(offColor)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: {
+        tag: 'SW-01',
+        switchOffColor: offReplacement,
+        switchOnColor: '#77B4BF',
+      },
+    })
+
+    const updated = {
+      ...current,
+      properties: { ...current.properties, switchOffColor: offReplacement },
+    }
+    rerender(
+      <PropertiesPanel
+        selectedElements={[updated]}
+        {...emptySelectionProps}
+        switchStates={{ [current.id]: true }}
+        onSwitchStateChange={onSwitchStateChange}
+        onPatch={onPatch}
+        onColorPreview={onColorPreview}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('当前闭合 · On')).toBeInTheDocument()
+    expect(stateToggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.change(screen.getByLabelText('Switch 开状态颜色 HEX'), {
+      target: { value: '#77aacc' },
+    })
+    expect(onColorPreview).toHaveBeenLastCalledWith(current.id, '#77AACC', 'switch-on')
+    fireEvent.blur(screen.getByLabelText('Switch 开状态颜色 HEX'))
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: {
+        tag: 'SW-01',
+        switchOffColor: offReplacement,
+        switchOnColor: '#77AACC',
+      },
+    })
+  })
+
   it('opens an application-owned HEX picker instead of a native RGB color input', async () => {
     const user = userEvent.setup()
     const onPatch = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('switch')]}
+        selectedElements={[element('2-wv')]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={vi.fn()}
@@ -206,7 +281,7 @@ describe('PropertiesPanel color property', () => {
     fireEvent.change(pickerHex, { target: { value: '#77b4bf' } })
     await user.click(screen.getByRole('button', { name: '完成' }))
 
-    expect(onPatch).toHaveBeenCalledWith('switch-element', {
+    expect(onPatch).toHaveBeenCalledWith('2-wv-element', {
       properties: { color: '#77B4BF' },
     })
   })
@@ -216,7 +291,7 @@ describe('PropertiesPanel color property', () => {
     const onPatch = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('switch', { tag: 'SW-01', color: '#E7A23B' })]}
+        selectedElements={[element('2-wv', { tag: '2WV-01', color: '#E7A23B' })]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={vi.fn()}
@@ -226,8 +301,8 @@ describe('PropertiesPanel color property', () => {
 
     await user.click(screen.getByRole('button', { name: '恢复默认' }))
 
-    expect(onPatch).toHaveBeenCalledWith('switch-element', {
-      properties: { tag: 'SW-01' },
+    expect(onPatch).toHaveBeenCalledWith('2-wv-element', {
+      properties: { tag: '2WV-01' },
     })
   })
 

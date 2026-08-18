@@ -27,6 +27,12 @@ import type {
 } from '../domain/project'
 import { BUSBAR_MIN_LENGTH } from '../domain/project'
 import {
+  FLOW_BUSBAR_SCREEN_WIDTH,
+  FlowAnimationLayer,
+  type MonitorFlowPath,
+} from '../monitoring/FlowAnimationLayer'
+import { derivePowerFlowTopology } from '../monitoring/flowTopology'
+import {
   compressBusbarTapOffsets,
   minimumBusbarLengthForConnections,
 } from './busbars'
@@ -52,6 +58,7 @@ import {
   busbarEndPoint,
   busbarPoint,
   bridgedPathData,
+  bridgedPolylinePoints,
   connectTerminals,
   connectionTypesCompatible,
   crossingPointKeys,
@@ -103,9 +110,16 @@ import {
   getSymbolStateUrl,
   getScaledSymbolSize,
   normalizeSymbolColor,
+  resolvedSymbolColor,
+  resolvedSymbolColorForSlot,
+  symbolColorSlotForElement,
   symbolsByKey,
+  type SymbolColorSlot,
   type SymbolDefinition,
+  type SymbolVisualState,
 } from './symbolCatalog'
+
+export type CanvasMode = 'edit' | 'monitor'
 
 export interface EditorCommandState {
   canUndo: boolean
@@ -139,7 +153,11 @@ export interface DiagramCanvasHandle {
   zoomReset: () => void
   insertSymbol: (symbolKey: string) => void
   insertBusbar: () => void
-  previewElementColor: (elementId: string, color: string | null) => void
+  previewElementColor: (
+    elementId: string,
+    color: string | null,
+    slot?: SymbolColorSlot,
+  ) => void
   previewSelectionColor: (color: string | null) => void
   updateSelectionColor: (color: string | null) => void
   previewCanvasColor: (target: CanvasColorTarget, color: string | null) => void
@@ -150,6 +168,9 @@ export interface DiagramCanvasHandle {
 }
 
 interface DiagramCanvasProps {
+  mode: CanvasMode
+  animationPlaying: boolean
+  switchStates: Record<string, boolean>
   diagramId: string
   lineSystemType: LineSystemType
   documentEpoch: number
@@ -168,6 +189,7 @@ interface DiagramCanvasProps {
   onSelectionChange: (ids: string[]) => void
   onCommandStateChange: (state: EditorCommandState) => void
   onPointerChange: (position: PointerPosition | null) => void
+  onSwitchStateChange: (elementId: string, on: boolean) => void
 }
 
 interface EditorSnapshot {
@@ -314,6 +336,7 @@ const ConnectionLabelItem = memo(function ConnectionLabelItem({
       data-endpoint={layout.endpoint}
       data-side={layout.side}
       data-orientation={layout.orientation}
+      data-axis-alignment={layout.axisAlignment}
       data-interactive={interactive || undefined}
       data-selected={selected || undefined}
     >
@@ -331,6 +354,7 @@ const ConnectionLabelItem = memo(function ConnectionLabelItem({
         className="element-label__text"
         x={layout.textX}
         y={layout.textY}
+        textAnchor={layout.textAnchor}
       >
         {layout.text}
       </text>
@@ -339,6 +363,7 @@ const ConnectionLabelItem = memo(function ConnectionLabelItem({
 })
 
 interface DiagramElementItemProps {
+  mode: CanvasMode
   element: DiagramElement
   asset?: AssetDefinition
   symbol?: SymbolDefinition
@@ -348,6 +373,7 @@ interface DiagramElementItemProps {
   lineSystemType: LineSystemType
   occupiedAnchors: Set<string>
   zoom: number
+  visualState: SymbolVisualState
   elementNodes: HandlerRef<Map<string, SVGGElement>>
   startMove: HandlerRef<(event: PointerEvent<SVGImageElement>, elementId: string) => void>
   enterAnchor: HandlerRef<(elementId: string, anchorId: string, type: AnchorType) => void>
@@ -358,9 +384,11 @@ interface DiagramElementItemProps {
     anchorId: string,
     type: AnchorType,
   ) => void>
+  toggleSwitch: HandlerRef<(elementId: string, on: boolean) => void>
 }
 
 const DiagramElementItem = memo(function DiagramElementItem({
+  mode,
   element,
   asset,
   symbol,
@@ -370,11 +398,13 @@ const DiagramElementItem = memo(function DiagramElementItem({
   lineSystemType,
   occupiedAnchors,
   zoom,
+  visualState,
   elementNodes,
   startMove,
   enterAnchor,
   leaveAnchor,
   pressAnchor,
+  toggleSwitch,
 }: DiagramElementItemProps) {
   const centerX = element.x + element.width / 2
   const centerY = element.y + element.height / 2
@@ -389,6 +419,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
       data-element-id={element.id}
       data-asset-key={element.assetKey}
       data-selected={selected || undefined}
+      data-monitor-switch={mode === 'monitor' && element.assetKey === 'switch' || undefined}
       transform={`rotate(${element.rotation} ${centerX} ${centerY})`}
     >
       {symbol ? (
@@ -411,17 +442,26 @@ const DiagramElementItem = memo(function DiagramElementItem({
           <image
             className="diagram-element__image"
             data-symbol-color={symbolColor}
-            data-symbol-state={symbol.defaultState}
+            data-symbol-state={visualState}
             filter={symbolColor ? `url(#${colorFilterId})` : undefined}
-            href={getSymbolStateUrl(symbol)}
+            href={getSymbolStateUrl(symbol, visualState)}
             x={element.x}
             y={element.y}
             width={element.width}
             height={element.height}
             preserveAspectRatio="xMidYMid meet"
-            onPointerDown={(event) => startMove.current(event, element.id)}
+            onPointerDown={(event) => {
+              if (mode === 'monitor') {
+                if (element.assetKey !== 'switch' || event.button !== 0) return
+                event.preventDefault()
+                event.stopPropagation()
+                toggleSwitch.current(element.id, visualState !== 'on')
+                return
+              }
+              startMove.current(event, element.id)
+            }}
           />
-          {asset?.anchors.map((anchor) => {
+          {mode === 'edit' ? asset?.anchors.map((anchor) => {
             const resolved = resolveElementAnchor(element, asset, anchor)
             const compatible = wiringType
               ? connectionTypesCompatible(wiringType, anchor.type)
@@ -450,7 +490,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
                   : undefined}
               />
             )
-          })}
+          }) : null}
         </>
       ) : null}
     </g>
@@ -463,6 +503,7 @@ interface ConnectionEdgeItemProps {
   type: AnchorType
   color?: string
   selected: boolean
+  interactive: boolean
   linePath: string
   bridgeCasingPath: string
   pressEdge: HandlerRef<(event: PointerEvent<SVGPathElement>, edgeId: string) => void>
@@ -475,6 +516,7 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
   type,
   color,
   selected,
+  interactive,
   linePath,
   bridgeCasingPath,
   pressEdge,
@@ -491,6 +533,7 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
       data-network-id={networkId}
       data-connection-type={type}
       data-selected={selected || undefined}
+      data-interactive={interactive || undefined}
       style={color ? { '--connection-color': color } as CSSProperties : undefined}
     >
       {bridgeCasingPath ? (
@@ -500,7 +543,9 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
       <path
         className="connection-edge__hit"
         d={linePath}
-        onPointerDown={(event) => pressEdge.current(event, edgeId)}
+        onPointerDown={interactive
+          ? (event) => pressEdge.current(event, edgeId)
+          : undefined}
       />
     </g>
   )
@@ -877,6 +922,9 @@ function useElementSize(elementRef: React.RefObject<HTMLElement | null>) {
 export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasProps>(
   function DiagramCanvas(
     {
+      mode,
+      animationPlaying,
+      switchStates,
       diagramId,
       lineSystemType,
       documentEpoch,
@@ -891,6 +939,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
+      onSwitchStateChange,
     },
     ref,
   ) {
@@ -901,6 +950,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
+      onSwitchStateChange,
     })
     const committedElementsRef = useRef(elements)
     const committedBusbarsRef = useRef(busbars)
@@ -958,7 +1008,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const pressConnectionEdgeRef = useRef<
       (event: PointerEvent<SVGPathElement>, edgeId: string) => void
     >(() => undefined)
-    const previewElementColorsRef = useRef(new Map<string, string>())
+    const toggleSwitchRef = useRef<(elementId: string, on: boolean) => void>(() => undefined)
+    const previewElementColorsRef = useRef(new Map<
+      string,
+      { slot: SymbolColorSlot; color: string }
+    >())
     const [viewportValue, setViewportValue] = useState(viewport)
     const [selectedIds, setSelectedIdsState] = useState<string[]>([])
     const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
@@ -1035,6 +1089,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
+      onSwitchStateChange,
+    }
+    toggleSwitchRef.current = (elementId, on) => {
+      if (mode === 'monitor') callbacksRef.current.onSwitchStateChange(elementId, on)
     }
 
     const emitCommandState = () => {
@@ -1243,6 +1301,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       nextBusbars: Busbar[],
       nextConnections: ConnectionNetwork[],
     ) => {
+      if (mode !== 'edit') return false
       const current: EditorSnapshot = {
         elements: committedElementsRef.current,
         busbars: committedBusbarsRef.current,
@@ -1427,6 +1486,57 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         bridgedPathData(route, routedConnections.crossings, gridSize),
       ]),
     ), [gridSize, routedConnections.crossings, routedConnections.edges])
+    const powerFlowTopology = useMemo(() => lineSystemType === 'power'
+      ? derivePowerFlowTopology({
+          elements: displayedElements,
+          busbars: displayedBusbars,
+          networks: displayedConnections,
+          switchStates,
+          resolvedBusbarTapOffsets: routedConnections.resolvedBusbarTapOffsets,
+        })
+      : { edges: [], busbarSegments: [], energizedElementIds: new Set<string>() }, [
+        displayedBusbars,
+        displayedConnections,
+        displayedElements,
+        lineSystemType,
+        routedConnections.resolvedBusbarTapOffsets,
+        switchStates,
+      ])
+    const monitorFlowPaths = useMemo<MonitorFlowPath[]>(() => {
+      if (mode !== 'monitor' || !animationPlaying) return []
+      const directionByEdgeId = new Map(
+        powerFlowTopology.edges.map((edge) => [edge.edgeId, edge.direction]),
+      )
+      const edgePaths = routedConnections.edges.flatMap((route) => {
+        const direction = directionByEdgeId.get(route.edgeId)
+        if (!direction) return []
+        const points = bridgedPolylinePoints(
+          route,
+          routedConnections.crossings,
+          gridSize,
+        )
+        return points.length > 1 ? [{
+          id: `edge-flow:${route.edgeId}`,
+          points: direction === 'forward' ? points : [...points].reverse(),
+        }] : []
+      })
+      return [
+        ...edgePaths,
+        ...powerFlowTopology.busbarSegments.map((segment) => ({
+          id: segment.id,
+          points: [segment.start, segment.end],
+          screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
+        })),
+      ]
+    }, [
+      animationPlaying,
+      gridSize,
+      mode,
+      powerFlowTopology.busbarSegments,
+      powerFlowTopology.edges,
+      routedConnections.crossings,
+      routedConnections.edges,
+    ])
     const assetsByKey = useMemo(
       () => new Map(assets.map((asset) => [asset.key, asset])),
       [assets],
@@ -1684,7 +1794,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const handleBusbarCandidatePointerDown = (event: PointerEvent<SVGCircleElement>) => {
-      if (event.button !== 0 || !busbarCandidate) return
+      if (mode !== 'edit' || event.button !== 0 || !busbarCandidate) return
       event.preventDefault()
       event.stopPropagation()
       viewportElementRef.current?.focus()
@@ -1707,7 +1817,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       event: PointerEvent<SVGPathElement>,
       busbar: Busbar,
     ) => {
-      if (event.button !== 0) return
+      if (mode !== 'edit' || event.button !== 0) return
       event.preventDefault()
       event.stopPropagation()
       viewportElementRef.current?.focus()
@@ -1953,6 +2063,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const undo = () => {
+      if (mode !== 'edit') return
       const previous = historyRef.current.past.at(-1)
       if (!previous) return
       const current: EditorSnapshot = {
@@ -1983,6 +2094,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const redo = () => {
+      if (mode !== 'edit') return
       const next = historyRef.current.future[0]
       if (!next) return
       const current: EditorSnapshot = {
@@ -2049,16 +2161,26 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       if (image) image.dataset.symbolColor = color
     }
 
-    const previewElementColor = (elementId: string, color: string | null) => {
+    const previewElementColor = (
+      elementId: string,
+      color: string | null,
+      requestedSlot?: SymbolColorSlot,
+    ) => {
+      const element = committedElementsRef.current.find((candidate) => candidate.id === elementId)
+      if (!element) return
+      const visualState: SymbolVisualState = element.assetKey === 'switch' && switchStates[elementId]
+        ? 'on'
+        : 'off'
+      const activeSlot = symbolColorSlotForElement(element, visualState)
+      const slot = requestedSlot ?? activeSlot
       if (color === null) {
         previewElementColorsRef.current.delete(elementId)
-        const element = committedElementsRef.current.find((candidate) => candidate.id === elementId)
-        paintElementColor(elementId, normalizeSymbolColor(element?.properties.color))
+        paintElementColor(elementId, resolvedSymbolColor(element, visualState))
         return
       }
       const normalizedColor = normalizeSymbolColor(color)
-      previewElementColorsRef.current.set(elementId, normalizedColor)
-      paintElementColor(elementId, normalizedColor)
+      previewElementColorsRef.current.set(elementId, { slot, color: normalizedColor })
+      if (slot === activeSlot) paintElementColor(elementId, normalizedColor)
     }
 
     const updateElement = (elementId: string, patch: Partial<DiagramElement>) => {
@@ -2183,12 +2305,21 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         : normalizeHexColor(color, target.color)
 
       if (target.category === 'element') {
+        const slot = target.elementColorSlot ?? 'default'
         for (const element of committedElementsRef.current) {
-          const currentColor = resolvedElementColor(element)
+          const currentColor = resolvedElementColor(element, slot)
           if (currentColor !== target.color) continue
           if (previewColor === null) previewElementColorsRef.current.delete(element.id)
-          else previewElementColorsRef.current.set(element.id, previewColor)
-          paintElementColor(element.id, previewColor ?? currentColor)
+          else previewElementColorsRef.current.set(element.id, { slot, color: previewColor })
+          const visualState: SymbolVisualState = element.assetKey === 'switch' && switchStates[element.id]
+            ? 'on'
+            : 'off'
+          if (slot === symbolColorSlotForElement(element, visualState)) {
+            paintElementColor(
+              element.id,
+              previewColor ?? resolvedSymbolColorForSlot(element, slot),
+            )
+          }
         }
         return
       }
@@ -2335,6 +2466,20 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       emitCommandState()
     }, [diagramId, documentEpoch])
 
+    useEffect(() => {
+      if (mode !== 'monitor') return
+      interactionRef.current = null
+      setPreview(null)
+      setBusbarPreview(null)
+      setConnectionPreview(null)
+      setMarquee(null)
+      setActiveMoveElementIds([])
+      setLibraryDragTarget(null)
+      setWiring(null)
+      selectConnection(null)
+      setObjectSelection([], [])
+    }, [mode])
+
     useEffect(() => () => {
       diagramPreviewScheduler.cancel()
       wiringPointerScheduler.cancel()
@@ -2343,7 +2488,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }, [diagramPreviewScheduler, nudgeCommitScheduler, pointerPositionScheduler, wiringPointerScheduler])
 
     const startElementMove = (event: PointerEvent<SVGImageElement>, elementId: string) => {
-      if (event.button !== 0) return
+      if (mode !== 'edit' || event.button !== 0) return
       event.stopPropagation()
       viewportElementRef.current?.focus()
       setSelectedLabelElementId(null)
@@ -2599,6 +2744,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         event.currentTarget.dataset.panning = 'true'
         return
       }
+      if (mode !== 'edit') return
       if (wiringRef.current) return
       if (event.button !== 0) return
       const startWorld = worldPoint(event.clientX, event.clientY)
@@ -2944,6 +3090,16 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (mode !== 'edit') {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          setWiring(null)
+          setSelection([])
+          selectConnection(null)
+          selectBusbar(null)
+        }
+        return
+      }
       const modifier = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const isArrowKey = event.key.startsWith('Arrow')
@@ -2988,12 +3144,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const handleKeyUp = (event: KeyboardEvent<HTMLDivElement>) => {
+      if (mode !== 'edit') return
       if (!event.key.startsWith('Arrow') || !nudgeSessionActiveRef.current) return
       event.preventDefault()
       nudgeCommitScheduler.schedule()
     }
 
     const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+      if (mode !== 'edit') return
       event.preventDefault()
       setLibraryDragTarget(null)
       const symbolKey = event.dataTransfer.getData('application/x-aidc-symbol')
@@ -3004,6 +3162,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+      if (mode !== 'edit') return
       event.preventDefault()
       event.dataTransfer.dropEffect = 'copy'
       if (event.dataTransfer.types.includes(BUSBAR_DRAG_TYPE)) {
@@ -3115,13 +3274,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         data-grid-screen-step={gridScale.screenStep}
         data-grid-screen-dot-radius={gridScale.dotScreenRadius}
         data-routing-pending={isRouting || undefined}
+        data-mode={mode}
       >
         <Rulers viewport={viewportValue} width={canvasSize.width} height={canvasSize.height} gridSize={gridSize} />
         <div
           ref={viewportElementRef}
           className="diagram-viewport"
           tabIndex={0}
-          aria-label="一次接线图编辑画布"
+          aria-label={mode === 'edit' ? '一次接线图编辑画布' : '一次接线图监控画布'}
           onAuxClick={(event) => { if (event.button === 1) event.preventDefault() }}
           onContextMenu={(event) => {
             event.preventDefault()
@@ -3199,10 +3359,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     >
                       <path className="busbar__line" d={data} />
                       <path
-                        className="busbar__hit"
-                        d={data}
-                        onPointerDown={(event) => handleBusbarPointerDown(event, busbar)}
-                        onPointerMove={(event) => handleBusbarPointerMove(event, busbar)}
+                      className="busbar__hit"
+                      d={data}
+                      onPointerDown={mode === 'edit'
+                        ? (event) => handleBusbarPointerDown(event, busbar)
+                        : undefined}
+                      onPointerMove={mode === 'edit'
+                        ? (event) => handleBusbarPointerMove(event, busbar)
+                        : undefined}
                       />
                     </g>
                   )
@@ -3219,7 +3383,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                       networkId={route.networkId}
                       type={route.type}
                       color={displayedConnectionEdgesById.get(route.edgeId)?.color}
-                      selected={selectedConnectionEdgeIdSet.has(route.edgeId)}
+                      selected={mode === 'edit' && selectedConnectionEdgeIdSet.has(route.edgeId)}
+                      interactive={mode === 'edit'}
                       linePath={linePath}
                       bridgeCasingPath={renderedPath?.bridgeCasingPath ?? ''}
                       pressEdge={pressConnectionEdgeRef}
@@ -3255,7 +3420,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                   }
                   return []
                 }))}
-                {wiringPreview ? (
+                {mode === 'edit' && wiringPreview ? (
                   <path
                     className="connection-preview"
                     data-connection-type={wiring?.source.type}
@@ -3263,7 +3428,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     d={pathData(wiringPreview)}
                   />
                 ) : null}
-                {busbarCandidate ? (
+                {mode === 'edit' && busbarCandidate ? (
                   <circle
                     ref={busbarCandidateNodeRef}
                     className="busbar-tap-candidate"
@@ -3282,7 +3447,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 ) : null}
               </g>
 
-              {alignmentViewport ? (
+              {mode === 'edit' && alignmentViewport ? (
                 <g
                   className="alignment-cross"
                   data-testid="alignment-cross"
@@ -3328,27 +3493,36 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
               {displayedElements.map((element) => {
                 const symbol = symbolsByKey.get(element.assetKey)
+                const visualState: SymbolVisualState = element.assetKey === 'switch' && switchStates[element.id]
+                  ? 'on'
+                  : 'off'
+                const activeColorSlot = symbolColorSlotForElement(element, visualState)
+                const colorPreview = previewElementColorsRef.current.get(element.id)
                 const symbolColor = symbol?.configurableColor
-                  ? previewElementColorsRef.current.get(element.id) ??
-                    normalizeSymbolColor(element.properties.color)
+                  ? colorPreview?.slot === activeColorSlot
+                    ? colorPreview.color
+                    : resolvedSymbolColor(element, visualState)
                   : undefined
                 return (
                   <DiagramElementItem
                     key={element.id}
+                    mode={mode}
                     element={element}
                     asset={assetsByKey.get(element.assetKey)}
                     symbol={symbol}
                     symbolColor={symbolColor}
-                    selected={selectedIdSet.has(element.id)}
+                    selected={mode === 'edit' && selectedIdSet.has(element.id)}
                     wiringType={wiring?.source.type ?? null}
                     lineSystemType={lineSystemType}
                     occupiedAnchors={occupiedAnchors}
                     zoom={viewportValue.zoom}
+                    visualState={visualState}
                     elementNodes={elementNodeRefs}
                     startMove={startElementMoveRef}
                     enterAnchor={enterAnchorRef}
                     leaveAnchor={leaveAnchorRef}
                     pressAnchor={pressAnchorRef}
+                    toggleSwitch={toggleSwitchRef}
                   />
                 )
               })}
@@ -3358,7 +3532,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                   <ElementLabelItem
                     key={layout.elementId}
                     layout={layout}
-                    interactive={selectedElement?.id === layout.elementId}
+                    interactive={mode === 'edit' && selectedElement?.id === layout.elementId}
                     selected={selectedLabelElementId === layout.elementId}
                     startDrag={startLabelDragRef}
                   />
@@ -3367,10 +3541,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                   <BusbarLabelItem
                     key={layout.busbarId}
                     layout={layout}
-                    interactive={
+                    interactive={mode === 'edit' && (
                       selectedBusbar?.id === layout.busbarId &&
                       selectedConnectionId === null
-                    }
+                    )}
                     selected={selectedLabelBusbarId === layout.busbarId}
                     startDrag={startBusbarLabelDragRef}
                   />
@@ -3379,14 +3553,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                   <ConnectionLabelItem
                     key={layout.edgeId}
                     layout={layout}
-                    interactive={selectedConnectionLabelEdgeId === layout.edgeId}
+                    interactive={mode === 'edit' && selectedConnectionLabelEdgeId === layout.edgeId}
                     selected={selectedLabelConnectionEdgeId === layout.edgeId}
                     startDrag={startConnectionLabelDragRef}
                   />
                 ))}
               </g>
 
-              {selectedObjectCount > 1 ? selectedElements.map((element) => (
+              {mode === 'edit' && selectedObjectCount > 1 ? selectedElements.map((element) => (
                 <g
                   key={`selection-${element.id}`}
                   className="selection-member"
@@ -3403,7 +3577,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               )) : null}
 
-              {selectedBusbar && selectedBusbarEnd && selectedBusbarCenter && selectedBusbarRotatePoint ? (
+              {mode === 'edit' && selectedBusbar && selectedBusbarEnd && selectedBusbarCenter && selectedBusbarRotatePoint ? (
                 <g
                   className="busbar-controls"
                   data-orientation={selectedBusbar.orientation}
@@ -3447,7 +3621,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               ) : null}
 
-              {selectedElement ? (
+              {mode === 'edit' && selectedElement ? (
                 <g
                   className="transform-controls"
                   data-selection-count="1"
@@ -3482,7 +3656,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     onPointerDown={startResize}
                   />
                 </g>
-              ) : selectedObjectCount > 1 && selectionBounds ? (
+              ) : mode === 'edit' && selectedObjectCount > 1 && selectionBounds ? (
                 <g
                   className="transform-controls"
                   data-selection-count={selectedObjectCount}
@@ -3521,11 +3695,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               ) : null}
 
-              {marquee ? (
+              {mode === 'edit' && marquee ? (
                 <rect className="selection-marquee" x={marquee.x} y={marquee.y} width={marquee.width} height={marquee.height} />
               ) : null}
             </g>
           </svg>
+          {mode === 'monitor' && animationPlaying ? (
+            <FlowAnimationLayer paths={monitorFlowPaths} viewport={viewportValue} />
+          ) : null}
         </div>
       </div>
     )

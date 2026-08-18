@@ -33,7 +33,10 @@ import {
   getScaledSymbolSize,
   getSymbolScaleStep,
   normalizeSymbolColor,
+  resolvedSymbolColorForSlot,
+  symbolColorPropertyKey,
   symbolsByKey,
+  type SymbolColorSlot,
 } from '../editor/symbolCatalog'
 import { Button, NumericField, TextField } from './ui'
 
@@ -54,7 +57,13 @@ interface PropertiesPanelProps {
   onPatch: (elementId: string, patch: Partial<DiagramElement>) => void
   onPatchBusbar?: (busbarId: string, patch: Partial<Busbar>) => void
   onPatchConnectionEdge?: (edgeId: string, patch: Partial<ConnectionEdge>) => void
-  onColorPreview: (elementId: string, color: string | null) => void
+  switchStates?: Record<string, boolean>
+  onSwitchStateChange?: (elementId: string, on: boolean) => void
+  onColorPreview: (
+    elementId: string,
+    color: string | null,
+    slot?: SymbolColorSlot,
+  ) => void
   onSelectionColorPreview: (color: string | null) => void
   onSelectionColorCommit: (color: string | null) => void
   onCanvasColorPreview?: (target: CanvasColorTarget, color: string | null) => void
@@ -381,7 +390,7 @@ const canvasColorSections: Array<{
 ]
 
 function canvasColorTargetKey(target: CanvasColorTarget) {
-  return `${target.category}:${target.color}`
+  return `${target.category}:${target.elementColorSlot ?? 'default'}:${target.color}`
 }
 
 function CanvasColorOverview({
@@ -425,12 +434,15 @@ function CanvasColorOverview({
                 {colorGroups.map((group) => {
                   const key = canvasColorTargetKey(group)
                   const active = activeKey === key
+                  const targetLabel = group.scopeLabel
+                    ? `${section.label} ${group.scopeLabel}`
+                    : section.label
                   return (
                     <div className="canvas-color-overview__item" key={key}>
                       <button
                         type="button"
                         className="canvas-color-overview__color-button"
-                        aria-label={`全局修改${section.label}颜色 ${group.color}`}
+                        aria-label={`全局修改${targetLabel}颜色 ${group.color}`}
                         aria-expanded={active}
                         onClick={() => setActiveKey(active ? null : key)}
                       >
@@ -439,13 +451,16 @@ function CanvasColorOverview({
                           style={{ backgroundColor: group.color }}
                           aria-hidden="true"
                         />
-                        <code>{group.color}</code>
+                        <span className="canvas-color-overview__value">
+                          {group.scopeLabel ? <small>{group.scopeLabel}</small> : null}
+                          <code>{group.color}</code>
+                        </span>
                         <span>{group.count} {section.unit}</span>
                       </button>
                       {active ? (
                         <CommittedColorField
                           selectionKey={`canvas:${key}`}
-                          label={`全局替换${section.label}颜色`}
+                          label={`全局替换${targetLabel}颜色`}
                           value={group.color}
                           fallback={group.color}
                           hasCustomColor={false}
@@ -484,6 +499,8 @@ export function PropertiesPanel({
   onPatch,
   onPatchBusbar = () => undefined,
   onPatchConnectionEdge = () => undefined,
+  switchStates = {},
+  onSwitchStateChange = () => undefined,
   onColorPreview,
   onSelectionColorPreview,
   onSelectionColorCommit,
@@ -659,8 +676,26 @@ export function PropertiesPanel({
   const symbol = symbolsByKey.get(element.assetKey)
   const scale = symbol ? element.width / symbol.intrinsicWidth : 1
   const scaleStep = symbol ? getSymbolScaleStep(symbol, EDITOR_GRID_SIZE) : 1
+  const isSwitch = element.assetKey === 'switch'
+  const switchOn = switchStates[element.id] ?? false
   const symbolColor = normalizeSymbolColor(element.properties.color)
   const hasCustomColor = typeof element.properties.color === 'string'
+  const switchColorProperties = (
+    slot: Extract<SymbolColorSlot, 'switch-off' | 'switch-on'>,
+    color: string | null,
+  ) => {
+    const properties = { ...element.properties }
+    const legacyColor = properties.color
+    if (typeof legacyColor === 'string' && /^#[0-9a-f]{6}$/i.test(legacyColor)) {
+      properties.switchOffColor ??= normalizeSymbolColor(legacyColor)
+      properties.switchOnColor ??= normalizeSymbolColor(legacyColor)
+      delete properties.color
+    }
+    const property = symbolColorPropertyKey(slot)
+    if (color === null) delete properties[property]
+    else properties[property] = color
+    return properties
+  }
   return (
     <aside className="properties-panel" aria-labelledby="properties-title">
       <div className="panel-heading properties-heading">
@@ -688,7 +723,46 @@ export function PropertiesPanel({
           checked={element.labelVisible !== false}
           onChange={(labelVisible) => onPatch(element.id, { labelVisible })}
         />
-        {symbol?.configurableColor ? (
+        {isSwitch ? (
+          <PropertyToggle
+            label="Switch 开关状态"
+            description={switchOn ? '当前闭合 · On' : '当前断开 · Off'}
+            checked={switchOn}
+            onChange={(on) => onSwitchStateChange(element.id, on)}
+          />
+        ) : null}
+        {isSwitch ? (
+          <>
+            <CommittedColorField
+              selectionKey={`${element.id}:switch-off`}
+              label="Switch 关状态颜色"
+              value={resolvedSymbolColorForSlot(element, 'switch-off')}
+              fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
+              hasCustomColor={typeof element.properties.switchOffColor === 'string'}
+              onPreview={(color) => onColorPreview(element.id, color, 'switch-off')}
+              onCommit={(color) => onPatch(element.id, {
+                properties: switchColorProperties('switch-off', color),
+              })}
+              onRestore={() => onPatch(element.id, {
+                properties: switchColorProperties('switch-off', null),
+              })}
+            />
+            <CommittedColorField
+              selectionKey={`${element.id}:switch-on`}
+              label="Switch 开状态颜色"
+              value={resolvedSymbolColorForSlot(element, 'switch-on')}
+              fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
+              hasCustomColor={typeof element.properties.switchOnColor === 'string'}
+              onPreview={(color) => onColorPreview(element.id, color, 'switch-on')}
+              onCommit={(color) => onPatch(element.id, {
+                properties: switchColorProperties('switch-on', color),
+              })}
+              onRestore={() => onPatch(element.id, {
+                properties: switchColorProperties('switch-on', null),
+              })}
+            />
+          </>
+        ) : symbol?.configurableColor ? (
           <CommittedColorField
             selectionKey={element.id}
             label="图元颜色"

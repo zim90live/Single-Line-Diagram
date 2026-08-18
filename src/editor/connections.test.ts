@@ -8,6 +8,7 @@ import type {
 } from '../domain/project'
 import {
   bridgedPathData,
+  bridgedPolylinePoints,
   connectTerminals,
   connectionTypesCompatible,
   crossingPointKeys,
@@ -437,6 +438,10 @@ describe('connection topology and routing', () => {
     expect(renderedBridge.bridgeCasingPath).not.toContain(' L ')
     expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8))
       .toBe(renderedBridge.linePath)
+    const sampledBridge = bridgedPolylinePoints(routed.edges[1], routed.crossings, 8)
+    expect(sampledBridge[0]).toEqual(routed.edges[1].points[0])
+    expect(sampledBridge.at(-1)).toEqual(routed.edges[1].points.at(-1))
+    expect(sampledBridge.some((point) => point.x > 40)).toBe(true)
   })
 
   it('compresses adjacent bridge arcs without adding per-crossing topology', () => {

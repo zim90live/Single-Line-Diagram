@@ -7,6 +7,10 @@ import {
   FilePlus2,
   FolderOpen,
   Minus,
+  MonitorPlay,
+  Pause,
+  PencilLine,
+  Play,
   Plus,
   Redo2,
   Save,
@@ -35,11 +39,16 @@ import {
   type DiagramCanvasHandle,
   type EditorCommandState,
   type PointerPosition,
+  type CanvasMode,
 } from './editor/DiagramCanvas'
 import { getAnchorTypeLabel } from './editor/anchors'
 import { getAdaptiveGridScale } from './editor/gridScale'
 import { symbolAssets } from './editor/symbolCatalog'
-import { projectRepository, type ProjectSummary } from './storage/projectRepository'
+import {
+  monitorStateRepository,
+  projectRepository,
+  type ProjectSummary,
+} from './storage/projectRepository'
 import { useAppStore } from './store/useAppStore'
 import { downloadProject, parseProjectText } from './utils/projectFile'
 
@@ -123,6 +132,7 @@ function ConfirmDialog({ request, onClose }: { request: ConfirmRequest; onClose:
 export default function App() {
   const editorRef = useRef<DiagramCanvasHandle>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const monitorStateRevisionRef = useRef(0)
   const [openPanel, setOpenPanel] = useState(false)
   const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
@@ -131,6 +141,9 @@ export default function App() {
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
+  const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
+  const [animationPlaying, setAnimationPlaying] = useState(false)
+  const [switchStates, setSwitchStates] = useState<Record<string, boolean>>({})
 
   const {
     document,
@@ -227,8 +240,46 @@ export default function App() {
     replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
   }, [currentDiagramId, replaceDiagramContent])
   const handleViewportChange = useCallback((nextViewport: DiagramViewport) => {
-    updateDiagramViewport(currentDiagramId, nextViewport)
-  }, [currentDiagramId, updateDiagramViewport])
+    if (workspaceMode === 'edit') updateDiagramViewport(currentDiagramId, nextViewport)
+  }, [currentDiagramId, updateDiagramViewport, workspaceMode])
+
+  useEffect(() => {
+    let cancelled = false
+    const revision = monitorStateRevisionRef.current + 1
+    monitorStateRevisionRef.current = revision
+    setSwitchStates({})
+    void monitorStateRepository.getSwitchStates(document.project.id)
+      .then((states) => {
+        if (!cancelled && monitorStateRevisionRef.current === revision) setSwitchStates(states)
+      })
+      .catch((error) => {
+        if (!cancelled) showToast(
+          error instanceof Error ? error.message : '无法读取监控运行状态。',
+          'danger',
+        )
+      })
+    return () => { cancelled = true }
+  }, [document.project.id])
+
+  const setMode = (mode: CanvasMode) => {
+    setWorkspaceMode(mode)
+    setAnimationPlaying(false)
+    setSelectedElementIds([])
+    setAnchorEditorAssetKey(null)
+  }
+
+  const handleSwitchStateChange = (elementId: string, on: boolean) => {
+    monitorStateRevisionRef.current += 1
+    setSwitchStates((current) => ({ ...current, [elementId]: on }))
+    void monitorStateRepository
+      .setSwitchState(document.project.id, elementId, on)
+      .catch((error) => {
+        setSwitchStates((current) => (
+          current[elementId] === on ? { ...current, [elementId]: !on } : current
+        ))
+        showToast(error instanceof Error ? error.message : 'Switch 状态保存失败。', 'danger')
+      })
+  }
 
   const saveProject = async () => {
     try {
@@ -364,14 +415,35 @@ export default function App() {
     : undefined
 
   return (
-    <div className="app-shell" data-testid="app-shell">
+    <div className="app-shell" data-testid="app-shell" data-mode={workspaceMode}>
       <header className="workspace-header">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true"><span /><span /></div>
           <div>
             <strong>AIDC 接线图</strong>
-            <small>编辑模式 · 第一阶段</small>
+            <small>{workspaceMode === 'edit' ? '编辑模式' : '监控模式'} · AIDC 运维工作台</small>
           </div>
+        </div>
+
+        <div className="workspace-mode-tabs" role="tablist" aria-label="工作模式">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceMode === 'edit'}
+            onClick={() => setMode('edit')}
+          >
+            <PencilLine aria-hidden="true" />
+            编辑模式
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceMode === 'monitor'}
+            onClick={() => setMode('monitor')}
+          >
+            <MonitorPlay aria-hidden="true" />
+            监控模式
+          </button>
         </div>
 
         <div className="project-name-control">
@@ -379,6 +451,7 @@ export default function App() {
           <TextField
             label="项目名称"
             hideLabel
+            disabled={workspaceMode === 'monitor'}
             value={document.project.name}
             onChange={(event) => renameProject(event.target.value || '未命名项目')}
           />
@@ -431,14 +504,32 @@ export default function App() {
           </nav>
         </div>
 
-        <div className="edit-actions" aria-label="画布编辑命令">
-          <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
-          <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
-          <span className="toolbar-divider" />
-          <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
-          <IconButton label="粘贴" icon={<ClipboardPaste />} onClick={() => editorRef.current?.paste()} />
-          <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
-          <span className="toolbar-divider" />
+        <div className="edit-actions" aria-label={workspaceMode === 'edit' ? '画布编辑命令' : '监控命令'}>
+          {workspaceMode === 'edit' ? (
+            <>
+              <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
+              <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
+              <span className="toolbar-divider" />
+              <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
+              <IconButton label="粘贴" icon={<ClipboardPaste />} onClick={() => editorRef.current?.paste()} />
+              <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
+              <span className="toolbar-divider" />
+            </>
+          ) : (
+            <>
+              <Button
+                variant={animationPlaying ? 'primary-solid' : 'neutral-ghost'}
+                leadingIcon={animationPlaying ? <Pause /> : <Play />}
+                onClick={() => setAnimationPlaying((playing) => !playing)}
+              >
+                {animationPlaying ? '暂停流动' : '播放流动'}
+              </Button>
+              <StatusTag tone={animationPlaying ? 'success' : 'neutral'} dot>
+                {animationPlaying ? '动画运行中' : '动画已暂停'}
+              </StatusTag>
+              <span className="toolbar-divider" />
+            </>
+          )}
           <IconButton label="缩小画布" icon={<Minus />} onClick={() => editorRef.current?.zoomOut()} />
           <button type="button" className="zoom-readout" aria-label="重置画布缩放" onClick={() => editorRef.current?.zoomReset()}>
             {Math.round(commandState.zoom * 100)}%
@@ -447,18 +538,20 @@ export default function App() {
         </div>
       </div>
 
-      <main className="workspace-main">
-        <aside className="left-sidebar">
+      <main className="workspace-main" data-mode={workspaceMode}>
+        <aside className="left-sidebar" data-mode={workspaceMode}>
           <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
-          <SymbolLibrary
-            onInsert={insertSymbol}
-            onEdit={setAnchorEditorAssetKey}
-            onInsertBusbar={insertBusbar}
-            canInsertBusbar={currentLine?.type === 'power'}
-          />
+          {workspaceMode === 'edit' ? (
+            <SymbolLibrary
+              onInsert={insertSymbol}
+              onEdit={setAnchorEditorAssetKey}
+              onInsertBusbar={insertBusbar}
+              canInsertBusbar={currentLine?.type === 'power'}
+            />
+          ) : null}
         </aside>
 
-        <section className="canvas-column" aria-label={`${currentDiagram.name}编辑区`}>
+        <section className="canvas-column" aria-label={`${currentDiagram.name}${workspaceMode === 'edit' ? '编辑区' : '监控区'}`}>
           <div className="canvas-titlebar">
             <div><strong>{currentDiagram.name}</strong><span>{currentElements.length} 个图元 · {currentBusbars.length} 条母线 · {currentConnections.length} 个线路网络</span></div>
             <span className="canvas-hint">滚轮缩放 · 鼠标中键移动画布</span>
@@ -466,6 +559,9 @@ export default function App() {
           <div className="canvas-frame">
             <DiagramCanvas
               ref={editorRef}
+              mode={workspaceMode}
+              animationPlaying={animationPlaying}
+              switchStates={switchStates}
               diagramId={currentDiagramId}
               lineSystemType={currentLine?.type ?? 'cooling'}
               documentEpoch={documentEpoch}
@@ -480,11 +576,12 @@ export default function App() {
               onSelectionChange={setSelectedElementIds}
               onCommandStateChange={setCommandState}
               onPointerChange={setPointerPosition}
+              onSwitchStateChange={handleSwitchStateChange}
             />
             {currentElements.length === 0 && currentBusbars.length === 0 ? (
               <div className="canvas-empty-guide" aria-hidden="true">
-                <strong>从左侧拖入图元</strong>
-                <span>或双击素材插入视口中心</span>
+                <strong>{workspaceMode === 'edit' ? '从左侧拖入图元' : '当前图纸暂无监控对象'}</strong>
+                <span>{workspaceMode === 'edit' ? '或双击素材插入视口中心' : '切换到编辑模式添加图元与线路'}</span>
               </div>
             ) : null}
           </div>
@@ -494,7 +591,9 @@ export default function App() {
               网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
             </span>
             <span>
-              {commandState.wiringType
+              {workspaceMode === 'monitor'
+                ? animationPlaying ? '正在显示 Grid → POD 运行流向' : '监控模式 · 点击 Switch 切换状态'
+                : commandState.wiringType
                 ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
                 : commandState.selectedConnection && commandState.selectedBusbar
                   ? '已选择母线与子线'
@@ -511,7 +610,7 @@ export default function App() {
           </footer>
         </section>
 
-        <PropertiesPanel
+        {workspaceMode === 'edit' ? <PropertiesPanel
           selectedElements={selectedElements}
           duplicateDeviceIdentifier={duplicateDeviceIdentifier}
           selectedBusbars={selectedBusbars}
@@ -519,13 +618,15 @@ export default function App() {
           canvasElements={currentElements}
           canvasBusbars={currentBusbars}
           canvasConnections={currentConnections}
+          switchStates={switchStates}
+          onSwitchStateChange={handleSwitchStateChange}
           onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
           onPatchBusbar={(busbarId, patch) => editorRef.current?.updateBusbar(busbarId, patch)}
           onPatchConnectionEdge={(edgeId, patch) => (
             editorRef.current?.updateConnectionEdge(edgeId, patch)
           )}
-          onColorPreview={(elementId, color) => (
-            editorRef.current?.previewElementColor(elementId, color)
+          onColorPreview={(elementId, color, slot) => (
+            editorRef.current?.previewElementColor(elementId, color, slot)
           )}
           onSelectionColorPreview={(color) => editorRef.current?.previewSelectionColor(color)}
           onSelectionColorCommit={(color) => editorRef.current?.updateSelectionColor(color)}
@@ -536,7 +637,7 @@ export default function App() {
             editorRef.current?.updateCanvasColor(target, color)
           )}
           onDelete={() => editorRef.current?.deleteSelected()}
-        />
+        /> : null}
       </main>
 
       {openPanel ? (

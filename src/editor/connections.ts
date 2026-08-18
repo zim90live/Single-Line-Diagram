@@ -2200,6 +2200,48 @@ export function bridgedPathData(
   }
 }
 
+function appendDistinctPoint(points: Point[], point: Point) {
+  if (!points.length || !pointsEqual(points[points.length - 1], point)) points.push(point)
+}
+
+/**
+ * Produces the same display geometry as `bridgedPathData`, but as sampled points
+ * suitable for the WebGL monitor overlay. The business route remains unchanged.
+ */
+export function bridgedPolylinePoints(
+  route: RoutedConnectionEdge,
+  crossings: ConnectionCrossing[],
+  gridSize: number,
+  arcSteps = 8,
+) {
+  if (!route.points.length) return []
+  const points: Point[] = [{ ...route.points[0] }]
+  for (let index = 1; index < route.points.length; index += 1) {
+    const start = route.points[index - 1]
+    const end = route.points[index]
+    const arcs = bridgeArcsOnSegment(start, end, crossings, route.edgeId, gridSize)
+    for (const arc of arcs) {
+      appendDistinctPoint(points, arc.start)
+      const center = {
+        x: (arc.start.x + arc.end.x) / 2,
+        y: (arc.start.y + arc.end.y) / 2,
+      }
+      const startAngle = Math.atan2(arc.start.y - center.y, arc.start.x - center.x)
+      const delta = arc.sweep ? Math.PI : -Math.PI
+      const steps = Math.max(2, Math.round(arcSteps))
+      for (let step = 1; step <= steps; step += 1) {
+        const angle = startAngle + delta * (step / steps)
+        appendDistinctPoint(points, {
+          x: center.x + Math.cos(angle) * arc.radius,
+          y: center.y + Math.sin(angle) * arc.radius,
+        })
+      }
+    }
+    appendDistinctPoint(points, end)
+  }
+  return points
+}
+
 export function pathDataWithBridges(
   route: RoutedConnectionEdge,
   crossings: ConnectionCrossing[],

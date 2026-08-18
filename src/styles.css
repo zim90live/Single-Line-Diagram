@@ -66,12 +66,52 @@ button:focus-visible,
 .workspace-header {
   z-index: 10;
   display: grid;
-  grid-template-columns: 248px minmax(260px, 1fr) auto;
+  grid-template-columns: 220px auto minmax(220px, 1fr) auto;
   align-items: center;
   gap: var(--space-md);
   padding: 0 var(--space-md);
   border-bottom: 1px solid var(--divider);
   background: var(--panel);
+}
+
+.workspace-mode-tabs {
+  display: inline-flex;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--canvas-deep) 72%, transparent);
+}
+
+.workspace-mode-tabs button {
+  display: inline-flex;
+  height: 26px;
+  padding: 0 9px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--dim);
+  background: transparent;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart), box-shadow var(--duration-standard) var(--ease-out-quart);
+}
+
+.workspace-mode-tabs button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.workspace-mode-tabs button:hover {
+  color: var(--ink);
+}
+
+.workspace-mode-tabs button[aria-selected='true'] {
+  color: var(--ink);
+  background: var(--surface-control-hover);
+  box-shadow: inset 0 0 0 1px var(--border-default);
 }
 
 .brand-block,
@@ -156,7 +196,7 @@ button:focus-visible,
 }
 
 .project-name-control {
-  width: min(520px, 100%);
+  width: min(440px, 100%);
   min-width: 0;
   height: 36px;
   gap: 8px;
@@ -273,6 +313,10 @@ button:focus-visible,
   min-height: 0;
 }
 
+.workspace-main[data-mode='monitor'] {
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
 .left-sidebar,
 .properties-panel {
   min-height: 0;
@@ -283,6 +327,10 @@ button:focus-visible,
   display: grid;
   grid-template-rows: minmax(238px, 44%) minmax(0, 56%);
   border-right: 1px solid var(--divider);
+}
+
+.left-sidebar[data-mode='monitor'] {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .sidebar-section {
@@ -724,7 +772,8 @@ button:focus-visible,
 
 .grid-webgl,
 .grid-fallback,
-.editor-overlay {
+.editor-overlay,
+.monitor-flow-layer {
   position: absolute !important;
   inset: 0;
   width: 100% !important;
@@ -752,6 +801,32 @@ button:focus-visible,
   z-index: 2;
   overflow: visible;
   pointer-events: none;
+}
+
+.monitor-flow-layer {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.monitor-flow-layer > div,
+.monitor-flow-layer canvas {
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+}
+
+.canvas-stage[data-mode='monitor'] .diagram-viewport {
+  cursor: default;
+}
+
+.canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-switch='true'] .diagram-element__image {
+  cursor: pointer;
+}
+
+.canvas-stage[data-mode='monitor'] .connection-edge__hit,
+.canvas-stage[data-mode='monitor'] .busbar__hit {
+  pointer-events: none;
+  cursor: default;
 }
 
 .alignment-cross__surface {
@@ -1268,6 +1343,22 @@ button:focus-visible,
   height: 20px;
   border: 1px solid color-mix(in srgb, var(--ink) 24%, transparent);
   border-radius: var(--radius-sm);
+}
+
+.canvas-color-overview__value {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.canvas-color-overview__value small {
+  overflow: hidden;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .canvas-color-overview__color-button code {

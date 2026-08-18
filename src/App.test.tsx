@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { createDefaultProject, getFirstDiagramId } from './domain/project'
 import { symbolAssets } from './editor/symbolCatalog'
-import { projectRepository } from './storage/projectRepository'
+import { monitorStateRepository, projectRepository } from './storage/projectRepository'
 import { useAppStore } from './store/useAppStore'
 
 const insertBusbarMock = vi.fn()
@@ -14,7 +14,7 @@ const duplicateMock = vi.fn()
 
 vi.mock('./editor/DiagramCanvas', () => ({
   DiagramCanvas: forwardRef(function MockDiagramCanvas(
-    _props: Record<string, unknown>,
+    props: Record<string, unknown>,
     ref: Ref<unknown>,
   ) {
     useImperativeHandle(ref, () => ({
@@ -39,7 +39,26 @@ vi.mock('./editor/DiagramCanvas', () => ({
       updateBusbar: vi.fn(),
       updateConnectionEdge: vi.fn(),
     }))
-    return <div data-testid="diagram-canvas">画布</div>
+    return (
+      <div
+        data-testid="diagram-canvas"
+        data-mode={String(props.mode)}
+        data-animation-playing={String(props.animationPlaying)}
+      >
+        画布
+        {props.mode === 'monitor' ? (
+          <button
+            type="button"
+            onClick={() => (props.onSwitchStateChange as (id: string, on: boolean) => void)(
+              'switch-test',
+              !(props.switchStates as Record<string, boolean>)['switch-test'],
+            )}
+          >
+            切换测试 Switch
+          </button>
+        ) : null}
+      </div>
+    )
   }),
 }))
 
@@ -128,6 +147,36 @@ describe('AIDC editor workspace', () => {
 
     expect(save).not.toHaveBeenCalled()
     save.mockRestore()
+  })
+
+  it('switches to a read-only monitor workspace and auto-saves Switch state', async () => {
+    const user = userEvent.setup()
+    const loadRuntime = vi.spyOn(monitorStateRepository, 'getSwitchStates').mockResolvedValue({})
+    const saveRuntime = vi.spyOn(monitorStateRepository, 'setSwitchState').mockResolvedValue()
+    const beforeDocument = structuredClone(useAppStore.getState().document)
+    renderApp()
+
+    await user.click(screen.getByRole('tab', { name: '监控模式' }))
+
+    expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-mode', 'monitor')
+    expect(screen.getByLabelText('项目名称')).toBeDisabled()
+    expect(screen.queryByText('CHWP')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '播放流动' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '播放流动' }))
+    expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-animation-playing', 'true')
+
+    await user.click(screen.getByRole('button', { name: '切换测试 Switch' }))
+    await waitFor(() => expect(saveRuntime).toHaveBeenCalledWith(
+      beforeDocument.project.id,
+      'switch-test',
+      true,
+    ))
+    expect(useAppStore.getState().document).toEqual(beforeDocument)
+    expect(useAppStore.getState().dirty).toBe(false)
+
+    loadRuntime.mockRestore()
+    saveRuntime.mockRestore()
   })
 
   it('opens the symbol anchor editor and applies anchor changes immediately', async () => {

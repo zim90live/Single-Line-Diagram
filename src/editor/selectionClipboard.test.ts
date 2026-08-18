@@ -16,7 +16,16 @@ const network: ConnectionNetwork = {
     { id: 'node-c', kind: 'element-anchor', elementId: 'element-c', anchorId: 'left' },
   ],
   edges: [
-    { id: 'edge-a-b', sourceNodeId: 'node-a', targetNodeId: 'tap-b', color: '#77B4BF' },
+    {
+      id: 'edge-a-b',
+      sourceNodeId: 'node-a',
+      targetNodeId: 'tap-b',
+      color: '#77B4BF',
+      label: '馈线 01',
+      labelVisible: false,
+      labelEndpoint: 'source',
+      labelSide: 'positive',
+    },
     { id: 'edge-b-c', sourceNodeId: 'tap-b', targetNodeId: 'node-c' },
   ],
 }
@@ -72,6 +81,10 @@ describe('selection clipboard topology', () => {
       sourceNodeId: instantiated[0].nodes[0].id,
       targetNodeId: instantiated[0].nodes[1].id,
       color: '#77B4BF',
+      label: '馈线 01',
+      labelVisible: false,
+      labelEndpoint: 'source',
+      labelSide: 'positive',
     }))
   })
 })

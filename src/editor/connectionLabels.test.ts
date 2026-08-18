@@ -4,6 +4,7 @@ import type { ConnectionNetwork } from '../domain/project'
 import type { RoutedConnectionEdge } from './connections'
 import {
   CONNECTION_LABEL_ENDPOINT_GAP,
+  CONNECTION_LABEL_ENDPOINT_PADDING,
   connectionLabelPlacementForPointer,
   layoutConnectionLabels,
 } from './connectionLabels'
@@ -56,13 +57,21 @@ describe('connection labels', () => {
     })])
 
     expect(CONNECTION_LABEL_ENDPOINT_GAP).toBe(8)
+    expect(CONNECTION_LABEL_ENDPOINT_PADDING).toBe(8)
     expect(above).toMatchObject({
       endpoint: 'target',
       side: 'negative',
       orientation: 'horizontal',
+      axisAlignment: 'right',
+      textAnchor: 'end',
     })
     expect(above.bounds.y + above.bounds.height).toBe(40 - CONNECTION_LABEL_ENDPOINT_GAP)
+    expect(above.bounds.x + above.bounds.width).toBe(80 - CONNECTION_LABEL_ENDPOINT_PADDING)
+    expect(above.textX).toBe(80 - CONNECTION_LABEL_ENDPOINT_PADDING)
     expect(below.bounds.y).toBe(40 + CONNECTION_LABEL_ENDPOINT_GAP)
+    expect(below).toMatchObject({ axisAlignment: 'left', textAnchor: 'start' })
+    expect(below.bounds.x).toBe(CONNECTION_LABEL_ENDPOINT_PADDING)
+    expect(below.textX).toBe(CONNECTION_LABEL_ENDPOINT_PADDING)
   })
 
   it('places vertical endpoint labels to the left or right of the nearby segment', () => {
@@ -73,9 +82,24 @@ describe('connection labels', () => {
       labelSide: 'positive',
     })])
 
-    expect(left).toMatchObject({ orientation: 'vertical', side: 'negative' })
+    expect(left).toMatchObject({
+      orientation: 'vertical',
+      side: 'negative',
+      axisAlignment: 'bottom',
+    })
     expect(left.bounds.x + left.bounds.width).toBe(24 - CONNECTION_LABEL_ENDPOINT_GAP)
+    expect(left.textX).toBe(24 - CONNECTION_LABEL_ENDPOINT_GAP)
+    expect(left.bounds.y + left.bounds.height).toBe(96 - CONNECTION_LABEL_ENDPOINT_PADDING)
     expect(right.bounds.x).toBe(24 + CONNECTION_LABEL_ENDPOINT_GAP)
+    expect(right).toMatchObject({ axisAlignment: 'bottom' })
+    expect(right.textX).toBe(24 + CONNECTION_LABEL_ENDPOINT_GAP)
+
+    const [topAligned] = layoutConnectionLabels([verticalRoute], [network({
+      label: '竖向子线',
+      labelEndpoint: 'source',
+    })])
+    expect(topAligned).toMatchObject({ axisAlignment: 'top' })
+    expect(topAligned.bounds.y).toBe(CONNECTION_LABEL_ENDPOINT_PADDING)
   })
 
   it('selects the nearest endpoint and the pointer side from local segment orientation', () => {

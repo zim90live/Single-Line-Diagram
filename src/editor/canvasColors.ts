@@ -11,8 +11,10 @@ import {
 } from './objectColors'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
-  normalizeSymbolColor,
+  resolvedSymbolColorForSlot,
+  symbolColorPropertyKey,
   symbolsByKey,
+  type SymbolColorSlot,
 } from './symbolCatalog'
 
 export type CanvasColorCategory = 'element' | 'busbar' | 'connection'
@@ -20,10 +22,12 @@ export type CanvasColorCategory = 'element' | 'busbar' | 'connection'
 export interface CanvasColorTarget {
   category: CanvasColorCategory
   color: string
+  elementColorSlot?: SymbolColorSlot
 }
 
 export interface CanvasColorGroup extends CanvasColorTarget {
   count: number
+  scopeLabel?: string
 }
 
 export interface CanvasColorGroups {
@@ -51,10 +55,15 @@ function groupsFromCounts(
     .map(([color, count]) => ({ category, color, count }))
 }
 
-export function resolvedElementColor(element: DiagramElement) {
+export function resolvedElementColor(
+  element: DiagramElement,
+  slot: SymbolColorSlot = 'default',
+) {
   const symbol = symbolsByKey.get(element.assetKey)
   if (!symbol?.configurableColor) return null
-  return normalizeSymbolColor(element.properties.color)
+  if (element.assetKey === 'switch' && slot === 'default') return null
+  if (element.assetKey !== 'switch' && slot !== 'default') return null
+  return resolvedSymbolColorForSlot(element, slot)
 }
 
 export function resolvedBusbarColor(busbar: Busbar) {
@@ -74,13 +83,31 @@ export function collectCanvasColorGroups(
   busbars: Busbar[],
   connections: ConnectionNetwork[],
 ): CanvasColorGroups {
-  const elementColors = new Map<string, number>()
+  const elementGroups = new Map<string, CanvasColorGroup>()
   const busbarColors = new Map<string, number>()
   const connectionColors = new Map<string, number>()
 
   for (const element of elements) {
-    const color = resolvedElementColor(element)
-    if (color) incrementColor(elementColors, color)
+    const slots: Array<{ slot: SymbolColorSlot; scopeLabel?: string }> = element.assetKey === 'switch'
+      ? [
+          { slot: 'switch-off', scopeLabel: 'Switch 关' },
+          { slot: 'switch-on', scopeLabel: 'Switch 开' },
+        ]
+      : [{ slot: 'default' }]
+    for (const { slot, scopeLabel } of slots) {
+      const color = resolvedElementColor(element, slot)
+      if (!color) continue
+      const key = `${slot}:${color}`
+      const group = elementGroups.get(key)
+      if (group) group.count += 1
+      else elementGroups.set(key, {
+        category: 'element',
+        color,
+        count: 1,
+        ...(slot === 'default' ? {} : { elementColorSlot: slot }),
+        ...(scopeLabel ? { scopeLabel } : {}),
+      })
+    }
   }
   for (const busbar of busbars) incrementColor(busbarColors, resolvedBusbarColor(busbar))
   for (const network of connections) {
@@ -90,7 +117,10 @@ export function collectCanvasColorGroups(
   }
 
   return {
-    element: groupsFromCounts('element', elementColors),
+    element: [...elementGroups.values()].sort((left, right) => (
+      (left.scopeLabel ?? '').localeCompare(right.scopeLabel ?? '') ||
+      left.color.localeCompare(right.color)
+    )),
     busbar: groupsFromCounts('busbar', busbarColors),
     connection: groupsFromCounts('connection', connectionColors),
   }
@@ -103,13 +133,17 @@ export function replaceCanvasColor(
 ): CanvasColorSnapshot {
   if (target.category === 'element') {
     const normalized = normalizeHexColor(nextColor, DEFAULT_CONFIGURABLE_SYMBOL_COLOR)
+    const slot = target.elementColorSlot ?? 'default'
+    const property = symbolColorPropertyKey(slot)
     return {
       ...snapshot,
       elements: snapshot.elements.map((element) => {
-        if (resolvedElementColor(element) !== target.color) return element
+        if (resolvedElementColor(element, slot) !== target.color) return element
+        const properties = { ...element.properties, [property]: normalized }
+        if (element.assetKey === 'switch') delete properties.color
         return {
           ...element,
-          properties: { ...element.properties, color: normalized },
+          properties,
         }
       }),
     }

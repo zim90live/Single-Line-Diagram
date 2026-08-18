@@ -11,7 +11,7 @@
 - 已进入项目 JSON 的 `assetKey` 不应随意修改；需要重命名时应提供数据迁移。
 - SVG 的原始宽高必须是 8px 整数倍；画布按原始尺寸插入，并只允许保持宽高比、宽高同时贴合 8px 网格的离散缩放。
 - 画布只渲染 SVG 内容本身，不自动添加名称、背景或卡片外壳。
-- 当前 Switch 默认使用 `SwitchOff.svg`，`SwitchOn.svg` 留给后续监控运行态切换。2WV、CV、Generator、Grid、MP、Switch、Transformer 的实例颜色通过项目属性覆盖，SVG 源文件不修改。
+- 当前 Switch 缺省使用 `SwitchOff.svg`，编辑属性面板与监控画布共享独立 On/Off 运行态。2WV、CV、Generator、Grid、MP、Transformer 的实例颜色通过单一项目属性覆盖；Switch 的关/开颜色通过两个独立项目属性覆盖，SVG 源文件不修改。
 - 素材的视觉分类与显示效果由用户验收。
 
 ## 当前专业分类

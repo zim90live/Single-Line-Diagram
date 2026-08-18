@@ -373,6 +373,41 @@ describe('project document', () => {
       ])
   })
 
+  it('migrates a schema v12 Switch color into independent off/on colors', () => {
+    const switchAsset = {
+      ...asset,
+      key: 'switch',
+      name: 'Switch',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+    }
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('Switch 颜色迁移', [switchAsset])))
+    legacy.schemaVersion = 12
+    legacy.elements = [{
+      id: 'switch-colored',
+      diagramId: legacy.diagrams[0].id,
+      assetKey: 'switch',
+      name: 'Switch',
+      x: 0,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: { color: '#77b4bf' },
+      extensions: {},
+    }]
+
+    const parsed = parseProjectDocument(legacy, [switchAsset])
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(parsed.elements[0].properties).toEqual({
+      switchOffColor: '#77B4BF',
+      switchOnColor: '#77B4BF',
+      tag: 'Switch-01',
+    })
+    expect(parsed.elements[0].properties.color).toBeUndefined()
+  })
+
   it('refreshes installed asset categories while preserving existing anchors', () => {
     const document = createDefaultProject('分类同步', [{
       ...asset,
@@ -471,6 +506,10 @@ describe('project document', () => {
 
     document.elements[0].properties.color = 'blue'
     expect(() => parseProjectDocument(document)).toThrow('颜色必须是六位十六进制值')
+
+    document.elements[0].properties.color = '#77B4BF'
+    document.elements[0].properties.switchOnColor = 'green'
+    expect(() => parseProjectDocument(document)).toThrow('开状态颜色必须是六位十六进制值')
   })
 
   it('requires one cooling line and one power line', () => {

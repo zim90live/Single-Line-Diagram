@@ -12,13 +12,29 @@ interface StoredProject extends ProjectSummary {
   document: ProjectDocument
 }
 
+export interface MonitorSwitchState {
+  projectId: string
+  elementId: string
+  on: boolean
+  updatedAt: string
+}
+
+interface StoredMonitorSwitchState extends MonitorSwitchState {
+  key: string
+}
+
 interface ProjectDatabase extends Dexie {
   projects: EntityTable<StoredProject, 'id'>
+  monitorSwitchStates: EntityTable<StoredMonitorSwitchState, 'key'>
 }
 
 const database = new Dexie('aidc-single-line-diagram') as ProjectDatabase
 database.version(1).stores({
   projects: 'id, name, updatedAt',
+})
+database.version(2).stores({
+  projects: 'id, name, updatedAt',
+  monitorSwitchStates: 'key, projectId, elementId, updatedAt',
 })
 
 export interface ProjectRepository {
@@ -49,6 +65,34 @@ export const projectRepository: ProjectRepository = {
   },
 
   async delete(id) {
-    await database.projects.delete(id)
+    await database.transaction('rw', database.projects, database.monitorSwitchStates, async () => {
+      await database.projects.delete(id)
+      await database.monitorSwitchStates.where('projectId').equals(id).delete()
+    })
+  },
+}
+
+export interface MonitorStateRepository {
+  getSwitchStates(projectId: string): Promise<Record<string, boolean>>
+  setSwitchState(projectId: string, elementId: string, on: boolean): Promise<void>
+}
+
+export const monitorStateRepository: MonitorStateRepository = {
+  async getSwitchStates(projectId) {
+    const records = await database.monitorSwitchStates
+      .where('projectId')
+      .equals(projectId)
+      .toArray()
+    return Object.fromEntries(records.map((record) => [record.elementId, record.on]))
+  },
+
+  async setSwitchState(projectId, elementId, on) {
+    await database.monitorSwitchStates.put({
+      key: `${projectId}:${elementId}`,
+      projectId,
+      elementId,
+      on,
+      updatedAt: new Date().toISOString(),
+    })
   },
 }
