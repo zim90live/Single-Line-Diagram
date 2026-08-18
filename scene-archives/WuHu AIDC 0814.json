@@ -1,10 +1,10 @@
 {
-  "schemaVersion": 11,
+  "schemaVersion": 13,
   "project": {
     "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f",
     "name": "AIDC 一次接线图",
     "createdAt": "2026-08-13T10:32:21.116Z",
-    "updatedAt": "2026-08-17T11:08:04.798Z"
+    "updatedAt": "2026-08-18T01:43:04.501Z"
   },
   "lineSystems": [
     {
@@ -90,9 +90,9 @@
       "canvas": {
         "gridSize": 8,
         "viewport": {
-          "zoom": 0.46442710756148475,
-          "tx": 751.4755203835039,
-          "ty": 329.5210447205268
+          "zoom": 0.4934556712960011,
+          "tx": 817.0401856426051,
+          "ty": 346.3739247431255
         }
       }
     },
@@ -412,8 +412,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1037A"
+        "tag": "1037A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -428,8 +429,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1036A"
+        "tag": "1036A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -444,8 +446,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1035A"
+        "tag": "1035A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -460,8 +463,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1034A"
+        "tag": "1034A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -476,8 +480,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1033A"
+        "tag": "1033A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -493,8 +498,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1032A"
+        "tag": "1032A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -509,8 +515,9 @@
       "height": 32,
       "rotation": 90,
       "properties": {
-        "color": "#FFC800",
-        "tag": "分段200开关"
+        "tag": "分段200开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -526,8 +533,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1038A"
+        "tag": "1038A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -543,8 +551,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1039A"
+        "tag": "1039A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -559,8 +568,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-11"
+        "tag": "Switch-11",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -575,8 +585,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-12"
+        "tag": "Switch-12",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -586,7 +597,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": -576,
-      "y": -208,
+      "y": -224,
       "width": 64,
       "height": 64,
       "rotation": 0,
@@ -607,8 +618,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY开关"
+        "tag": "2NY开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -623,8 +635,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY02刀闸"
+        "tag": "2NY02刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -639,8 +652,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY01刀闸"
+        "tag": "2NY01刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -655,8 +669,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20032刀闸"
+        "tag": "20032刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -671,8 +686,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20031刀闸"
+        "tag": "20031刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -687,8 +703,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-18"
+        "tag": "Switch-18",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -703,8 +720,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-19"
+        "tag": "1022开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -713,15 +731,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -768,
+      "x": -736,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1021A"
+        "tag": "1021A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -730,15 +749,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -736,
+      "x": -704,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1011A"
+        "tag": "1011A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -747,14 +767,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -800,
+      "x": -768,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1012A"
+        "tag": "1012A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -763,14 +784,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -864,
+      "x": -832,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1013A"
+        "tag": "1013A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -779,14 +801,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -928,
+      "x": -896,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1014A"
+        "tag": "1014A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -795,14 +818,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -992,
+      "x": -960,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1015A"
+        "tag": "1015A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -811,14 +835,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1056,
+      "x": -1024,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1016A"
+        "tag": "1016A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -827,14 +852,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1120,
+      "x": -1088,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1017A"
+        "tag": "1017A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -843,15 +869,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1184,
+      "x": -1152,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1018A"
+        "tag": "1018A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -860,30 +887,33 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1264,
+      "x": -1232,
       "y": 144,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-28"
+        "tag": "分段200开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelPlacement": "left"
     },
     {
       "id": "dfd9e1e2-2f8b-4c48-89d6-6c09cbb55347",
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -832,
+      "x": -800,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1022A"
+        "tag": "1022A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -892,14 +922,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -896,
+      "x": -864,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1023A"
+        "tag": "1023A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -908,14 +939,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -960,
+      "x": -928,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1024A"
+        "tag": "1024A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -924,14 +956,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1024,
+      "x": -992,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1025A"
+        "tag": "1025A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -940,15 +973,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1088,
+      "x": -1056,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1026A"
+        "tag": "1026A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -957,15 +991,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1152,
+      "x": -1120,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1027A"
+        "tag": "1027A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -974,15 +1009,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": -1216,
+      "x": -1184,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1028A"
+        "tag": "1028A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -997,8 +1033,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-36"
+        "tag": "1021开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1014,8 +1051,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1041A"
+        "tag": "1041A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1030,8 +1068,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1042A"
+        "tag": "1042A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1046,8 +1085,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1043A"
+        "tag": "1043A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1062,8 +1102,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1044A"
+        "tag": "1044A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1078,8 +1119,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1045A"
+        "tag": "1045A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1094,8 +1136,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1046A"
+        "tag": "1046A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1111,8 +1154,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1047A"
+        "tag": "1047A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1128,8 +1172,9 @@
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1048A"
+        "tag": "1048A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1144,8 +1189,9 @@
       "height": 32,
       "rotation": 90,
       "properties": {
-        "color": "#FFC800",
-        "tag": "分段400开关"
+        "tag": "分段400开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1161,8 +1207,9 @@
       "rotation": 0,
       "labelVisible": false,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-46"
+        "tag": "Switch-46",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1178,8 +1225,9 @@
       "rotation": 0,
       "labelVisible": false,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-47"
+        "tag": "Switch-47",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1194,8 +1242,9 @@
       "height": 32,
       "rotation": 90,
       "properties": {
-        "color": "#00F074",
-        "tag": "分段2100开关"
+        "tag": "分段2100开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1210,10 +1259,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-49"
+        "tag": "Switch-49",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "7067c3fa-0c4f-4a49-ad32-ba2f9d8430be",
@@ -1226,10 +1277,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch"
+        "tag": "Switch",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "7a5be617-76cc-41b8-bfa3-45ffebdd4b46",
@@ -1243,8 +1296,9 @@
       "rotation": 90,
       "labelPlacement": "top",
       "properties": {
-        "color": "#00F074",
-        "tag": "母联2600开关"
+        "tag": "母联2600开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1259,10 +1313,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-52"
+        "tag": "Switch-52",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "fa89972c-9303-4f95-ad63-07669aa0f2e0",
@@ -1275,10 +1331,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-53"
+        "tag": "Switch-53",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "c667efdd-e44b-421f-b012-1ae38079d04a",
@@ -1292,8 +1350,9 @@
       "rotation": 90,
       "labelPlacement": "top",
       "properties": {
-        "color": "#00F074",
-        "tag": "分段2200开关"
+        "tag": "分段2200开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1302,14 +1361,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1632,
+      "x": 1600,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-55"
+        "tag": "1013A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1318,14 +1378,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1696,
+      "x": 1664,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-56"
+        "tag": "1014A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1334,14 +1395,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1760,
+      "x": 1728,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-57"
+        "tag": "1015A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1350,14 +1412,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1824,
+      "x": 1792,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-58"
+        "tag": "1016A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1366,14 +1429,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1888,
+      "x": 1856,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-59"
+        "tag": "1017A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1382,30 +1446,33 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1952,
+      "x": 1920,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-60"
+        "tag": "1018A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelPlacement": "bottom"
     },
     {
       "id": "0f9bcaa8-1cfc-41dd-a703-00dad44e1327",
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1568,
+      "x": 1536,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-62"
+        "tag": "1012A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1414,30 +1481,33 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1504,
+      "x": 1472,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-63"
+        "tag": "1011A",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelPlacement": "bottom"
     },
     {
       "id": "1c6af476-9f51-4ce2-8619-5f55cf2326b4",
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1472,
+      "x": 1440,
       "y": 192,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-64"
+        "tag": "Switch-64",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1446,14 +1516,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1152,
+      "x": 1120,
       "y": 192,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-65"
+        "tag": "Switch-65",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1462,14 +1533,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1152,
+      "x": 1120,
       "y": -32,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1012开关"
+        "tag": "1012开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1478,15 +1550,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1040,
+      "x": 1056,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1048B"
+        "tag": "1048B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1495,15 +1568,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1008,
+      "x": 1024,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1039B"
+        "tag": "1039B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1512,14 +1586,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 944,
+      "x": 960,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1038B"
+        "tag": "1038B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1528,14 +1603,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 880,
+      "x": 896,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1037B"
+        "tag": "1037B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1544,14 +1620,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 816,
+      "x": 832,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1036B"
+        "tag": "1036B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1560,14 +1637,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 752,
+      "x": 768,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1035B"
+        "tag": "1035B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1576,14 +1654,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 688,
+      "x": 704,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1034B"
+        "tag": "1034B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1592,14 +1671,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 624,
+      "x": 640,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1033B"
+        "tag": "1033B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1608,15 +1688,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 560,
+      "x": 576,
       "y": 288,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1032B"
+        "tag": "1032B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1625,14 +1706,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 2032,
+      "x": 2000,
       "y": 144,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-75"
+        "tag": "分段100开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1641,14 +1723,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 976,
+      "x": 992,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1047B"
+        "tag": "1047B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1657,14 +1740,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 912,
+      "x": 928,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1046B"
+        "tag": "1046B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1673,14 +1757,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 848,
+      "x": 864,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1045B"
+        "tag": "1045B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1689,14 +1774,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 784,
+      "x": 800,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1044B"
+        "tag": "1044B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1705,14 +1791,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 720,
+      "x": 736,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1043B"
+        "tag": "1043B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1721,15 +1808,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 656,
+      "x": 672,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1042B"
+        "tag": "1042B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1738,15 +1826,16 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
+      "x": 608,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "labelPlacement": "bottom",
       "properties": {
-        "color": "#FFC800",
-        "tag": "1041B"
+        "tag": "1041B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1755,14 +1844,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1472,
+      "x": 1440,
       "y": -32,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "1011开关"
+        "tag": "1011开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1771,30 +1861,33 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1984,
+      "x": 1952,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-84"
+        "tag": "1028B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelPlacement": "bottom"
     },
     {
       "id": "3181e7cc-c4c8-4b79-81de-94d0ea124fb7",
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1920,
+      "x": 1888,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-85"
+        "tag": "1027B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1803,14 +1896,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1856,
+      "x": 1824,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-86"
+        "tag": "1026B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1819,14 +1913,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1792,
+      "x": 1760,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-87"
+        "tag": "1025B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1835,14 +1930,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1728,
+      "x": 1696,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-88"
+        "tag": "1024B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1851,14 +1947,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1664,
+      "x": 1632,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-89"
+        "tag": "1023B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1867,14 +1964,15 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1600,
+      "x": 1568,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-90"
+        "tag": "1022B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
       "extensions": {}
     },
@@ -1883,16 +1981,18 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1536,
+      "x": 1504,
       "y": 80,
       "width": 32,
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#FFC800",
-        "tag": "Switch-91"
+        "tag": "1021B",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#FFC800"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelPlacement": "bottom"
     },
     {
       "id": "df13419d-423e-4a51-b075-52ffde9041f2",
@@ -1921,8 +2021,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20022刀闸"
+        "tag": "20022刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1937,8 +2038,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20021刀闸"
+        "tag": "20021刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1953,8 +2055,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2802开关"
+        "tag": "2802开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -1969,10 +2072,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-95"
+        "tag": "Switch-95",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "7f15cbe2-e0bb-4f8a-a207-4d9adf0b5192",
@@ -1985,10 +2090,12 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "Switch-96"
+        "tag": "Switch-96",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
-      "extensions": {}
+      "extensions": {},
+      "labelVisible": false
     },
     {
       "id": "511ac917-4d6c-4fcb-9f5a-b489ea2ab01d",
@@ -2002,8 +2109,9 @@
       "rotation": 90,
       "labelPlacement": "top",
       "properties": {
-        "color": "#00F074",
-        "tag": "母联2800开关"
+        "tag": "母联2800开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2034,8 +2142,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY开关"
+        "tag": "2NY开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2050,8 +2159,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY02刀闸"
+        "tag": "2NY02刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2066,8 +2176,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2NY01刀闸"
+        "tag": "2NY01刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2098,8 +2209,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20012刀闸"
+        "tag": "20012刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2114,8 +2226,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "20011刀闸"
+        "tag": "20011刀闸",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2130,8 +2243,9 @@
       "height": 32,
       "rotation": 0,
       "properties": {
-        "color": "#00F074",
-        "tag": "2801开关"
+        "tag": "2801开关",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
       },
       "extensions": {}
     },
@@ -2170,7 +2284,7 @@
       "x": 240,
       "y": 192,
       "length": 128,
-      "color": "#0084FF"
+      "color": "#00F074"
     },
     {
       "id": "7db2aee5-5576-46ea-a7b4-d1c5ccb517ba",
@@ -2197,9 +2311,9 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": -1248,
+      "x": -1216,
       "y": 256,
-      "length": 592,
+      "length": 560,
       "color": "#00F074"
     },
     {
@@ -2241,9 +2355,9 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": -1248,
+      "x": -1216,
       "y": 48,
-      "length": 592,
+      "length": 560,
       "color": "#00F074"
     },
     {
@@ -2264,7 +2378,7 @@
       "x": 240,
       "y": -16,
       "length": 128,
-      "color": "#0084FF"
+      "color": "#00F074"
     },
     {
       "id": "f4a0b56d-7bf4-4560-8a88-fc7e92cdf532",
@@ -2303,7 +2417,7 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": 1488,
+      "x": 1456,
       "y": 256,
       "length": 560,
       "color": "#0084FF"
@@ -2313,7 +2427,7 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": 1168,
+      "x": 1136,
       "y": 160,
       "length": 320,
       "color": "#0084FF"
@@ -2325,7 +2439,7 @@
       "orientation": "horizontal",
       "x": 560,
       "y": 256,
-      "length": 608,
+      "length": 576,
       "color": "#0084FF"
     },
     {
@@ -2333,7 +2447,7 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": 1168,
+      "x": 1136,
       "y": -80,
       "length": 320,
       "color": "#0084FF"
@@ -2345,7 +2459,7 @@
       "orientation": "horizontal",
       "x": 560,
       "y": 48,
-      "length": 608,
+      "length": 576,
       "color": "#0084FF"
     },
     {
@@ -2353,7 +2467,7 @@
       "diagramId": "power-campus-5530eb75-7717-419b-9e37-d11a5b7ac07f",
       "type": "electrical",
       "orientation": "horizontal",
-      "x": 1488,
+      "x": 1456,
       "y": 48,
       "length": 560,
       "color": "#0084FF"
@@ -2545,7 +2659,7 @@
           "id": "connection-edge-e0e45e15-ad2a-46d2-9dac-8a9fb78f80b5",
           "sourceNodeId": "connection-node-bbf14631-0aa1-431b-8b9e-cb9071ff6c93",
           "targetNodeId": "connection-busbar-tap-cfa980b8-78d4-436c-9cfe-ec1cc2e098f5",
-          "color": "#0084FF"
+          "color": "#00F074"
         },
         {
           "id": "connection-edge-4cbd6a4a-1fa2-4e91-ba63-0943b33e1e66",
@@ -2582,7 +2696,7 @@
           "id": "connection-busbar-tap-46678bcc-7fe6-47d1-a408-be4d2efc6ef1",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 152
+          "offset": 144
         },
         {
           "id": "connection-node-76fd4709-7c54-48ac-93fa-4c113af08817",
@@ -2594,7 +2708,7 @@
           "id": "connection-busbar-tap-cdfca6ca-d745-4886-8eac-2c38d0a6504d",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 384
+          "offset": 360
         },
         {
           "id": "connection-node-1d365ebe-4337-417c-9f53-119b995c3c53",
@@ -2606,7 +2720,7 @@
           "id": "connection-busbar-tap-392a5070-4e21-4359-88f0-9237502a9cc2",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 328
+          "offset": 312
         },
         {
           "id": "connection-node-1977de6d-0a38-499f-88d3-277d3449ae33",
@@ -2618,7 +2732,7 @@
           "id": "connection-busbar-tap-c7275dec-b109-4943-bee3-a50fcba92f49",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 280
+          "offset": 264
         },
         {
           "id": "connection-node-cedce811-2cb1-4734-9d65-238fa0a5ab63",
@@ -2630,7 +2744,7 @@
           "id": "connection-busbar-tap-2e360a46-4cc7-4433-a17d-126941830b96",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 232
+          "offset": 216
         },
         {
           "id": "connection-node-cb02a284-d5b6-4e2f-95eb-2578e614d09f",
@@ -2642,7 +2756,7 @@
           "id": "connection-busbar-tap-51016ad4-f2f4-45c8-9e97-c47d54ffbfc1",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 184
+          "offset": 176
         },
         {
           "id": "connection-node-7bfa833e-e185-4f76-8200-4ad3b8a1c887",
@@ -2654,7 +2768,7 @@
           "id": "connection-busbar-tap-b1c7e162-b4e0-4101-92fb-f2a92e4d4928",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 144
+          "offset": 136
         },
         {
           "id": "connection-node-18a82ac4-bf5c-4116-8510-b614a4e2a527",
@@ -2666,7 +2780,7 @@
           "id": "connection-busbar-tap-f4fb8791-34f0-4044-b8d8-ac37f3a2c280",
           "kind": "busbar-tap",
           "busbarId": "2ca3a2d4-a6b8-4b87-9cfc-1e81dfb32024",
-          "offset": 96
+          "offset": 88
         },
         {
           "id": "connection-node-27602822-2a32-4e2d-a7d1-9b43f73144f8",
@@ -2893,13 +3007,13 @@
           "id": "connection-edge-3861897f-8583-41bd-9c43-8c65ace152bc",
           "sourceNodeId": "connection-node-266603c7-bbdc-4dad-8670-a2025da63b56",
           "targetNodeId": "connection-busbar-tap-c45657fb-a1ff-4ad1-a43e-b8ca4099675b",
-          "color": "#0084FF"
+          "color": "#00F074"
         },
         {
           "id": "connection-edge-32b437c2-29df-4bcd-91a3-95ec5cba28d9",
           "sourceNodeId": "connection-node-572423da-1e99-4edb-afce-dbdf5e4dad78",
           "targetNodeId": "connection-busbar-tap-007be40c-7b76-4696-9cd7-63889ce809a0",
-          "color": "#0084FF"
+          "color": "#00F074"
         }
       ]
     },
@@ -3157,7 +3271,9 @@
           "id": "connection-edge-02fe9d0d-0001-4b7f-acdf-7a5d35e71ba6",
           "sourceNodeId": "connection-busbar-tap-2ce12c8a-1f06-47eb-a493-5f7fb0119539",
           "targetNodeId": "connection-busbar-tap-63f8ea6e-4b5f-462c-96d3-b5dc4779bfd4",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "121314",
+          "labelVisible": true
         }
       ]
     },
@@ -3176,7 +3292,7 @@
           "id": "connection-busbar-tap-b86a7050-97db-4cef-95c2-fac95dddb01d",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 392
+          "offset": 368
         },
         {
           "id": "connection-node-def81c40-0fed-4449-ba38-18bda6100ab3",
@@ -3188,7 +3304,7 @@
           "id": "connection-busbar-tap-c2ce1d99-72c8-4e23-9950-e5b65c8d9a8c",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 352
+          "offset": 328
         },
         {
           "id": "connection-node-392fc220-7de6-4130-b27d-a968ba82dd30",
@@ -3236,7 +3352,7 @@
           "id": "connection-busbar-tap-edd202c2-8564-460b-a682-76f8565bbbcf",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 144
+          "offset": 136
         },
         {
           "id": "connection-node-a78e2451-e6d5-4bd2-9228-aadcb57d93a1",
@@ -3248,7 +3364,7 @@
           "id": "connection-busbar-tap-007e6fc8-86e6-4465-b026-adbaa6257c81",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 192
+          "offset": 184
         },
         {
           "id": "connection-node-462e847f-58ca-4a61-abc6-6ea5552f5bd5",
@@ -3260,7 +3376,7 @@
           "id": "connection-busbar-tap-15fac416-f2ed-441e-9253-76117a87db00",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 240
+          "offset": 232
         },
         {
           "id": "connection-node-04deab74-c898-4122-9823-65abab7bd16d",
@@ -3272,7 +3388,7 @@
           "id": "connection-busbar-tap-db4ff454-bb22-4b27-a35b-13ce73a7b94c",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 288
+          "offset": 280
         },
         {
           "id": "connection-node-8d5f28c9-a05f-4f16-955e-adf1aa8a13f7",
@@ -3284,7 +3400,7 @@
           "id": "connection-busbar-tap-aa5e748d-9868-4437-b6ad-2e91a837072f",
           "kind": "busbar-tap",
           "busbarId": "803c0f90-a4b3-4d36-9099-f64b0afa6ef6",
-          "offset": 312
+          "offset": 288
         }
       ],
       "edges": [
@@ -3373,7 +3489,8 @@
           "id": "connection-edge-d1cb10bf-be61-4a40-b57c-ffb99a743f50",
           "sourceNodeId": "connection-node-6f7e5c89-48b7-4917-aaf1-bbb3daebb560",
           "targetNodeId": "connection-node-ac7d6576-28f3-4e46-836d-552abf8bdf17",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "5A"
         }
       ]
     },
@@ -3400,7 +3517,8 @@
           "id": "connection-edge-3ee8120e-4649-4b2c-99ca-770411c3a238",
           "sourceNodeId": "connection-node-dfe07d05-2615-4412-9ae0-70bdf79f4aea",
           "targetNodeId": "connection-node-2091c166-a699-49dd-a95d-058f88d7b041",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "6A"
         }
       ]
     },
@@ -3547,7 +3665,7 @@
           "id": "connection-edge-f04849e9-dc9d-410c-a306-df86baf0935b",
           "sourceNodeId": "connection-node-d8e76fc6-0b9c-472b-9192-589fba1bcda3",
           "targetNodeId": "connection-busbar-tap-ea8c5f41-5026-4030-86e3-70962c9e7a0f",
-          "color": "#0084FF"
+          "color": "#00F074"
         },
         {
           "id": "connection-edge-71ac0ce3-6522-4f89-964b-ea90883b7e32",
@@ -3607,7 +3725,7 @@
           "id": "connection-edge-3471cdbd-354e-44ce-bbf1-c1318479fa7d",
           "sourceNodeId": "connection-busbar-tap-5ec5d6ba-3194-42f4-83b9-24811c373942",
           "targetNodeId": "connection-busbar-tap-e24f7357-fe07-49b9-8bb8-f291523b0b13",
-          "color": "#0084FF"
+          "color": "#00F074"
         }
       ]
     },
@@ -3634,7 +3752,8 @@
           "id": "connection-edge-e70502db-5e38-4448-b4e1-e1f1611244c1",
           "sourceNodeId": "connection-node-dd9ebf0f-9c21-4bc0-8a11-f43d0a54abcb",
           "targetNodeId": "connection-node-91ced9e3-9dc9-4fe3-bbe8-37a9ec7b773e",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "4A"
         }
       ]
     },
@@ -3661,7 +3780,8 @@
           "id": "connection-edge-b3952dbc-4330-47f3-ae34-95e24f509c37",
           "sourceNodeId": "connection-node-ee6436a9-00bb-4d5a-97f7-97788e130a8f",
           "targetNodeId": "connection-node-229ffb05-ea92-4364-b1ad-b0d5ec537f18",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "10A"
         }
       ]
     },
@@ -3688,7 +3808,8 @@
           "id": "connection-edge-73b6aa16-e2b7-487c-8ef3-2d20d7ad25d9",
           "sourceNodeId": "connection-node-71857b51-4d7a-454d-aadb-6fc84a660e98",
           "targetNodeId": "connection-node-2c23b841-d604-4426-a4c8-5b62b3b7715f",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "12A"
         }
       ]
     },
@@ -3715,7 +3836,8 @@
           "id": "connection-edge-3dbb7920-cc30-4a5f-a6be-3cc61344d0ad",
           "sourceNodeId": "connection-node-df5a9965-4e48-4c38-b666-8f0e71fa9b29",
           "targetNodeId": "connection-node-643f80b8-adf5-4c60-b8a6-a57ba30328f8",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "11A"
         }
       ]
     },
@@ -3742,7 +3864,8 @@
           "id": "connection-edge-74101898-e19f-4d6a-812c-74c7886c3ccc",
           "sourceNodeId": "connection-node-7a2c2b92-cbc7-4aec-a5d2-7166ea58d47f",
           "targetNodeId": "connection-node-e1e06984-2573-4d8f-9f3a-c466251c61f9",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "9A"
         }
       ]
     },
@@ -3769,7 +3892,8 @@
           "id": "connection-edge-ec8a9b0a-8740-4bff-8bfc-55a56b70b0af",
           "sourceNodeId": "connection-node-2aa3b340-96a7-4c62-9d78-a49c982eb49d",
           "targetNodeId": "connection-node-209b35e4-a229-4597-9a9b-f01d92eefa5e",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "7A"
         }
       ]
     },
@@ -3796,7 +3920,8 @@
           "id": "connection-edge-84f074b5-8a54-41bb-a7a5-748155010232",
           "sourceNodeId": "connection-node-9aa4dfc2-2f7e-438d-8ebd-7577fa0d9484",
           "targetNodeId": "connection-node-c5627778-30e3-4a46-b80b-01ef10563200",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "8A"
         }
       ]
     },
@@ -3823,7 +3948,8 @@
           "id": "connection-edge-8225fe41-390c-4a98-b15d-b2edc74a749e",
           "sourceNodeId": "connection-node-3b9e40f8-13b8-4abe-9697-048ac2508e85",
           "targetNodeId": "connection-node-0eebd593-f8fd-41a5-9e07-72b456febbac",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "13A"
         }
       ]
     },
@@ -3877,7 +4003,7 @@
           "id": "connection-edge-fe7acac9-63da-4405-b4d3-efcaae1f0145",
           "sourceNodeId": "connection-node-c4530bf1-cc35-46c6-8df1-f9c3af896c75",
           "targetNodeId": "connection-node-770062ae-e4c9-4021-99e1-3e9ea7df326a",
-          "color": "#00F074"
+          "color": "#0084FF"
         }
       ]
     },
@@ -3904,7 +4030,7 @@
           "id": "connection-edge-9ec26a19-4be6-42ad-abc1-65198b70c753",
           "sourceNodeId": "connection-node-79b8511b-0836-41e1-b83b-f4c1fd395f48",
           "targetNodeId": "connection-node-3ef467ff-6ed8-46c5-98d9-18f674f90138",
-          "color": "#0084FF"
+          "color": "#00F074"
         }
       ]
     },
@@ -3931,7 +4057,7 @@
           "id": "connection-edge-32a8003d-1778-45d3-9f47-0c939a597b24",
           "sourceNodeId": "connection-node-0f0746fe-482f-4a83-b560-1420517c79c3",
           "targetNodeId": "connection-node-ba5e58d8-650b-46ac-8df5-bbecc0e4d247",
-          "color": "#0084FF"
+          "color": "#00F074"
         }
       ]
     },
@@ -3994,7 +4120,7 @@
           "id": "connection-edge-884bb1a9-abbd-468f-9243-ccbe4a1050d6",
           "sourceNodeId": "connection-node-e475aa55-47ad-4d64-92b1-2f181fdb3c36",
           "targetNodeId": "connection-busbar-tap-ba4987a7-d149-4923-81a9-558b21c902ae",
-          "color": "#00F074"
+          "color": "#0084FF"
         },
         {
           "id": "connection-edge-751406e5-606a-4f5d-8786-9adc4ae1abae",
@@ -4039,7 +4165,7 @@
           "id": "connection-edge-aa17a4dc-4433-49c9-ba25-47d327cc8b9d",
           "sourceNodeId": "connection-node-568f298f-3563-497a-8ed1-7d84f894a962",
           "targetNodeId": "connection-node-9cb49a20-5694-4e00-8dcf-67d37a4af2a5",
-          "color": "#0084FF"
+          "color": "#00F074"
         }
       ]
     },
@@ -4391,7 +4517,7 @@
           "id": "connection-busbar-tap-66f0a0fb-8b52-43fd-8a68-62e963b504d2",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 152
+          "offset": 144
         },
         {
           "id": "connection-node-0d4a4058-cb4c-46bf-baed-05efd25fdc44",
@@ -4403,7 +4529,7 @@
           "id": "connection-busbar-tap-f46c2881-2f96-4e10-8d80-17e3da499671",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 392
+          "offset": 368
         },
         {
           "id": "connection-node-c8f3c63a-1096-41d6-b65c-1252b31651e5",
@@ -4415,7 +4541,7 @@
           "id": "connection-busbar-tap-deafa408-51f8-482a-8381-3c33f11d8a97",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 336
+          "offset": 320
         },
         {
           "id": "connection-node-79f71263-bb1f-43ff-981f-508740bc5910",
@@ -4427,7 +4553,7 @@
           "id": "connection-busbar-tap-1d93286d-a626-4248-a7b6-c90269621b16",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 288
+          "offset": 272
         },
         {
           "id": "connection-node-84c9dd15-0171-4ad3-86a8-7438149a80c9",
@@ -4439,7 +4565,7 @@
           "id": "connection-busbar-tap-64521f0e-00a4-42af-9dea-85eaaba889e4",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 240
+          "offset": 224
         },
         {
           "id": "connection-node-f27b4c58-a94a-411f-8ac1-11839646113a",
@@ -4451,7 +4577,7 @@
           "id": "connection-busbar-tap-6b4e1dee-d5f2-4f11-bbe5-6126aa2059ac",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 192
+          "offset": 184
         },
         {
           "id": "connection-node-91f2db11-06b7-4ed7-a142-579f829e7ba4",
@@ -4463,7 +4589,7 @@
           "id": "connection-busbar-tap-388677e7-860e-4ae7-9850-d2925171d990",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 144
+          "offset": 136
         },
         {
           "id": "connection-node-410a58d0-6d85-40cd-aa9f-536496c0e750",
@@ -4475,7 +4601,7 @@
           "id": "connection-busbar-tap-d764021b-0b9d-4729-a374-5c71f58ee672",
           "kind": "busbar-tap",
           "busbarId": "d65dd05a-6c2a-4791-adf9-62009b79ddfc",
-          "offset": 96
+          "offset": 88
         },
         {
           "id": "connection-node-54ef72d3-552a-44cd-a8de-e7698ba1e133",
@@ -4724,7 +4850,7 @@
           "id": "connection-busbar-tap-c2cd98b9-1011-43fe-b999-c4e7b53b8b64",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 408
+          "offset": 384
         },
         {
           "id": "connection-node-2f252b7e-5cc7-4d3f-9c56-0eb26a5c3633",
@@ -4736,7 +4862,7 @@
           "id": "connection-busbar-tap-e13a6085-38e1-4e4e-9e37-caaaaef6ff25",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 368
+          "offset": 352
         },
         {
           "id": "connection-node-33cc92d7-0807-42ff-b490-4e7f84e17bb3",
@@ -4760,7 +4886,7 @@
           "id": "connection-busbar-tap-a004d493-dd22-4487-9aa0-7c800e8fadd1",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 96
+          "offset": 88
         },
         {
           "id": "connection-node-f3cf336a-0973-4d51-92b5-a35e5610d847",
@@ -4772,7 +4898,7 @@
           "id": "connection-busbar-tap-757f54ec-0bf0-4e86-bc6a-b1bd8fdfea8f",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 144
+          "offset": 136
         },
         {
           "id": "connection-node-df4a7415-25ed-4e60-a612-f5bb51307ce3",
@@ -4784,7 +4910,7 @@
           "id": "connection-busbar-tap-bb40c79e-6c47-41ba-8bd8-fcfc150653ec",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 192
+          "offset": 184
         },
         {
           "id": "connection-node-b37ac59b-41a9-4b1b-b326-76192e3f283a",
@@ -4796,7 +4922,7 @@
           "id": "connection-busbar-tap-5a6c7329-260d-47c8-b62b-f4980dd73120",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 240
+          "offset": 224
         },
         {
           "id": "connection-node-1f84f77d-027c-4a07-a734-ebad995df188",
@@ -4808,7 +4934,7 @@
           "id": "connection-busbar-tap-cc10b99d-755a-403d-a0fc-31e9d388db46",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 288
+          "offset": 272
         },
         {
           "id": "connection-node-04c71d0d-5367-48cd-928a-fe685468de6a",
@@ -4820,7 +4946,7 @@
           "id": "connection-busbar-tap-e7a6c95d-3c66-4570-9a92-30cb8386f3d0",
           "kind": "busbar-tap",
           "busbarId": "3a07a245-0983-4870-85f4-eafcee8fe6d6",
-          "offset": 328
+          "offset": 312
         },
         {
           "id": "connection-busbar-tap-7a4cb116-f961-47cd-bdeb-ce623cd319b8",
@@ -5380,7 +5506,8 @@
           "id": "connection-edge-0fd5eb28-5ce5-473a-8471-7c1a3744f9f9",
           "sourceNodeId": "connection-node-63ec856b-d59b-4d15-9e9d-b94a8b780ff9",
           "targetNodeId": "connection-node-f6339363-4cfc-40a1-a80e-04714e85d93b",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "14A"
         }
       ]
     },
@@ -5407,7 +5534,8 @@
           "id": "connection-edge-4d5f5a16-f5f0-42ce-af68-11f35b1011f8",
           "sourceNodeId": "connection-node-1fe85cec-26bf-4a42-99ec-dcd1bf3e886d",
           "targetNodeId": "connection-node-a7258f16-ef7b-499f-b325-c2db22a73df9",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "15A"
         }
       ]
     },
@@ -5434,7 +5562,8 @@
           "id": "connection-edge-55cf6302-ae2b-4cff-bba4-d720a4cb428e",
           "sourceNodeId": "connection-node-7f2ec214-7766-4051-8b99-c8e01df83e12",
           "targetNodeId": "connection-node-c9638f4e-5581-41f7-acd5-6102ad9f00bd",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "16A"
         }
       ]
     },
@@ -5461,7 +5590,8 @@
           "id": "connection-edge-d8256443-dba9-46e4-bdca-0d5a2c940f54",
           "sourceNodeId": "connection-node-fd934f14-56da-4c00-b74d-8d1c45929615",
           "targetNodeId": "connection-node-74a774b7-a853-46f9-b034-59e848c5a4b6",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "17A"
         }
       ]
     },
@@ -5488,7 +5618,8 @@
           "id": "connection-edge-0e2352ae-42ae-4333-be3c-e64e437fafe8",
           "sourceNodeId": "connection-node-22552814-0858-4ef3-82e2-6eb6e5a8be71",
           "targetNodeId": "connection-node-dd1e313e-786b-45a7-b572-4b7b5ff6a112",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "3A"
         }
       ]
     },
@@ -5515,7 +5646,8 @@
           "id": "connection-edge-57c4a83a-5167-4722-82ea-74a5e1795001",
           "sourceNodeId": "connection-node-b5f895a7-1a99-416a-ad14-5fccf8d8f00a",
           "targetNodeId": "connection-node-d2c91413-d54f-466d-a00d-09ad5373d3c5",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "2A"
         }
       ]
     },
@@ -5542,7 +5674,11 @@
           "id": "connection-edge-07909877-213c-4ef3-9753-9eac1bb66afd",
           "sourceNodeId": "connection-node-8e7784f2-840f-44a6-88c8-48544c7547e2",
           "targetNodeId": "connection-node-acef6d16-479c-4129-b239-d60df8dd5a97",
-          "color": "#00F074"
+          "color": "#00F074",
+          "label": "1A",
+          "labelVisible": true,
+          "labelEndpoint": "target",
+          "labelSide": "negative"
         }
       ]
     },
@@ -5569,7 +5705,8 @@
           "id": "connection-edge-a60eebbe-bae7-4a23-aadc-3b314fc76201",
           "sourceNodeId": "connection-node-17f777d1-13ec-4ead-aa4c-c39005e2da38",
           "targetNodeId": "connection-node-23828e86-00b9-448d-815a-0ffd1ef31423",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "4B"
         }
       ]
     },
@@ -5596,7 +5733,8 @@
           "id": "connection-edge-55ea0fab-473b-40ad-873a-d4b9fe44678a",
           "sourceNodeId": "connection-node-8a48a97a-f8ec-4e3f-a7a9-7275e46c01ab",
           "targetNodeId": "connection-node-b786f223-c489-4ecd-b5ff-30f52739ea56",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "3B"
         }
       ]
     },
@@ -5623,7 +5761,8 @@
           "id": "connection-edge-16b30b67-9f3d-4265-b57a-c159790da649",
           "sourceNodeId": "connection-node-67d49135-fb81-4aeb-a5db-7ff480b44ee7",
           "targetNodeId": "connection-node-ce82f91f-fd4b-4ece-abc1-e5a308c63a9d",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "2B"
         }
       ]
     },
@@ -5650,7 +5789,8 @@
           "id": "connection-edge-8b190588-edb2-46d8-8130-3a6f1d51d185",
           "sourceNodeId": "connection-node-a3329bf5-fc6c-49c5-88f7-35ef63f1f623",
           "targetNodeId": "connection-node-feaf8e26-22c6-4e67-b88e-b658368149c7",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "1B"
         }
       ]
     },
@@ -5677,7 +5817,8 @@
           "id": "connection-edge-652a36eb-7b4e-4040-953a-b15398babb70",
           "sourceNodeId": "connection-node-ee5ad800-a0ae-418d-a457-1ff062cc4e24",
           "targetNodeId": "connection-node-cadb65e5-16f3-4aaa-8003-c20f51eec28a",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "5B"
         }
       ]
     },
@@ -5704,7 +5845,8 @@
           "id": "connection-edge-ecffa726-bc29-4c2a-9902-b7e2c197e11b",
           "sourceNodeId": "connection-node-ca79cf2e-520b-4d6e-af99-0e8dc49e2b70",
           "targetNodeId": "connection-node-25743975-09c2-406d-a771-aa439cc25b6a",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "6B"
         }
       ]
     },
@@ -5731,7 +5873,8 @@
           "id": "connection-edge-228c9bfc-d3f8-48aa-9d42-0be005d2ddf9",
           "sourceNodeId": "connection-node-0c37b77c-710b-451e-87e4-ee7e76a9c370",
           "targetNodeId": "connection-node-12596c40-bfe4-4982-9a34-ffd303f9bad2",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "7B"
         }
       ]
     },
@@ -5758,7 +5901,8 @@
           "id": "connection-edge-0c214b14-372b-40b4-a26a-abe5302dc8a0",
           "sourceNodeId": "connection-node-1ec6a0d5-b9a0-424e-907d-e000edf8b839",
           "targetNodeId": "connection-node-00a78807-c009-445f-828b-2cf7281bb9c5",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "8B"
         }
       ]
     },
@@ -5785,7 +5929,8 @@
           "id": "connection-edge-2e4e6c2d-57a3-4976-b999-dc89a22dd21e",
           "sourceNodeId": "connection-node-81fdc487-1e0b-4a1f-83a4-3259ce80c98e",
           "targetNodeId": "connection-node-5ec9ec8f-920f-4997-803d-a1a01c2a5865",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "9B"
         }
       ]
     },
@@ -5812,7 +5957,8 @@
           "id": "connection-edge-8c263f66-e784-42bd-9be0-b69ffaa1eded",
           "sourceNodeId": "connection-node-e810b216-a72c-4393-9596-f668a56610aa",
           "targetNodeId": "connection-node-30fb837e-1a70-4d09-8e98-c82f493e36dc",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "10B"
         }
       ]
     },
@@ -5839,7 +5985,8 @@
           "id": "connection-edge-62b57345-0247-448c-a00a-9830cd8f89d6",
           "sourceNodeId": "connection-node-e55dfa46-ec50-4da4-bdc9-514d49778974",
           "targetNodeId": "connection-node-e2d49404-3fb9-4171-814b-a55f6cb9186a",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "11B"
         }
       ]
     },
@@ -5866,7 +6013,8 @@
           "id": "connection-edge-c3965f43-f8b9-459f-a3ac-b1011733ab14",
           "sourceNodeId": "connection-node-e1cd5182-d814-4649-82ad-553047d36858",
           "targetNodeId": "connection-node-4eb8dcb8-3031-49db-b2be-db705d0830e4",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "12B"
         }
       ]
     },
@@ -5893,7 +6041,8 @@
           "id": "connection-edge-85c4146e-cffd-4b58-b48d-4e5d40d6fc96",
           "sourceNodeId": "connection-node-b68714a9-6e05-424f-9fee-fdc68a563971",
           "targetNodeId": "connection-node-5ede642d-33ef-4a14-8af7-f58b7b54ca2c",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "13B"
         }
       ]
     },
@@ -5920,7 +6069,8 @@
           "id": "connection-edge-a460f2ea-4c28-43db-850a-570a90799e35",
           "sourceNodeId": "connection-node-d5dbb21e-6e37-40bf-84d6-5e73b8944423",
           "targetNodeId": "connection-node-b0435155-a167-4b2e-af59-ddfc9128928e",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "14B"
         }
       ]
     },
@@ -5947,7 +6097,8 @@
           "id": "connection-edge-ba400756-5bbe-41a0-95a7-9a07894d39fa",
           "sourceNodeId": "connection-node-32862cd4-3673-4d91-8239-6e144a2db76c",
           "targetNodeId": "connection-node-4050b1a3-27b5-431c-8599-2c9b4697e7fd",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "15B"
         }
       ]
     },
@@ -5974,7 +6125,8 @@
           "id": "connection-edge-0d7e2383-a5dd-4317-9da5-d29d54c737ca",
           "sourceNodeId": "connection-node-a47f840f-6ac4-407a-900a-f23a21ddcfb6",
           "targetNodeId": "connection-node-f35a635e-fd9f-43f1-a9a3-b1c14de3c972",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "16B"
         }
       ]
     },
@@ -6001,7 +6153,8 @@
           "id": "connection-edge-e0b54f5d-a947-4f03-a7a4-39f3f44c3457",
           "sourceNodeId": "connection-node-84eb5279-5acf-4774-934f-a3c7ca7a0de2",
           "targetNodeId": "connection-node-9ae553a9-8f18-46f6-9ecb-580081053b45",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "label": "17B"
         }
       ]
     }
