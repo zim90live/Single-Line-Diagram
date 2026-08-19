@@ -17,8 +17,25 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every SVG from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(20)
+    expect(symbolCatalog).toHaveLength(21)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
+  })
+
+  it('keeps Cabinet A on the stable Cabinet key and registers Cabinet B separately', () => {
+    expect(symbolsByKey.get('cabinet')).toMatchObject({
+      name: 'Cabinet A',
+      source: 'src/assets/symbols/Cabinet A.svg',
+      category: '电力',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+    })
+    expect(symbolsByKey.get('cabinet-b')).toMatchObject({
+      name: 'Cabinet B',
+      source: 'src/assets/symbols/Cabinet B.svg',
+      category: '电力',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+    })
   })
 
   it('registers Switch as one configurable symbol presented in Off state', () => {
@@ -61,6 +78,7 @@ describe('symbol catalog', () => {
     expect(symbolsByKey.get('cpd')?.category).toBe('冷却')
     expect(symbolsByKey.get('fm')?.category).toBe('电力')
     expect(symbolsByKey.get('cabinet')?.category).toBe('电力')
+    expect(symbolsByKey.get('cabinet-b')?.category).toBe('电力')
     expect(symbolsByKey.get('compute-pod')?.category).toBe('电力')
     expect(symbolsByKey.get('power-pod')?.category).toBe('电力')
   })

@@ -89,6 +89,115 @@ describe('monitor power flow topology', () => {
     expect(flow.edges).toEqual([])
   })
 
+  it('treats Generator and Battery as sources and FM as a terminating target', () => {
+    const roleElements: DiagramElement[] = [
+      { id: 'generator', diagramId: 'd', assetKey: 'generator', name: 'Generator', x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'battery', diagramId: 'd', assetKey: 'battery', name: 'Battery', x: 0, y: 80, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'fm', diagramId: 'd', assetKey: 'fm', name: 'FM', x: 80, y: 40, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+      { id: 'pod', diagramId: 'd', assetKey: 'compute-pod', name: '算力 POD', x: 160, y: 40, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const roleNetwork: ConnectionNetwork = {
+      id: 'role-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'generator-node', kind: 'element-anchor', elementId: 'generator', anchorId: 'out' },
+        { id: 'battery-node', kind: 'element-anchor', elementId: 'battery', anchorId: 'out' },
+        { id: 'fm-in', kind: 'element-anchor', elementId: 'fm', anchorId: 'in' },
+        { id: 'fm-out', kind: 'element-anchor', elementId: 'fm', anchorId: 'out' },
+        { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'generator-feed', sourceNodeId: 'generator-node', targetNodeId: 'fm-in' },
+        { id: 'battery-feed', sourceNodeId: 'battery-node', targetNodeId: 'fm-in' },
+        { id: 'fm-downstream', sourceNodeId: 'fm-out', targetNodeId: 'pod-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: roleElements,
+      busbars: [],
+      networks: [roleNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'generator-feed', direction: 'forward' },
+      { edgeId: 'battery-feed', direction: 'forward' },
+    ])
+    expect(flow.energizedElementIds).toEqual(new Set(['generator', 'battery', 'fm']))
+  })
+
+  it('keeps each source shortest path when a nearby Battery is closer than Grid', () => {
+    const sourceElements: DiagramElement[] = [
+      { id: 'grid', diagramId: 'd', assetKey: 'grid', name: 'Grid', x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'relay', diagramId: 'd', assetKey: 'cabinet', name: 'Relay', x: 80, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'battery', diagramId: 'd', assetKey: 'battery', name: 'Battery', x: 80, y: 80, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'fm', diagramId: 'd', assetKey: 'fm', name: 'FM', x: 160, y: 0, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const sourceNetwork: ConnectionNetwork = {
+      id: 'source-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'relay-in', kind: 'element-anchor', elementId: 'relay', anchorId: 'in' },
+        { id: 'relay-out', kind: 'element-anchor', elementId: 'relay', anchorId: 'out' },
+        { id: 'battery-node', kind: 'element-anchor', elementId: 'battery', anchorId: 'out' },
+        { id: 'fm-node', kind: 'element-anchor', elementId: 'fm', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'grid-feed', sourceNodeId: 'grid-node', targetNodeId: 'relay-in' },
+        { id: 'grid-target', sourceNodeId: 'relay-out', targetNodeId: 'fm-node' },
+        { id: 'battery-target', sourceNodeId: 'battery-node', targetNodeId: 'fm-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: sourceElements,
+      busbars: [],
+      networks: [sourceNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'grid-feed', direction: 'forward' },
+      { edgeId: 'grid-target', direction: 'forward' },
+      { edgeId: 'battery-target', direction: 'forward' },
+    ])
+  })
+
+  it('omits a line when independent source paths require opposite directions', () => {
+    const conflictElements: DiagramElement[] = [
+      { id: 'fm-left', diagramId: 'd', assetKey: 'fm', name: 'FM Left', x: 0, y: 0, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+      { id: 'grid', diagramId: 'd', assetKey: 'grid', name: 'Grid', x: 80, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'battery', diagramId: 'd', assetKey: 'battery', name: 'Battery', x: 160, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'fm-right', diagramId: 'd', assetKey: 'fm', name: 'FM Right', x: 240, y: 0, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const conflictNetwork: ConnectionNetwork = {
+      id: 'conflict-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'fm-left-node', kind: 'element-anchor', elementId: 'fm-left', anchorId: 'in' },
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'battery-node', kind: 'element-anchor', elementId: 'battery', anchorId: 'out' },
+        { id: 'fm-right-node', kind: 'element-anchor', elementId: 'fm-right', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'left-target', sourceNodeId: 'grid-node', targetNodeId: 'fm-left-node' },
+        { id: 'direction-conflict', sourceNodeId: 'grid-node', targetNodeId: 'battery-node' },
+        { id: 'right-target', sourceNodeId: 'battery-node', targetNodeId: 'fm-right-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: conflictElements,
+      busbars: [],
+      networks: [conflictNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'left-target', direction: 'forward' },
+      { edgeId: 'right-target', direction: 'forward' },
+    ])
+  })
+
   it('keeps a valid target path but removes a dead-end branch', () => {
     const branchElement: DiagramElement = {
       id: 'cabinet', diagramId: 'd', assetKey: 'cabinet', name: 'Cabinet',

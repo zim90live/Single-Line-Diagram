@@ -17,5 +17,6 @@
 ## 当前专业分类
 
 - 冷却：包括 CPD。
-- 电力：包括 FM、Cabinet、算力 POD、动力 POD。
+- 电力：包括 FM、Cabinet A、Cabinet B、算力 POD、动力 POD。
+- Cabinet A 沿用原 Cabinet 的稳定键 `cabinet`；Cabinet B 使用 `cabinet-b`。两者是独立图元，不使用实例水平翻转互相转换。
 - 已保存项目重新打开或导入时，以本目录登记的稳定 `assetKey` 同步当前分类，已有锚点不受影响。

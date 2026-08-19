@@ -32,6 +32,7 @@ import {
   type MonitorFlowPath,
 } from '../monitoring/FlowAnimationLayer'
 import { derivePowerFlowTopology } from '../monitoring/flowTopology'
+import { useMonitorMetricReadings } from '../monitoring/useMonitorMetricReadings'
 import {
   compressBusbarTapOffsets,
   minimumBusbarLengthForConnections,
@@ -107,6 +108,7 @@ import {
   centeredSelectionOffset,
   copyConnectionsWithinSelection,
   createEmptySelectionClipboard,
+  instantiateCopiedElement,
   instantiateCopiedConnections,
   type DiagramClipboardOperation,
   type DiagramSelectionClipboard,
@@ -191,7 +193,6 @@ interface DiagramCanvasProps {
     busbars: Busbar[],
     connections: ConnectionNetwork[],
   ) => void
-  onViewportChange: (viewport: DiagramViewport) => void
   onSelectionChange: (ids: string[]) => void
   onCommandStateChange: (state: EditorCommandState) => void
   onPointerChange: (position: PointerPosition | null) => void
@@ -264,13 +265,40 @@ const ElementLabelItem = memo(function ElementLabelItem({
           ? (event) => startDrag.current(event, layout.elementId)
           : undefined}
       />
-      <text
-        className="element-label__text"
-        x={layout.textX}
-        y={layout.textY}
-      >
-        {layout.text}
-      </text>
+      {layout.nameText ? (
+        <text
+          className="element-label__text"
+          x={layout.textX}
+          y={layout.textY}
+        >
+          {layout.nameText}
+        </text>
+      ) : null}
+      {layout.metricRows.map((row) => (
+        <g className="element-metric-row" key={row.metricId}>
+          <text
+            className="element-metric-row__label"
+            x={row.labelX}
+            y={row.textY}
+          >
+            {row.labelText}
+          </text>
+          <text
+            className="element-metric-row__reading"
+            x={row.valueX}
+            y={row.textY}
+            textAnchor="end"
+            aria-label={row.ariaLabel}
+          >
+            <tspan
+              className="element-metric-row__value"
+              data-severity={row.severity}
+            >
+              {row.valueText}
+            </tspan>
+          </text>
+        </g>
+      ))}
     </g>
   )
 })
@@ -650,7 +678,6 @@ const DEFAULT_BUSBAR_LENGTH = 160
 const NETWORK_SELECTION_PREFIX = 'network:'
 const MULTI_CONNECTION_SELECTION_PREFIX = 'edges:'
 const NUDGE_COMMIT_DELAY_MS = 120
-const VIEWPORT_COMMIT_DELAY_MS = 150
 const RENDER_CULLING_OBJECT_THRESHOLD = 180
 const RENDER_OVERSCAN_SCREEN_PX = 160
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
@@ -758,6 +785,9 @@ function routeContainsGridPoint(
 function cloneElement(element: DiagramElement): DiagramElement {
   return {
     ...element,
+    monitorMetrics: element.monitorMetrics
+      ? structuredClone(element.monitorMetrics)
+      : undefined,
     properties: structuredClone(element.properties),
     extensions: structuredClone(element.extensions),
   }
@@ -804,6 +834,8 @@ function createElement(
     width: symbol.intrinsicWidth,
     height: symbol.intrinsicHeight,
     rotation: 0,
+    monitorDataVisible: false,
+    monitorMetrics: [],
     properties: {
       tag: nextDeviceIdentifier(symbol.name, diagramId, elements),
     },
@@ -976,7 +1008,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       busbars,
       connections,
       onDiagramChange,
-      onViewportChange,
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
@@ -985,10 +1016,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     },
     ref,
   ) {
+    const monitorMetricReadings = useMonitorMetricReadings(mode === 'monitor', elements)
     const viewportElementRef = useRef<HTMLDivElement>(null)
     const callbacksRef = useRef({
       onDiagramChange,
-      onViewportChange,
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
@@ -1112,12 +1143,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         queueMicrotask(emitCommandState)
       },
     ), [])
-    const viewportCommitScheduler = useMemo(() => createTrailingScheduler(
-      (callback, delay) => window.setTimeout(callback, delay),
-      (handle) => window.clearTimeout(handle),
-      VIEWPORT_COMMIT_DELAY_MS,
-      () => callbacksRef.current.onViewportChange(viewportValueRef.current),
-    ), [])
     const nudgeCommitScheduler = useMemo(() => createTrailingScheduler(
       (callback, delay) => window.setTimeout(callback, delay),
       (handle) => window.clearTimeout(handle),
@@ -1147,7 +1172,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     callbacksRef.current = {
       onDiagramChange,
-      onViewportChange,
       onSelectionChange,
       onCommandStateChange,
       onPointerChange,
@@ -1428,13 +1452,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       commitPendingNudge()
     }
 
-    const applyViewport = (nextViewport: DiagramViewport, persist = true) => {
+    const applyViewport = (nextViewport: DiagramViewport) => {
       viewportValueRef.current = nextViewport
       viewportFrameScheduler.schedule(nextViewport)
-      if (persist) {
-        callbacksRef.current.onViewportChange(nextViewport)
-        emitCommandState()
-      }
     }
 
     const clientPoint = (clientX: number, clientY: number): Point => {
@@ -1696,7 +1716,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     )
     const elementLabelLayouts = useMemo(() => {
       const nextCache = new Map<string, ElementLabelLayout>()
-      const layouts = layoutElementLabels(visibleElements, assetsByKey).map((layout) => {
+      const layouts = layoutElementLabels(visibleElements, assetsByKey, {
+        readings: monitorMetricReadings,
+      }).map((layout) => {
         const previous = elementLabelLayoutCacheRef.current.get(layout.elementId)
         const stable = previous &&
           previous.text === layout.text &&
@@ -1712,7 +1734,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       })
       elementLabelLayoutCacheRef.current = nextCache
       return layouts
-    }, [assetsByKey, visibleElements])
+    }, [assetsByKey, monitorMetricReadings, visibleElements])
     const busbarLabelLayouts = useMemo(
       () => layoutBusbarLabels(visibleBusbars),
       [visibleBusbars],
@@ -2124,13 +2146,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const pastedElements = clipboard.elements.map((element) => {
         const id = crypto.randomUUID()
         elementIdMap.set(element.id, id)
-        return {
-          ...cloneElement(element),
+        return instantiateCopiedElement(element, {
           id,
           diagramId,
           x: snap(element.x + offset.x, gridSize),
           y: snap(element.y + offset.y, gridSize),
-        }
+        })
       })
       const pastedBusbars = clipboard.busbars.map((busbar) => {
         const id = crypto.randomUUID()
@@ -2209,12 +2230,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         if (!selectedElements.has(element.id)) return []
         const id = crypto.randomUUID()
         elementIdMap.set(element.id, id)
-        return [{
-          ...cloneElement(element),
+        return [instantiateCopiedElement(element, {
           id,
+          diagramId,
           x: snap(element.x + offset.x, gridSize),
           y: snap(element.y + offset.y, gridSize),
-        }]
+        })]
       })
       const duplicatedBusbars = committedBusbarsRef.current.flatMap((busbar) => {
         if (!selectedBusbars.has(busbar.id)) return []
@@ -2647,10 +2668,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     useEffect(() => {
       viewportFrameScheduler.cancel()
-      viewportCommitScheduler.cancel()
       viewportValueRef.current = viewport
       setViewportValue(viewport)
-    }, [viewport, viewportCommitScheduler, viewportFrameScheduler])
+    }, [viewport, viewportFrameScheduler])
 
     useEffect(() => {
       committedElementsRef.current = elements
@@ -2712,12 +2732,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       pointerPositionScheduler.cancel()
       nudgeCommitScheduler.cancel()
       viewportFrameScheduler.cancel()
-      viewportCommitScheduler.cancel()
     }, [
       diagramPreviewScheduler,
       nudgeCommitScheduler,
       pointerPositionScheduler,
-      viewportCommitScheduler,
       viewportFrameScheduler,
       wiringPointerScheduler,
     ])
@@ -3024,7 +3042,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             tx: interaction.startViewport.tx + event.clientX - interaction.startClient.x,
             ty: interaction.startViewport.ty + event.clientY - interaction.startClient.y,
           },
-          false,
         )
         return
       }
@@ -3237,7 +3254,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       if (!interaction || interaction.pointerId !== event.pointerId) return
       if (interaction.kind === 'pan') {
         delete event.currentTarget.dataset.panning
-        callbacksRef.current.onViewportChange(viewportValueRef.current)
       } else if (interaction.kind === 'marquee') {
         const rect = normalizedRect(interaction.startWorld, interaction.currentWorld)
         const matches = committedElementsRef.current
@@ -3285,7 +3301,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const cancelInteraction = (event: PointerEvent<HTMLDivElement>) => {
       const interaction = interactionRef.current
       if (!interaction || interaction.pointerId !== event.pointerId) return
-      if (interaction.kind === 'pan') applyViewport(interaction.startViewport, false)
+      if (interaction.kind === 'pan') applyViewport(interaction.startViewport)
       delete event.currentTarget.dataset.panning
       interactionRef.current = null
       if (interaction.kind === 'move') setActiveMoveElementIds([])
@@ -3302,9 +3318,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const nextZoom = clampZoom(viewportValueRef.current.zoom * direction)
       applyViewport(
         zoomAroundPoint(viewportValueRef.current, clientPoint(event.clientX, event.clientY), nextZoom),
-        false,
       )
-      viewportCommitScheduler.schedule()
     }
 
     const nudgeSelection = (x: number, y: number) => {

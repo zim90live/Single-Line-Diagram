@@ -50,6 +50,23 @@ export function centeredSelectionOffset(
   }
 }
 
+export function instantiateCopiedElement(
+  element: DiagramElement,
+  patch: Pick<DiagramElement, 'id' | 'diagramId' | 'x' | 'y'>,
+  createId: ConnectionIdFactory = createConnectionId,
+): DiagramElement {
+  return {
+    ...element,
+    ...patch,
+    monitorMetrics: element.monitorMetrics?.map((metric) => ({
+      ...structuredClone(metric),
+      id: createId('monitor-metric'),
+    })),
+    properties: structuredClone(element.properties),
+    extensions: structuredClone(element.extensions),
+  }
+}
+
 function nodeBelongsToSelection(
   node: ConnectionNode,
   selectedElementIds: Set<string>,

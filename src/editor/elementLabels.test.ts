@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AssetDefinition, DiagramElement } from '../domain/project'
+import { monitorMetricReadingKey } from '../monitoring/elementMetrics'
 import {
   ELEMENT_LABEL_AVOIDANCE_STEP,
   ELEMENT_LABEL_FONT_SIZE,
@@ -73,6 +74,71 @@ describe('element label layout', () => {
     ], new Map([[asset.key, asset]]))
 
     expect(layouts.map((layout) => layout.elementId)).toEqual(['visible-element'])
+  })
+
+  it('combines the optional device name and supplied metrics in edit and monitor layouts', () => {
+    const current = element({
+      labelVisible: false,
+      monitorDataVisible: true,
+      monitorMetrics: [
+        {
+          id: 'temperature',
+          name: '出水温度',
+          valueType: 'number',
+          unit: '°C',
+          precision: 1,
+          simulationMin: 0,
+          simulationMax: 100,
+          alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
+        },
+        {
+          id: 'running-state',
+          name: '运行状态',
+          valueType: 'text',
+          textOptions: [{ id: 'offline', value: '离线', severity: 'critical' }],
+        },
+      ],
+    })
+    const key = monitorMetricReadingKey(current.id, 'temperature')
+    const textKey = monitorMetricReadingKey(current.id, 'running-state')
+    const [layout] = layoutElementLabels([current], new Map([[asset.key, asset]]), {
+      readings: {
+        [key]: {
+          elementId: current.id,
+          metricId: 'temperature',
+          value: 82.34,
+          severity: 'major',
+        },
+        [textKey]: {
+          elementId: current.id,
+          metricId: 'running-state',
+          value: '离线',
+          severity: 'critical',
+        },
+      },
+    })
+
+    expect(layout.nameText).toBeNull()
+    expect(layout.bounds.height).toBe(32)
+    expect(layout.metricRows).toEqual([
+      expect.objectContaining({
+        label: '出水温度',
+        labelText: '出水温度(°C)',
+        valueText: '82.3',
+        unit: '°C',
+        severity: 'major',
+      }),
+      expect.objectContaining({
+        label: '运行状态',
+        labelText: '运行状态',
+        valueText: '离线',
+        unit: '',
+        severity: 'critical',
+      }),
+    ])
+    expect(layout.text).toContain('出水温度(°C)\t82.3')
+    expect(layout.text).not.toContain('82.3°C')
+    expect(layout.text).not.toContain('CHWP-01')
   })
 
   it('keeps a manually selected side after element rotation and shifts along that side', () => {

@@ -32,7 +32,6 @@ import {
   type Busbar,
   type ConnectionNetwork,
   type DiagramElement,
-  type DiagramViewport,
 } from './domain/project'
 import {
   DiagramCanvas,
@@ -162,7 +161,6 @@ export default function App() {
     setSelectedElementIds,
     replaceDiagramContent,
     replaceAssetAnchors,
-    updateDiagramViewport,
     renameProject,
     markSaved,
   } = useAppStore()
@@ -244,10 +242,6 @@ export default function App() {
   ) => {
     replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
   }, [currentDiagramId, replaceDiagramContent])
-  const handleViewportChange = useCallback((nextViewport: DiagramViewport) => {
-    if (workspaceMode === 'edit') updateDiagramViewport(currentDiagramId, nextViewport)
-  }, [currentDiagramId, updateDiagramViewport, workspaceMode])
-
   useEffect(() => {
     let cancelled = false
     const revision = monitorStateRevisionRef.current + 1
@@ -539,7 +533,6 @@ export default function App() {
               busbars={currentBusbars}
               connections={currentConnections}
               onDiagramChange={handleDiagramChange}
-              onViewportChange={handleViewportChange}
               onSelectionChange={setSelectedElementIds}
               onCommandStateChange={setCommandState}
               onPointerChange={setPointerPosition}
@@ -616,7 +609,7 @@ export default function App() {
               </span>
               <span>
                 {workspaceMode === 'monitor'
-                  ? animationPlaying ? '正在显示 Grid → POD 运行流向' : '监控模式 · 点击 Switch 切换状态'
+                  ? animationPlaying ? '正在显示电力起点 → 终点运行流向' : '监控模式 · 点击 Switch 切换状态'
                   : commandState.wiringType
                   ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
                   : commandState.selectedConnection && commandState.selectedBusbar

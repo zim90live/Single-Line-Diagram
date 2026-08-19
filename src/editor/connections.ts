@@ -92,15 +92,13 @@ const SEARCH_DIRECTIONS: Point[] = [
   { x: -1, y: 0 },
   { x: 0, y: -1 },
 ]
-const REUSED_SEGMENT_COST = 0.9
-
 interface RouteOptions {
   startDirection?: number
   endDirection?: number
   startAllowedDirections?: number[]
   endAllowedDirections?: number[]
   reusableEdges?: Set<string>
-  reusableEdgeCost?: number
+  preferReusableEdges?: boolean
   maxSearchStates?: number
   marginSteps?: number[]
   blockedEdges?: Set<string>
@@ -331,6 +329,7 @@ interface SearchState extends Point {
   direction: number
   steps: number
   turns: number
+  reusedSteps: number
   bendBias: number
   displacement: number
   startOffset: number
@@ -383,6 +382,7 @@ class MinHeap {
 function compareSearch(left: SearchState, right: SearchState) {
   return left.estimate - right.estimate ||
     left.turns - right.turns ||
+    right.reusedSteps - left.reusedSteps ||
     left.bendBias - right.bendBias ||
     left.displacement - right.displacement ||
     left.steps - right.steps ||
@@ -401,9 +401,7 @@ function routeWithinBounds(
   options: RouteOptions,
 ) {
   if (pointsEqual(start, end)) return [start]
-  const hasReusableEdges = (options.reusableEdges?.size ?? 0) > 0
-  const reusableEdgeCost = options.reusableEdgeCost ?? REUSED_SEGMENT_COST
-  const minimumStepCost = hasReusableEdges ? reusableEdgeCost : 1
+  const preferReusableEdges = options.preferReusableEdges ?? true
   const heuristicWeight = options.heuristicWeight ?? 1
   const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
   const open = new MinHeap()
@@ -411,6 +409,7 @@ function routeWithinBounds(
   const best = new Map<string, {
     steps: number
     turns: number
+    reusedSteps: number
     bendBias: number
     displacement: number
   }>()
@@ -420,13 +419,14 @@ function routeWithinBounds(
     direction: options.startDirection ?? 4,
     steps: 0,
     turns: 0,
+    reusedSteps: 0,
     bendBias: 0,
     displacement: 0,
     startOffset: 0,
     targetOffset: 0,
     estimate:
       ((Math.abs(start.x - end.x) + Math.abs(start.y - end.y)) / gridSize) *
-      minimumStepCost * heuristicWeight,
+      heuristicWeight,
     sequence: sequence++,
   })
 
@@ -438,14 +438,18 @@ function routeWithinBounds(
         known.steps === current.steps && (
           known.turns < current.turns ||
           (known.turns === current.turns && (
-            known.bendBias < current.bendBias ||
-            (known.bendBias === current.bendBias && known.displacement <= current.displacement)
+            known.reusedSteps > current.reusedSteps ||
+            (known.reusedSteps === current.reusedSteps && (
+              known.bendBias < current.bendBias ||
+              (known.bendBias === current.bendBias && known.displacement <= current.displacement)
+            ))
           ))
         )
       ))) continue
     best.set(stateKey, {
       steps: current.steps,
       turns: current.turns,
+      reusedSteps: current.reusedSteps,
       bendBias: current.bendBias,
       displacement: current.displacement,
     })
@@ -483,8 +487,9 @@ function routeWithinBounds(
         !options.endAllowedDirections.includes(directionIndex)
       ) return
 
-      const steps = current.steps + (
-        options.reusableEdges?.has(edgeKey) ? reusableEdgeCost : 1
+      const steps = current.steps + 1
+      const reusedSteps = current.reusedSteps + Number(
+        preferReusableEdges && options.reusableEdges?.has(edgeKey),
       )
       const changesDirection = current.direction !== 4 && current.direction !== directionIndex
       const changesAtTarget = pointsEqual(next, end) &&
@@ -505,19 +510,23 @@ function routeWithinBounds(
           nextKnown.steps === steps && (
             nextKnown.turns < turns ||
             (nextKnown.turns === turns && (
-              nextKnown.bendBias < bendBias ||
-              (nextKnown.bendBias === bendBias && nextKnown.displacement <= current.displacement)
+              nextKnown.reusedSteps > reusedSteps ||
+              (nextKnown.reusedSteps === reusedSteps && (
+                nextKnown.bendBias < bendBias ||
+                (nextKnown.bendBias === bendBias && nextKnown.displacement <= current.displacement)
+              ))
             ))
           )
         ))) return
       const heuristic =
         ((Math.abs(next.x - end.x) + Math.abs(next.y - end.y)) / gridSize) *
-        minimumStepCost * heuristicWeight
+        heuristicWeight
       open.push({
         ...next,
         direction: directionIndex,
         steps,
         turns,
+        reusedSteps,
         bendBias,
         displacement: current.displacement,
         startOffset: current.startOffset,
@@ -611,6 +620,7 @@ function routeFlexibleBusbarsWithinBounds(
       direction: 4,
       steps: 0,
       turns: 0,
+      reusedSteps: 0,
       bendBias: 0,
       displacement: candidate.displacement,
       startOffset: candidate.offset,
@@ -712,6 +722,7 @@ function routeFlexibleBusbarsWithinBounds(
         direction: directionIndex,
         steps,
         turns,
+        reusedSteps: current.reusedSteps,
         bendBias,
         displacement,
         startOffset: current.startOffset,
@@ -2115,7 +2126,7 @@ export function routeConnectionPreviewWithContext(
       reusableEdges: reusable,
       // Pointer previews prioritize frame latency. The finalized network reroute
       // applies the normal shared-segment preference after the user connects.
-      reusableEdgeCost: 1,
+      preferReusableEdges: false,
       maxSearchStates: 24_000,
       marginSteps: [24],
       blockedEdges,

@@ -1,10 +1,10 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 15,
   "project": {
     "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f",
     "name": "AIDC 一次接线图",
     "createdAt": "2026-08-13T10:32:21.116Z",
-    "updatedAt": "2026-08-19T03:33:14.865Z"
+    "updatedAt": "2026-08-19T11:15:42.431Z"
   },
   "lineSystems": [
     {
@@ -105,9 +105,9 @@
       "canvas": {
         "gridSize": 8,
         "viewport": {
-          "zoom": 0.45234921533689354,
-          "tx": 513.6522717706443,
-          "ty": 353.9264535316015
+          "zoom": 0.7117802478134113,
+          "tx": 655.5401621674328,
+          "ty": 565.2157426451765
         }
       }
     },
@@ -120,9 +120,9 @@
       "canvas": {
         "gridSize": 8,
         "viewport": {
-          "zoom": 0.8928571428571429,
-          "tx": -42.48930061777696,
-          "ty": 141.67022074441468
+          "zoom": 1.404928000000001,
+          "tx": -242.27563859059705,
+          "ty": -14.860661306567408
         }
       }
     },
@@ -143,36 +143,6 @@
     }
   ],
   "elements": [
-    {
-      "id": "81bba4e3-d3b9-4d74-86b8-7ffbaeabb2ac",
-      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
-      "assetKey": "generator",
-      "name": "Generator",
-      "x": 608,
-      "y": 192,
-      "width": 48,
-      "height": 48,
-      "rotation": 0,
-      "properties": {
-        "tag": "Generator-01"
-      },
-      "extensions": {}
-    },
-    {
-      "id": "8693a62b-141d-44f4-b5e7-9aae9233703f",
-      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
-      "assetKey": "switch",
-      "name": "Switch",
-      "x": 616,
-      "y": 280,
-      "width": 32,
-      "height": 32,
-      "rotation": 0,
-      "properties": {
-        "tag": "Switch-01"
-      },
-      "extensions": {}
-    },
     {
       "id": "ed5b8015-abc3-41af-b583-15c9efeaf6b5",
       "diagramId": "power-building-884cdf5c-b0c1-43dc-a0f8-d235a5ce7849",
@@ -2293,18 +2263,1784 @@
         "tag": "动力 POD-02"
       },
       "extensions": {}
+    },
+    {
+      "id": "8693a62b-141d-44f4-b5e7-9aae9233703f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 616,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-6941beea-9a5e-4855-b3fb-8fa6676070d4",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD01",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "84f3352b-3c1c-4953-8d7e-52ce255d3ae7",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 608,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-8f0ea202-1129-42ee-9e43-a0d224024c78",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-5870ee8f-89df-46c1-850e-df373c942575",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN01",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "1accd340-6613-462f-898b-c096783e3a08",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 800,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-672f3586-158f-4161-b242-f3a65432ea00",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-9dc543b6-5b77-48f9-af30-548f24ada744",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN02",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "fe57c827-e0c5-4ffe-a6be-5a3172de2c5b",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 808,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-e58b08c2-298d-42ec-bc17-eec526a07f40",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD02",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "427b906d-ee8e-4bcb-b75a-d86fab92dc7a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 992,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-fb27d94a-a362-4751-8a51-cead31971aef",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-7cf2b642-8e6d-4b81-a8d7-413128242b32",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN03",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "7fa20405-49bf-4981-a281-fec5cd24e21f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1000,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-a03de82e-a539-4ac6-9f02-d081961bfbe0",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD03",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "805cbb98-016f-4f73-89a7-24038a343915",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 1184,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-93bd27ff-574d-4090-a249-52d4415f0315",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-aed46ec6-e1e7-4f84-b282-be65c13c0848",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN04",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "27136da0-cd86-4a8a-86b4-1f3a1c34b7db",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1192,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-c169cedc-8916-4e2c-a492-e5730bc484b7",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD04",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "ddd8be13-4b5b-44ba-99b9-dfb5725270cb",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1384,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-4f66828e-3ca9-470f-bc68-6343663b2785",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD05",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "6865af5f-8c09-4822-b8a2-562282f370b3",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 1376,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-cf411139-9c65-4a9b-ab98-39bb125b3d8b",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-b3cf3769-a25f-4ff5-946a-e472d1e3e125",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN05",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "5600cabc-2cf1-42f8-a8cb-dd8d7f7410a1",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 1568,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-59496c2e-f98c-49fa-938a-dbddc8f8d772",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-75e573d7-cffb-416d-a93a-6a9f977b8b42",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN06",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "336f85cb-c75a-4dcc-83dc-08351c4edd24",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1576,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-9d9267ca-ec84-4f0d-a254-e3703c430e09",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD06",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "2e655d97-748c-4118-85a6-66018940731a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 1760,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-126b3a07-c1f4-427f-84a0-b4698d0c56b3",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-a5022e36-18cf-449f-b8ba-9685edb19bf3",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN07",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "6bb550bb-6c9b-407d-ab11-5ee060501ec3",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1768,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-1346fd9d-f153-40cb-902d-4674ea298cee",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD07",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "3fd7decd-b32f-4475-9fc8-3068ce8d2727",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "generator",
+      "name": "Generator",
+      "x": 1952,
+      "y": 192,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-1b9acef0-37c6-4049-9d6c-46b7e8b418a9",
+          "name": "运营状态",
+          "valueType": "text",
+          "textOptions": [
+            {
+              "id": "monitor-state-4b0b1f84-86c3-4b5b-9e70-e5b34be0388e",
+              "value": "停机",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-4f71e361-0da9-4e05-bb63-47f19899fe68",
+              "value": "运行",
+              "severity": "normal"
+            },
+            {
+              "id": "monitor-state-bddf57e0-633a-4868-9db1-0e9e563efb91",
+              "value": "离线",
+              "severity": "critical"
+            }
+          ]
+        },
+        {
+          "id": "monitor-metric-3e4abda5-18c6-4f9f-874e-61798f4c99b7",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GEN08",
+        "color": "#FFC800"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "712936c8-d7f2-49ff-9780-2168ee41143f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1960,
+      "y": 280,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-f00079f4-ac4c-41f1-94cc-e97a745cccdc",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "GER403-6E-HD08",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "0e79d9a5-f632-48c9-8ac8-040fb597ec2c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 704,
+      "y": 384,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "GER403-6E-HD11",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "fc3fd584-9a25-4f00-aaf4-af44a6aca04f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 704,
+      "y": 448,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-d2e85232-1140-4c98-90c2-2a8c6ab602bf",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR307-6A-HD02",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "faa2dfba-b532-4597-b59b-ed77755febd7",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1872,
+      "y": 384,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "GER403-6E-HD12",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "c34079ea-b6f4-4bee-a733-3da6d925a03a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1872,
+      "y": 448,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-9c45ce3b-bb75-4970-a848-40df26c4ec91",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR308-6B-HD02",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "2d82f665-4996-4103-b2be-f41055f09c3e",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1296,
+      "y": 496,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "top",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-81b97b1b-177b-4de7-ac2b-f9857bd68ff9",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR307-6A-HD03",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "d9c7a10b-f56c-4502-a597-91a06a9468db",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "grid",
+      "name": "Grid",
+      "x": 336,
+      "y": 224,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelPlacement": "left",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-c88bf23d-e25d-4e51-bbba-3d5cfd62cb1c",
+          "name": "AB线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-ff9217dd-ca5f-435a-925f-0d9ea77c3cd6",
+          "name": "BC线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-86344ec0-9144-4b67-8928-63262cf6c74e",
+          "name": "CA线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-137945fe-8dc6-4d32-b9bb-416e21a39008",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "220kV站 48#-1033B",
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "924e32a2-db95-4dd7-8383-daaff8b7aac9",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 344,
+      "y": 384,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "labelPlacement": "left",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-090d3ef3-28b0-476c-9af0-6cfefe9070eb",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR307-6A-HD01",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "4b1311ef-52a1-4291-a9b9-e329fa38b973",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "transformer",
+      "name": "Transformer",
+      "x": 576,
+      "y": 592,
+      "width": 64,
+      "height": 64,
+      "rotation": 270,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-1267f504-f0bb-4561-bc0d-7247facf95c2",
+          "name": "温度",
+          "valueType": "number",
+          "unit": "℃",
+          "precision": 1,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR-6A-TR17",
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "184224ed-8766-46d1-8ea5-625c00515359",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 720,
+      "y": 608,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-51dc3e0d-2fd4-4b6e-bcc8-edf10ffa75a6",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "TR17-LD01",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "d558574c-8e00-4606-bdec-ef5ad6dc49b9",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 464,
+      "y": 608,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-38080b86-a86d-4f99-8720-e6ef1f27f657",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR307-6A-HD05",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "e91525f3-31c2-45bf-87a7-7f1132c5e339",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1296,
+      "y": 608,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "top",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-2810026e-45b4-4c3a-9926-7eb3de706258",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "TR17-LD02",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "38f66640-af89-4e9c-a58d-ff061e50e119",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 864,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "47e6e065-adec-4211-8503-178b14d2e080",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 928,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "02"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "31aeff5b-de19-4b10-a16a-6aadfec95891",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 864,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "3e5dca1e-3751-4716-bb49-c300f898c998",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 928,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "859689c3-20b4-4d18-afa6-852e99c80a9a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 992,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "03"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "38e2beee-4057-4064-b026-6b2fe9d22e90",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1056,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "04"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "045883a3-8888-472f-a7a0-8b6128188c4f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 992,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "5220a1a7-f0ab-42a1-ac79-61b050290b55",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1056,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "4f9f2bf7-45f1-4ba9-ad65-16deccff16aa",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1120,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "05"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "a945a386-6afa-4e50-9f91-52dd33122c96",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1120,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "f240441c-34c9-4df4-ba8f-8e30a4a13827",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "cabinet",
+      "name": "Cabinet A",
+      "x": 1184,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "top",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Cabinet-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "229be516-4c53-4464-9b9d-19e5da01ab3d",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "fm",
+      "name": "FM",
+      "x": 1280,
+      "y": 664,
+      "width": 64,
+      "height": 64,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "DH202机房J系列"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "4d0bb4e0-eda9-44a4-8b3d-f57797f08cb8",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "grid",
+      "name": "Grid",
+      "x": 2232,
+      "y": 224,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-c6448798-4f20-4097-a3b4-252f00ce2d57",
+          "name": "AB线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-3c402436-23d5-4854-a82e-022728fc0a3f",
+          "name": "BC线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-968e7bf5-b4e4-4441-b930-1edb9a526ce9",
+          "name": "CA线电压",
+          "valueType": "number",
+          "unit": "kV",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        },
+        {
+          "id": "monitor-metric-f2cd9bac-1f32-4584-a284-3c7940592cad",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 2,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "220kV站 12#-1033B",
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "2b7a5b10-d33b-4bf5-8e88-609fef8f9e06",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 2240,
+      "y": 384,
+      "width": 32,
+      "height": 32,
+      "rotation": 0,
+      "labelPlacement": "right",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-0f114b71-ecfb-4fea-9d2a-f6bb530a5062",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR308-6B-HD01",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "b580845b-62dc-4d53-b3ed-332deb3ea01f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "transformer",
+      "name": "Transformer",
+      "x": 1968,
+      "y": 592,
+      "width": 64,
+      "height": 64,
+      "rotation": 270,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-0d4d105f-1a29-45f9-adda-380ccf04413e",
+          "name": "温度",
+          "valueType": "number",
+          "unit": "℃",
+          "precision": 1,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR-6A-TR17",
+        "color": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "b2caefa3-d00b-405e-b7ea-6884ac5c0730",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 2112,
+      "y": 608,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-3b88b6c8-f7ca-458d-be7a-a77585800339",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "MLVR307-6B-HD05",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "1715c493-8ecb-40bd-8de5-e21231198bc3",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "switch",
+      "name": "Switch",
+      "x": 1856,
+      "y": 608,
+      "width": 32,
+      "height": 32,
+      "rotation": 90,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": true,
+      "monitorMetrics": [
+        {
+          "id": "monitor-metric-7dc038a5-5faa-47fc-9e3d-d54c2f2b7148",
+          "name": "有功功率",
+          "valueType": "number",
+          "unit": "kW",
+          "precision": 0,
+          "simulationMin": 0,
+          "simulationMax": 100,
+          "alarm": {
+            "mode": "upper",
+            "minor": 70,
+            "major": 85,
+            "critical": 95
+          }
+        }
+      ],
+      "properties": {
+        "tag": "TR18-LD01",
+        "switchOffColor": "#9C9C9C",
+        "switchOnColor": "#00F074"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "315b29e0-b523-4f24-9765-6bcf778cc77c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "cabinet-b",
+      "name": "Cabinet B",
+      "x": 1392,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Cabinet B-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "25bcdebf-f0e2-4620-a299-d75afccf469c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1456,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "05"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "c189192b-d9ab-4399-af58-cf81de774940",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1520,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "04"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "2a6e3c0d-6e6c-4212-a37b-43f9470304e8",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1456,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "e0c9d3c6-a50b-4b8d-9555-cf5de352493c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1520,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "bd2711af-0df8-46ff-80f2-354d1dd8888b",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1584,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "03"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "14143d48-e344-4353-bb20-1db58afa60e0",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1648,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "02"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "765647d7-11fb-4316-a8a2-e30af4c1473d",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1584,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "25a3f822-313c-4ee2-9d03-3ed414a9d214",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1648,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "74b80f0b-b547-4b2d-b732-ef6453978a9a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "ups",
+      "name": "UPS",
+      "x": 1712,
+      "y": 672,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "01"
+      },
+      "extensions": {}
+    },
+    {
+      "id": "6ed90bc0-9594-4530-8496-0b8a5c8c1ac0",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "assetKey": "battery",
+      "name": "Battery",
+      "x": 1712,
+      "y": 736,
+      "width": 48,
+      "height": 48,
+      "rotation": 0,
+      "labelVisible": false,
+      "labelPlacement": "bottom",
+      "monitorDataVisible": false,
+      "monitorMetrics": [],
+      "properties": {
+        "tag": "Battery-01"
+      },
+      "extensions": {}
     }
   ],
   "busbars": [
-    {
-      "id": "32cd8429-24fa-4a88-8931-fd00b498748a",
-      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
-      "type": "electrical",
-      "orientation": "horizontal",
-      "x": 592,
-      "y": 352,
-      "length": 1232
-    },
     {
       "id": "e38a2581-c097-45ad-8018-e5cb2987c637",
       "diagramId": "power-building-884cdf5c-b0c1-43dc-a0f8-d235a5ce7849",
@@ -2510,61 +4246,19 @@
       "y": 152,
       "length": 560,
       "color": "#0084FF"
+    },
+    {
+      "id": "32cd8429-24fa-4a88-8931-fd00b498748a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "orientation": "horizontal",
+      "x": 496,
+      "y": 352,
+      "length": 1616,
+      "color": "#FFC800"
     }
   ],
   "connections": [
-    {
-      "id": "connection-network-f432faea-eef7-4e73-bb36-93284e384bff",
-      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
-      "type": "electrical",
-      "nodes": [
-        {
-          "id": "connection-node-8bc9135c-d718-4ce9-b751-0fb6db1c373c",
-          "kind": "element-anchor",
-          "elementId": "81bba4e3-d3b9-4d74-86b8-7ffbaeabb2ac",
-          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
-        },
-        {
-          "id": "connection-node-fc52c00f-93c6-4133-9638-33debb75e62e",
-          "kind": "element-anchor",
-          "elementId": "8693a62b-141d-44f4-b5e7-9aae9233703f",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-b107b5cd-b35a-4ae3-98e0-7200744ed147",
-          "sourceNodeId": "connection-node-8bc9135c-d718-4ce9-b751-0fb6db1c373c",
-          "targetNodeId": "connection-node-fc52c00f-93c6-4133-9638-33debb75e62e"
-        }
-      ]
-    },
-    {
-      "id": "connection-network-f44e5e67-23f0-44ea-b673-031e1be643cf",
-      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
-      "type": "electrical",
-      "nodes": [
-        {
-          "id": "connection-node-bb71a962-4e9d-47a1-a3f5-89bf9ad3af35",
-          "kind": "element-anchor",
-          "elementId": "8693a62b-141d-44f4-b5e7-9aae9233703f",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-8de803c0-27d6-4e20-90bb-2c7693121f5b",
-          "kind": "busbar-tap",
-          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
-          "offset": 40
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-8cc4eb81-dc70-44fa-ac43-a156b1efb9e1",
-          "sourceNodeId": "connection-node-bb71a962-4e9d-47a1-a3f5-89bf9ad3af35",
-          "targetNodeId": "connection-busbar-tap-8de803c0-27d6-4e20-90bb-2c7693121f5b"
-        }
-      ]
-    },
     {
       "id": "connection-network-66f03a98-1b46-4690-bea8-cae99d5f4c26",
       "diagramId": "power-building-884cdf5c-b0c1-43dc-a0f8-d235a5ce7849",
@@ -6248,6 +7942,1401 @@
           "label": "17B"
         }
       ]
+    },
+    {
+      "id": "connection-network-f44e5e67-23f0-44ea-b673-031e1be643cf",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-bb71a962-4e9d-47a1-a3f5-89bf9ad3af35",
+          "kind": "element-anchor",
+          "elementId": "8693a62b-141d-44f4-b5e7-9aae9233703f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-8de803c0-27d6-4e20-90bb-2c7693121f5b",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 32
+        },
+        {
+          "id": "connection-node-e44d7c68-8d0a-4dea-b537-e7708121538d",
+          "kind": "element-anchor",
+          "elementId": "fe57c827-e0c5-4ffe-a6be-5a3172de2c5b",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-82af2069-4135-42a9-acb9-ace5da7b2e8c",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 160
+        },
+        {
+          "id": "connection-node-c0e2e65d-0808-43b5-a633-6da682d9dc30",
+          "kind": "element-anchor",
+          "elementId": "7fa20405-49bf-4981-a281-fec5cd24e21f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-df45d7c8-3cc7-4261-bf07-77f379d8b766",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 352
+        },
+        {
+          "id": "connection-node-4068ae39-086c-4154-a0f5-1a0f98c3ef1e",
+          "kind": "element-anchor",
+          "elementId": "27136da0-cd86-4a8a-86b4-1f3a1c34b7db",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-f70e8e85-7b72-41a5-826c-fdaa0a020bc4",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 512
+        },
+        {
+          "id": "connection-node-8e2a18e1-632e-4209-80fa-8a967bb3c265",
+          "kind": "element-anchor",
+          "elementId": "ddd8be13-4b5b-44ba-99b9-dfb5725270cb",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-9ad12f39-e6f7-491f-835a-93f78139ded9",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 672
+        },
+        {
+          "id": "connection-node-99175829-04f8-42a1-8888-f7b786ec05e9",
+          "kind": "element-anchor",
+          "elementId": "336f85cb-c75a-4dcc-83dc-08351c4edd24",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-99b275a8-c794-4c6a-a79e-144ae3f2a817",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 832
+        },
+        {
+          "id": "connection-node-69e3dc47-9d21-4512-b72e-e553ff77d99c",
+          "kind": "element-anchor",
+          "elementId": "6bb550bb-6c9b-407d-ab11-5ee060501ec3",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-d6db9ba7-d11c-4899-94b2-666508ea71f5",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 992
+        },
+        {
+          "id": "connection-node-ca110a8a-24bd-4ec9-858e-94da07c9f6f8",
+          "kind": "element-anchor",
+          "elementId": "712936c8-d7f2-49ff-9780-2168ee41143f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-busbar-tap-3e09100c-414a-4efe-a283-26270e3bfd06",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 1160
+        },
+        {
+          "id": "connection-node-02d7d8a4-3bb1-488d-b156-9ba6f970ba1b",
+          "kind": "element-anchor",
+          "elementId": "0e79d9a5-f632-48c9-8ac8-040fb597ec2c",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-1ccfb3c9-a974-4d3f-bd62-706ba1275921",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 232
+        },
+        {
+          "id": "connection-node-944ffbd1-4723-40e6-9a3e-deb62c083d6c",
+          "kind": "element-anchor",
+          "elementId": "faa2dfba-b532-4597-b59b-ed77755febd7",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-busbar-tap-ff4eac30-73f4-4abc-9aed-90bae509664b",
+          "kind": "busbar-tap",
+          "busbarId": "32cd8429-24fa-4a88-8931-fd00b498748a",
+          "offset": 792
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-8cc4eb81-dc70-44fa-ac43-a156b1efb9e1",
+          "sourceNodeId": "connection-node-bb71a962-4e9d-47a1-a3f5-89bf9ad3af35",
+          "targetNodeId": "connection-busbar-tap-8de803c0-27d6-4e20-90bb-2c7693121f5b",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-fc27bee5-c45a-4516-ab31-b44ca43c7484",
+          "sourceNodeId": "connection-node-e44d7c68-8d0a-4dea-b537-e7708121538d",
+          "targetNodeId": "connection-busbar-tap-82af2069-4135-42a9-acb9-ace5da7b2e8c",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-8b0378f5-e047-4494-b708-75d1246f0a7d",
+          "sourceNodeId": "connection-node-c0e2e65d-0808-43b5-a633-6da682d9dc30",
+          "targetNodeId": "connection-busbar-tap-df45d7c8-3cc7-4261-bf07-77f379d8b766",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-71fa69c0-427d-428e-9d7d-08a96805db1e",
+          "sourceNodeId": "connection-node-4068ae39-086c-4154-a0f5-1a0f98c3ef1e",
+          "targetNodeId": "connection-busbar-tap-f70e8e85-7b72-41a5-826c-fdaa0a020bc4",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-47b21468-de8b-4c4b-b0c4-3a9599e22d42",
+          "sourceNodeId": "connection-node-8e2a18e1-632e-4209-80fa-8a967bb3c265",
+          "targetNodeId": "connection-busbar-tap-9ad12f39-e6f7-491f-835a-93f78139ded9",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-4acbde78-6b62-46b6-bb9c-34f3df118d40",
+          "sourceNodeId": "connection-node-99175829-04f8-42a1-8888-f7b786ec05e9",
+          "targetNodeId": "connection-busbar-tap-99b275a8-c794-4c6a-a79e-144ae3f2a817",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-b506a263-f220-4fd7-adfc-11da4ea3d3bc",
+          "sourceNodeId": "connection-node-69e3dc47-9d21-4512-b72e-e553ff77d99c",
+          "targetNodeId": "connection-busbar-tap-d6db9ba7-d11c-4899-94b2-666508ea71f5",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-49e65c0c-5389-4ec5-b839-348ef2e2b0d8",
+          "sourceNodeId": "connection-node-ca110a8a-24bd-4ec9-858e-94da07c9f6f8",
+          "targetNodeId": "connection-busbar-tap-3e09100c-414a-4efe-a283-26270e3bfd06",
+          "color": "#FFC800"
+        },
+        {
+          "id": "connection-edge-f60c21be-caf9-4542-bf90-94f7b6e07a37",
+          "sourceNodeId": "connection-node-02d7d8a4-3bb1-488d-b156-9ba6f970ba1b",
+          "targetNodeId": "connection-busbar-tap-1ccfb3c9-a974-4d3f-bd62-706ba1275921",
+          "color": "#0084FF"
+        },
+        {
+          "id": "connection-edge-974c7bbd-c075-4d13-823b-2331641dd457",
+          "sourceNodeId": "connection-node-944ffbd1-4723-40e6-9a3e-deb62c083d6c",
+          "targetNodeId": "connection-busbar-tap-ff4eac30-73f4-4abc-9aed-90bae509664b",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-ce554826-e2c3-4399-b917-14476f7cb4b2",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-3546ae1a-fb9a-40a9-9faa-a9dea6855401",
+          "kind": "element-anchor",
+          "elementId": "8693a62b-141d-44f4-b5e7-9aae9233703f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-fd19efaa-e35c-4456-a059-463f893a422f",
+          "kind": "element-anchor",
+          "elementId": "84f3352b-3c1c-4953-8d7e-52ce255d3ae7",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-66528ada-929e-44bf-9fb9-cedb8c6bbbcf",
+          "sourceNodeId": "connection-node-3546ae1a-fb9a-40a9-9faa-a9dea6855401",
+          "targetNodeId": "connection-node-fd19efaa-e35c-4456-a059-463f893a422f",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-da7f428c-90c1-4bce-8a7b-301fa8138e58",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-78a20616-8218-400c-8384-ac6deda54ef1",
+          "kind": "element-anchor",
+          "elementId": "1accd340-6613-462f-898b-c096783e3a08",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-9645df2b-1515-472c-8b15-37d21679e693",
+          "kind": "element-anchor",
+          "elementId": "fe57c827-e0c5-4ffe-a6be-5a3172de2c5b",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-9ec1d455-691e-4d63-9c04-59b82805b529",
+          "sourceNodeId": "connection-node-78a20616-8218-400c-8384-ac6deda54ef1",
+          "targetNodeId": "connection-node-9645df2b-1515-472c-8b15-37d21679e693",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b4cd0196-f833-40a6-8bdf-aafb4b160c2b",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-b0e9358e-d38c-47ea-b592-fff24975c460",
+          "kind": "element-anchor",
+          "elementId": "427b906d-ee8e-4bcb-b75a-d86fab92dc7a",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-180ef45e-4c05-41e9-b963-6d7824791254",
+          "kind": "element-anchor",
+          "elementId": "7fa20405-49bf-4981-a281-fec5cd24e21f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-c0ab4eb0-595d-4522-ac94-bcd50c3d8b84",
+          "sourceNodeId": "connection-node-b0e9358e-d38c-47ea-b592-fff24975c460",
+          "targetNodeId": "connection-node-180ef45e-4c05-41e9-b963-6d7824791254",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-cc724a27-8229-40ed-929c-b87a1d0df06f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-cde71520-50fc-4721-9377-fa4dec95f660",
+          "kind": "element-anchor",
+          "elementId": "805cbb98-016f-4f73-89a7-24038a343915",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-302c3033-1b1c-419a-a260-3669e2a26670",
+          "kind": "element-anchor",
+          "elementId": "27136da0-cd86-4a8a-86b4-1f3a1c34b7db",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-dd92fa83-5ad2-4c20-b026-b5942e51a6ab",
+          "sourceNodeId": "connection-node-cde71520-50fc-4721-9377-fa4dec95f660",
+          "targetNodeId": "connection-node-302c3033-1b1c-419a-a260-3669e2a26670",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-15fe01f4-a7eb-4e3d-b03c-cad251ad3f9a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-e6b25970-ff6b-46e3-abfa-0c41bda6bb9a",
+          "kind": "element-anchor",
+          "elementId": "ddd8be13-4b5b-44ba-99b9-dfb5725270cb",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-f0906f77-06b4-4db2-adaa-5e59d70f7bbf",
+          "kind": "element-anchor",
+          "elementId": "6865af5f-8c09-4822-b8a2-562282f370b3",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-d39a2fe5-22cd-4c1f-a69f-6a7f5a3909b8",
+          "sourceNodeId": "connection-node-e6b25970-ff6b-46e3-abfa-0c41bda6bb9a",
+          "targetNodeId": "connection-node-f0906f77-06b4-4db2-adaa-5e59d70f7bbf",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-779e5529-ad02-4546-af13-a3890e244c28",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-4203f74b-d9e4-4010-9a85-d2ba65374781",
+          "kind": "element-anchor",
+          "elementId": "5600cabc-2cf1-42f8-a8cb-dd8d7f7410a1",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-6b642b04-b7f1-4525-a109-6911f50f617d",
+          "kind": "element-anchor",
+          "elementId": "336f85cb-c75a-4dcc-83dc-08351c4edd24",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-4963b5ec-ff38-4e31-906d-77c3df250a09",
+          "sourceNodeId": "connection-node-4203f74b-d9e4-4010-9a85-d2ba65374781",
+          "targetNodeId": "connection-node-6b642b04-b7f1-4525-a109-6911f50f617d",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-72f97a09-d361-4566-8a2c-f4c70ff3fb48",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-2491d160-010c-41bb-aa7f-04c892e46ee7",
+          "kind": "element-anchor",
+          "elementId": "2e655d97-748c-4118-85a6-66018940731a",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-58a73e38-12b8-4919-9b34-a1edcbb11614",
+          "kind": "element-anchor",
+          "elementId": "6bb550bb-6c9b-407d-ab11-5ee060501ec3",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-270a3465-43a0-4fcb-8ffc-231f1e341cbd",
+          "sourceNodeId": "connection-node-2491d160-010c-41bb-aa7f-04c892e46ee7",
+          "targetNodeId": "connection-node-58a73e38-12b8-4919-9b34-a1edcbb11614",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-19c88863-74ca-43ca-bdae-dcaff4b8db6b",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-07fd522b-f0b9-422e-8b3e-16e9036687d5",
+          "kind": "element-anchor",
+          "elementId": "3fd7decd-b32f-4475-9fc8-3068ce8d2727",
+          "anchorId": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b"
+        },
+        {
+          "id": "connection-node-57e97fe3-f363-4c04-a5d5-43e4d1f8d16d",
+          "kind": "element-anchor",
+          "elementId": "712936c8-d7f2-49ff-9780-2168ee41143f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-0bf84e44-fda9-43a6-9fd4-bdbeb7490087",
+          "sourceNodeId": "connection-node-07fd522b-f0b9-422e-8b3e-16e9036687d5",
+          "targetNodeId": "connection-node-57e97fe3-f363-4c04-a5d5-43e4d1f8d16d",
+          "color": "#FFC800"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-cd9deec2-6e59-4c69-ad9c-df1f990e33c3",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-cd3b8209-f591-4df1-b813-2fa36b82f557",
+          "kind": "element-anchor",
+          "elementId": "0e79d9a5-f632-48c9-8ac8-040fb597ec2c",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-1e3afe0c-a0d3-452d-8ba1-9644f176a817",
+          "kind": "element-anchor",
+          "elementId": "fc3fd584-9a25-4f00-aaf4-af44a6aca04f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-2259bd4c-78e5-40f0-931e-affab30c4c7d",
+          "sourceNodeId": "connection-node-cd3b8209-f591-4df1-b813-2fa36b82f557",
+          "targetNodeId": "connection-node-1e3afe0c-a0d3-452d-8ba1-9644f176a817",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-9a1762fa-2052-4a2e-9947-170c72a70fb5",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-cb9595c1-169a-4086-b123-c6842f8f01ab",
+          "kind": "element-anchor",
+          "elementId": "faa2dfba-b532-4597-b59b-ed77755febd7",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-f5d85a19-884d-4590-af7e-8809faf2f74f",
+          "kind": "element-anchor",
+          "elementId": "c34079ea-b6f4-4bee-a733-3da6d925a03a",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f36468d7-81d6-4293-b4a3-d6727855c3dd",
+          "sourceNodeId": "connection-node-cb9595c1-169a-4086-b123-c6842f8f01ab",
+          "targetNodeId": "connection-node-f5d85a19-884d-4590-af7e-8809faf2f74f",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-adb69dbf-3d2b-489d-8d90-162798423f17",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-95274de8-0cfa-457e-85e5-16fa99d8b2ec",
+          "kind": "element-anchor",
+          "elementId": "fc3fd584-9a25-4f00-aaf4-af44a6aca04f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-21e3dce5-6964-4edc-a0f7-eeb34f7be542",
+          "kind": "element-anchor",
+          "elementId": "2d82f665-4996-4103-b2be-f41055f09c3e",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-46b2fc00-54ec-40f1-9b47-4a6b0286667d",
+          "kind": "element-anchor",
+          "elementId": "924e32a2-db95-4dd7-8383-daaff8b7aac9",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-398c89e9-a05e-404d-bfb6-29349cce4af3",
+          "kind": "element-anchor",
+          "elementId": "d558574c-8e00-4606-bdec-ef5ad6dc49b9",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-1e541ea8-bbbb-455d-97d2-916ccc5355fb",
+          "sourceNodeId": "connection-node-95274de8-0cfa-457e-85e5-16fa99d8b2ec",
+          "targetNodeId": "connection-node-21e3dce5-6964-4edc-a0f7-eeb34f7be542",
+          "color": "#0084FF"
+        },
+        {
+          "id": "connection-edge-078f5f95-2b62-45ce-b134-03c9b2043141",
+          "sourceNodeId": "connection-node-46b2fc00-54ec-40f1-9b47-4a6b0286667d",
+          "targetNodeId": "connection-node-21e3dce5-6964-4edc-a0f7-eeb34f7be542",
+          "color": "#0084FF"
+        },
+        {
+          "id": "connection-edge-338c584b-c0da-4c3b-a2f0-8aa75e90d058",
+          "sourceNodeId": "connection-node-398c89e9-a05e-404d-bfb6-29349cce4af3",
+          "targetNodeId": "connection-node-46b2fc00-54ec-40f1-9b47-4a6b0286667d",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-f553aeed-e78c-495d-8db3-140cf6c3e8c7",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-407b3f1d-d401-49ac-a096-98305f846a00",
+          "kind": "element-anchor",
+          "elementId": "2d82f665-4996-4103-b2be-f41055f09c3e",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-07290cfe-ca2e-4c04-b46c-2ecd8d9d84dc",
+          "kind": "element-anchor",
+          "elementId": "c34079ea-b6f4-4bee-a733-3da6d925a03a",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-869cf239-1fc4-4708-bd6d-69ada2dbb66c",
+          "kind": "element-anchor",
+          "elementId": "2b7a5b10-d33b-4bf5-8e88-609fef8f9e06",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-5e186ae2-674b-4a6e-a111-5ac44dfb0c9a",
+          "kind": "element-anchor",
+          "elementId": "b2caefa3-d00b-405e-b7ea-6884ac5c0730",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-9011f9c5-a929-41a2-b9cf-9a967706d7aa",
+          "sourceNodeId": "connection-node-407b3f1d-d401-49ac-a096-98305f846a00",
+          "targetNodeId": "connection-node-07290cfe-ca2e-4c04-b46c-2ecd8d9d84dc",
+          "color": "#00F074"
+        },
+        {
+          "id": "connection-edge-a259d043-a626-4ca5-bfa8-e39964015d35",
+          "sourceNodeId": "connection-node-869cf239-1fc4-4708-bd6d-69ada2dbb66c",
+          "targetNodeId": "connection-node-407b3f1d-d401-49ac-a096-98305f846a00",
+          "color": "#00F074"
+        },
+        {
+          "id": "connection-edge-6a25d40d-d20a-4cbd-b5d8-a74c5114933b",
+          "sourceNodeId": "connection-node-5e186ae2-674b-4a6e-a111-5ac44dfb0c9a",
+          "targetNodeId": "connection-node-869cf239-1fc4-4708-bd6d-69ada2dbb66c",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-009c385c-9442-4153-af2e-1b2ef07ba593",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-81ffec50-2092-4b09-b7f5-ebba988b700e",
+          "kind": "element-anchor",
+          "elementId": "d9c7a10b-f56c-4502-a597-91a06a9468db",
+          "anchorId": "anchor-88e4eab8-42fb-40cb-9d65-076759bb935a"
+        },
+        {
+          "id": "connection-node-a618d4c7-b0ca-42b2-823d-b92ee6620562",
+          "kind": "element-anchor",
+          "elementId": "924e32a2-db95-4dd7-8383-daaff8b7aac9",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-38430558-56fa-4a06-8325-90fa89a848e8",
+          "sourceNodeId": "connection-node-81ffec50-2092-4b09-b7f5-ebba988b700e",
+          "targetNodeId": "connection-node-a618d4c7-b0ca-42b2-823d-b92ee6620562",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-3fe59b75-32e7-49dc-a12e-83da54be0d08",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-44d79643-23f5-4a8d-b889-fbc8748e66c1",
+          "kind": "element-anchor",
+          "elementId": "38f66640-af89-4e9c-a58d-ff061e50e119",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-da75471b-2f50-428e-84b6-b521d5f3d79e",
+          "kind": "element-anchor",
+          "elementId": "47e6e065-adec-4211-8503-178b14d2e080",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-d7202339-b899-4f61-9608-ab341bd3ebcf",
+          "sourceNodeId": "connection-node-44d79643-23f5-4a8d-b889-fbc8748e66c1",
+          "targetNodeId": "connection-node-da75471b-2f50-428e-84b6-b521d5f3d79e",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b215464a-ef1a-4c84-9671-266291e978ad",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-d30bf677-96e6-4339-b1b2-32e9b5d097b8",
+          "kind": "element-anchor",
+          "elementId": "31aeff5b-de19-4b10-a16a-6aadfec95891",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-1a7fb975-0202-4ecd-9358-3df7c44954ef",
+          "kind": "element-anchor",
+          "elementId": "38f66640-af89-4e9c-a58d-ff061e50e119",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-99cccdea-ff2d-4abe-a628-511eafc36aa5",
+          "sourceNodeId": "connection-node-d30bf677-96e6-4339-b1b2-32e9b5d097b8",
+          "targetNodeId": "connection-node-1a7fb975-0202-4ecd-9358-3df7c44954ef",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-24576a5e-1870-4734-8575-744e3dc16c13",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-b94e8a6f-5b1f-4ec2-8cb5-a92ae7f510a3",
+          "kind": "element-anchor",
+          "elementId": "3e5dca1e-3751-4716-bb49-c300f898c998",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-6659f042-7a17-4e04-b733-ab0f9292d2bd",
+          "kind": "element-anchor",
+          "elementId": "47e6e065-adec-4211-8503-178b14d2e080",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-ff7a1ee8-edd1-4c3e-83a0-e1f5a1f38bb8",
+          "sourceNodeId": "connection-node-b94e8a6f-5b1f-4ec2-8cb5-a92ae7f510a3",
+          "targetNodeId": "connection-node-6659f042-7a17-4e04-b733-ab0f9292d2bd",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-d7e3aec5-246b-4317-a21e-9fc64a633a99",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-803d6ce0-e06d-43ca-a311-1d42fe62eb7b",
+          "kind": "element-anchor",
+          "elementId": "859689c3-20b4-4d18-afa6-852e99c80a9a",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-e456a867-9b7b-488c-9a95-ae1929726e07",
+          "kind": "element-anchor",
+          "elementId": "38e2beee-4057-4064-b026-6b2fe9d22e90",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-203d3875-7aa5-492c-a86d-fd311829a1fb",
+          "sourceNodeId": "connection-node-803d6ce0-e06d-43ca-a311-1d42fe62eb7b",
+          "targetNodeId": "connection-node-e456a867-9b7b-488c-9a95-ae1929726e07",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-9bb22c46-1f06-4c05-8b48-aed05e627c54",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-423dba1d-59e0-4c1f-90e1-19442763ddc7",
+          "kind": "element-anchor",
+          "elementId": "045883a3-8888-472f-a7a0-8b6128188c4f",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-b7b7f964-6f2f-41ae-90a8-b65c0683c3a6",
+          "kind": "element-anchor",
+          "elementId": "859689c3-20b4-4d18-afa6-852e99c80a9a",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-ad3cbe72-5ca0-4677-a432-d2dbccae0c0f",
+          "sourceNodeId": "connection-node-423dba1d-59e0-4c1f-90e1-19442763ddc7",
+          "targetNodeId": "connection-node-b7b7f964-6f2f-41ae-90a8-b65c0683c3a6",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-acadc41c-f0c8-4a3a-848a-e53e16401584",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-bea3cdae-5220-431a-9b4d-ce0257d2786e",
+          "kind": "element-anchor",
+          "elementId": "5220a1a7-f0ab-42a1-ac79-61b050290b55",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-02bd059f-8b97-4227-9746-9a0ca68ad963",
+          "kind": "element-anchor",
+          "elementId": "38e2beee-4057-4064-b026-6b2fe9d22e90",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-2a3fd3fa-9008-45f8-bd84-3febb0da33d2",
+          "sourceNodeId": "connection-node-bea3cdae-5220-431a-9b4d-ce0257d2786e",
+          "targetNodeId": "connection-node-02bd059f-8b97-4227-9746-9a0ca68ad963",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-e3378e09-e354-49c0-b1d8-526c0e7a4f5a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-b1120ece-ded1-4d55-9b8b-c459e4c1cc07",
+          "kind": "element-anchor",
+          "elementId": "47e6e065-adec-4211-8503-178b14d2e080",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-d5ade173-0e23-4d20-ac01-d30d8efd7d21",
+          "kind": "element-anchor",
+          "elementId": "859689c3-20b4-4d18-afa6-852e99c80a9a",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-c03c9053-bae6-496b-8b26-3066bb495df4",
+          "sourceNodeId": "connection-node-b1120ece-ded1-4d55-9b8b-c459e4c1cc07",
+          "targetNodeId": "connection-node-d5ade173-0e23-4d20-ac01-d30d8efd7d21",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-bf8e1fab-f519-4d5d-a9ea-e256ca593f2a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-3b32f44b-bf76-46e3-a7e8-44ab0cefa725",
+          "kind": "element-anchor",
+          "elementId": "a945a386-6afa-4e50-9f91-52dd33122c96",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-205965cf-73e9-47e9-8cf9-42ba1862c8e5",
+          "kind": "element-anchor",
+          "elementId": "4f9f2bf7-45f1-4ba9-ad65-16deccff16aa",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-68478cb1-7a7b-4bd2-9ea4-591897ee226f",
+          "sourceNodeId": "connection-node-3b32f44b-bf76-46e3-a7e8-44ab0cefa725",
+          "targetNodeId": "connection-node-205965cf-73e9-47e9-8cf9-42ba1862c8e5",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-25bf2696-9667-4676-b614-205fba2334e5",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-9c27ffed-1303-44a9-8b19-8386b5654f3e",
+          "kind": "element-anchor",
+          "elementId": "38e2beee-4057-4064-b026-6b2fe9d22e90",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-79fbb4fc-f3a3-4037-a5f4-5c2353233e43",
+          "kind": "element-anchor",
+          "elementId": "4f9f2bf7-45f1-4ba9-ad65-16deccff16aa",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-d82fb143-91f2-4423-bde6-5212f602c6d8",
+          "sourceNodeId": "connection-node-9c27ffed-1303-44a9-8b19-8386b5654f3e",
+          "targetNodeId": "connection-node-79fbb4fc-f3a3-4037-a5f4-5c2353233e43",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-a96558c6-a84e-47ee-8dff-73e157530463",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-43482f26-f085-433d-bc92-0ccaf0b773c9",
+          "kind": "element-anchor",
+          "elementId": "4f9f2bf7-45f1-4ba9-ad65-16deccff16aa",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-545d5f34-ce11-498e-a141-b256ac5bca3b",
+          "kind": "element-anchor",
+          "elementId": "f240441c-34c9-4df4-ba8f-8e30a4a13827",
+          "anchorId": "anchor-1e254790-7799-40ae-bbd7-70c07ef6fb76"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f55ffc96-1bc4-435e-b941-58ff72b79158",
+          "sourceNodeId": "connection-node-43482f26-f085-433d-bc92-0ccaf0b773c9",
+          "targetNodeId": "connection-node-545d5f34-ce11-498e-a141-b256ac5bca3b",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-c7a36412-3f0c-4d9e-b5c6-ee216104694b",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-5e7d0cab-d9c5-42fd-9b7c-967aa8b699a9",
+          "kind": "element-anchor",
+          "elementId": "f240441c-34c9-4df4-ba8f-8e30a4a13827",
+          "anchorId": "anchor-22b41b4e-780e-4895-8a86-f52d66ab2932"
+        },
+        {
+          "id": "connection-node-a7d8a18e-2c42-41fd-989d-ef9ba95065a1",
+          "kind": "element-anchor",
+          "elementId": "229be516-4c53-4464-9b9d-19e5da01ab3d",
+          "anchorId": "anchor-93696726-dc5b-4dce-a0a2-22cfa6bb899a"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-caefdf91-59b0-4417-83f4-ff8354124a2a",
+          "sourceNodeId": "connection-node-5e7d0cab-d9c5-42fd-9b7c-967aa8b699a9",
+          "targetNodeId": "connection-node-a7d8a18e-2c42-41fd-989d-ef9ba95065a1",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-77d94675-2b78-4923-a927-16c0400b711a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-19bb504f-a80f-410c-903b-3a7ad56454cd",
+          "kind": "element-anchor",
+          "elementId": "4d0bb4e0-eda9-44a4-8b3d-f57797f08cb8",
+          "anchorId": "anchor-88e4eab8-42fb-40cb-9d65-076759bb935a"
+        },
+        {
+          "id": "connection-node-b514c63a-1fe0-4839-be0a-7bd660a2f373",
+          "kind": "element-anchor",
+          "elementId": "2b7a5b10-d33b-4bf5-8e88-609fef8f9e06",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-ea2b55d7-ac36-4ace-b0bf-74ea6d19ad4b",
+          "sourceNodeId": "connection-node-19bb504f-a80f-410c-903b-3a7ad56454cd",
+          "targetNodeId": "connection-node-b514c63a-1fe0-4839-be0a-7bd660a2f373",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b22f800b-e561-4a83-b386-6bc4743fb7de",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-74b9733c-f7f3-42a4-84bf-c2e94bc9cc5f",
+          "kind": "element-anchor",
+          "elementId": "229be516-4c53-4464-9b9d-19e5da01ab3d",
+          "anchorId": "anchor-45324736-2bdf-4d03-abb7-585aa4c88ab2"
+        },
+        {
+          "id": "connection-node-ed73f879-b0f5-4286-9def-80e3970218c3",
+          "kind": "element-anchor",
+          "elementId": "315b29e0-b523-4f24-9765-6bcf778cc77c",
+          "anchorId": "anchor-c52c0777-53e5-4f19-bb59-54d556ead491"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-b4fbe367-6320-4c72-9ca2-750ea38bd06e",
+          "sourceNodeId": "connection-node-74b9733c-f7f3-42a4-84bf-c2e94bc9cc5f",
+          "targetNodeId": "connection-node-ed73f879-b0f5-4286-9def-80e3970218c3",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-c4bc30f7-e69c-41fb-b14a-ab690ae2828d",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-55d337dc-3381-41e5-9ef6-edd0b7e621fe",
+          "kind": "element-anchor",
+          "elementId": "25bcdebf-f0e2-4620-a299-d75afccf469c",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-ccf9982e-a05f-4ee5-8830-95ff4edbba8a",
+          "kind": "element-anchor",
+          "elementId": "c189192b-d9ab-4399-af58-cf81de774940",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-0552e66f-7420-4f31-8ec5-60f5a5327ac1",
+          "sourceNodeId": "connection-node-55d337dc-3381-41e5-9ef6-edd0b7e621fe",
+          "targetNodeId": "connection-node-ccf9982e-a05f-4ee5-8830-95ff4edbba8a",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-bb6075e5-4cfe-4a8f-984e-5fcb561d8f0c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-1f79a918-4001-4d92-81a1-a41c231aff35",
+          "kind": "element-anchor",
+          "elementId": "2a6e3c0d-6e6c-4212-a37b-43f9470304e8",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-caa0d5c4-85d7-4029-8c32-27d6d73c998a",
+          "kind": "element-anchor",
+          "elementId": "25bcdebf-f0e2-4620-a299-d75afccf469c",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-3dcc6c7c-8e82-471e-a72b-9d0ad353d49e",
+          "sourceNodeId": "connection-node-1f79a918-4001-4d92-81a1-a41c231aff35",
+          "targetNodeId": "connection-node-caa0d5c4-85d7-4029-8c32-27d6d73c998a",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-ade74c56-fb7a-4840-bc2e-a9b768b7e2ac",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-b321d956-250e-42dc-84a3-2a0343a0e05a",
+          "kind": "element-anchor",
+          "elementId": "e0c9d3c6-a50b-4b8d-9555-cf5de352493c",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-d7b4c981-846d-4450-922d-56c200a475eb",
+          "kind": "element-anchor",
+          "elementId": "c189192b-d9ab-4399-af58-cf81de774940",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-7774bb83-de0a-450e-8089-160865963f65",
+          "sourceNodeId": "connection-node-b321d956-250e-42dc-84a3-2a0343a0e05a",
+          "targetNodeId": "connection-node-d7b4c981-846d-4450-922d-56c200a475eb",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-eb84340b-c874-4658-863d-36a37a7cdd61",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-a6d58868-3023-44d8-9852-8b48ec144c87",
+          "kind": "element-anchor",
+          "elementId": "bd2711af-0df8-46ff-80f2-354d1dd8888b",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-efce1f57-3c60-4389-8b1e-6bf0d26fb4f9",
+          "kind": "element-anchor",
+          "elementId": "14143d48-e344-4353-bb20-1db58afa60e0",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-41b14384-e5a2-4cb9-ab09-c9699dc826bb",
+          "sourceNodeId": "connection-node-a6d58868-3023-44d8-9852-8b48ec144c87",
+          "targetNodeId": "connection-node-efce1f57-3c60-4389-8b1e-6bf0d26fb4f9",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-761d62fe-123c-45ba-b652-96fd68547388",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-0a418992-57e1-4a53-8ad5-b6d26dee61cc",
+          "kind": "element-anchor",
+          "elementId": "765647d7-11fb-4316-a8a2-e30af4c1473d",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-acbf8fc7-0a4a-4761-af13-e82139155d2c",
+          "kind": "element-anchor",
+          "elementId": "bd2711af-0df8-46ff-80f2-354d1dd8888b",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-a935d98d-960d-40dc-a390-8e5a69b36e55",
+          "sourceNodeId": "connection-node-0a418992-57e1-4a53-8ad5-b6d26dee61cc",
+          "targetNodeId": "connection-node-acbf8fc7-0a4a-4761-af13-e82139155d2c",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-34a5aa7e-e8c6-40aa-ae0d-250bb038bb27",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-4d41eebf-60ad-47c6-badb-564acb1b5115",
+          "kind": "element-anchor",
+          "elementId": "25a3f822-313c-4ee2-9d03-3ed414a9d214",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-dc7ddd3d-3ed5-4516-960d-87669748b9dc",
+          "kind": "element-anchor",
+          "elementId": "14143d48-e344-4353-bb20-1db58afa60e0",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-a65d33a7-6bb5-41ca-9d8b-f9e09c0a25e3",
+          "sourceNodeId": "connection-node-4d41eebf-60ad-47c6-badb-564acb1b5115",
+          "targetNodeId": "connection-node-dc7ddd3d-3ed5-4516-960d-87669748b9dc",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-405e9cb9-b6c7-4fa1-9a56-9e5afd4e54e6",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-816767e2-7436-4840-a440-c44f6811da9c",
+          "kind": "element-anchor",
+          "elementId": "c189192b-d9ab-4399-af58-cf81de774940",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-4959c4f3-01b5-4dc0-bb61-37f66d809927",
+          "kind": "element-anchor",
+          "elementId": "bd2711af-0df8-46ff-80f2-354d1dd8888b",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-c69e5aec-eba3-456f-9cc1-a56968848d9d",
+          "sourceNodeId": "connection-node-816767e2-7436-4840-a440-c44f6811da9c",
+          "targetNodeId": "connection-node-4959c4f3-01b5-4dc0-bb61-37f66d809927",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-638e76c1-d243-46b7-a1d6-9e86b143a87c",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-18f7869c-c35b-4fdc-880b-9869bfdef807",
+          "kind": "element-anchor",
+          "elementId": "6ed90bc0-9594-4530-8496-0b8a5c8c1ac0",
+          "anchorId": "anchor-a09657f7-52cd-4691-a963-096542bc078a"
+        },
+        {
+          "id": "connection-node-7e712bea-1b59-4b6a-ad71-8adcd4312c4e",
+          "kind": "element-anchor",
+          "elementId": "74b80f0b-b547-4b2d-b732-ef6453978a9a",
+          "anchorId": "anchor-0f4653c0-d6d3-43ca-9d2f-7638d69dd31d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f4d364aa-b40f-47cf-bb88-3ec157b498cd",
+          "sourceNodeId": "connection-node-18f7869c-c35b-4fdc-880b-9869bfdef807",
+          "targetNodeId": "connection-node-7e712bea-1b59-4b6a-ad71-8adcd4312c4e",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-b304dee7-1aa6-44f1-bc58-6ef4a038d874",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-54725a96-c82e-4c1a-a20b-ec1d66acf2e7",
+          "kind": "element-anchor",
+          "elementId": "14143d48-e344-4353-bb20-1db58afa60e0",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        },
+        {
+          "id": "connection-node-a9bac19a-f0ca-46ff-b4b1-07c05955bc07",
+          "kind": "element-anchor",
+          "elementId": "74b80f0b-b547-4b2d-b732-ef6453978a9a",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-f202d5e1-d56e-410a-bb4c-fc14466f7727",
+          "sourceNodeId": "connection-node-54725a96-c82e-4c1a-a20b-ec1d66acf2e7",
+          "targetNodeId": "connection-node-a9bac19a-f0ca-46ff-b4b1-07c05955bc07",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-62bce7a2-5523-4d4d-9a0c-fe0f6317d443",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-a50e431d-9920-429d-90a7-6972ef283f2c",
+          "kind": "element-anchor",
+          "elementId": "184224ed-8766-46d1-8ea5-625c00515359",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-aec74931-2817-418c-89c7-e1d0d37d7d28",
+          "kind": "element-anchor",
+          "elementId": "e91525f3-31c2-45bf-87a7-7f1132c5e339",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-90b4d732-f165-4e21-9185-7ca21f106db0",
+          "kind": "element-anchor",
+          "elementId": "38f66640-af89-4e9c-a58d-ff061e50e119",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-715f71c3-4f73-4333-9d16-1eeb88e19879",
+          "sourceNodeId": "connection-node-a50e431d-9920-429d-90a7-6972ef283f2c",
+          "targetNodeId": "connection-node-aec74931-2817-418c-89c7-e1d0d37d7d28",
+          "color": "#0084FF"
+        },
+        {
+          "id": "connection-edge-f808caaa-b32b-473c-87cb-342ece1bba21",
+          "sourceNodeId": "connection-node-a50e431d-9920-429d-90a7-6972ef283f2c",
+          "targetNodeId": "connection-node-90b4d732-f165-4e21-9185-7ca21f106db0",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-4bbd7686-d7ee-4cba-86b0-46e1810bab28",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-780be1c4-1e1a-4b23-971a-17860d2aff0d",
+          "kind": "element-anchor",
+          "elementId": "e91525f3-31c2-45bf-87a7-7f1132c5e339",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-38dd0126-45b0-4f1b-a5e7-568cb9932eab",
+          "kind": "element-anchor",
+          "elementId": "1715c493-8ecb-40bd-8de5-e21231198bc3",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-6e17ec0a-64f1-42b4-af7f-a331e2f1fcaf",
+          "kind": "element-anchor",
+          "elementId": "74b80f0b-b547-4b2d-b732-ef6453978a9a",
+          "anchorId": "anchor-6850faca-e4d1-48a0-9486-1dbc2359e583"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-1fb1dd11-7fab-4ece-ae55-ebe6f23cf398",
+          "sourceNodeId": "connection-node-780be1c4-1e1a-4b23-971a-17860d2aff0d",
+          "targetNodeId": "connection-node-38dd0126-45b0-4f1b-a5e7-568cb9932eab",
+          "color": "#00F074"
+        },
+        {
+          "id": "connection-edge-5ac73f15-b46a-451b-95a4-f89e83228f81",
+          "sourceNodeId": "connection-node-6e17ec0a-64f1-42b4-af7f-a331e2f1fcaf",
+          "targetNodeId": "connection-node-38dd0126-45b0-4f1b-a5e7-568cb9932eab",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-4ad79a78-f887-43f9-ae49-394eb375522f",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-a64672af-a668-4643-9681-40437bc040d1",
+          "kind": "element-anchor",
+          "elementId": "1715c493-8ecb-40bd-8de5-e21231198bc3",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-0ffabc13-aec8-4ee1-87c6-ecad4b692b62",
+          "kind": "element-anchor",
+          "elementId": "b580845b-62dc-4d53-b3ed-332deb3ea01f",
+          "anchorId": "anchor-8f729400-5496-4e7a-8153-5e8ba500795a"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-396bfacf-9adc-4927-aa98-2392e164dfc6",
+          "sourceNodeId": "connection-node-a64672af-a668-4643-9681-40437bc040d1",
+          "targetNodeId": "connection-node-0ffabc13-aec8-4ee1-87c6-ecad4b692b62",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-5dbe97f5-f8aa-46ac-88b4-ed0da2227608",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-5b317cc5-0538-4f3e-8a27-f8bd3c4c8667",
+          "kind": "element-anchor",
+          "elementId": "b580845b-62dc-4d53-b3ed-332deb3ea01f",
+          "anchorId": "anchor-36d09ecb-5bb2-453a-8222-b7bb1c962814"
+        },
+        {
+          "id": "connection-node-9f45fd10-ee01-4700-b35f-e73807751959",
+          "kind": "element-anchor",
+          "elementId": "b2caefa3-d00b-405e-b7ea-6884ac5c0730",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-5f40b308-85bb-4ac7-9c86-dca5cdd203b8",
+          "sourceNodeId": "connection-node-5b317cc5-0538-4f3e-8a27-f8bd3c4c8667",
+          "targetNodeId": "connection-node-9f45fd10-ee01-4700-b35f-e73807751959",
+          "color": "#00F074"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-9ca400a2-181a-450f-a43c-b798b06e3bf3",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-aece4f8a-d4ee-43ae-9a5e-7fe0fb82f9e4",
+          "kind": "element-anchor",
+          "elementId": "184224ed-8766-46d1-8ea5-625c00515359",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-4766b296-c3fe-4758-970e-c7aa797aee0c",
+          "kind": "element-anchor",
+          "elementId": "4b1311ef-52a1-4291-a9b9-e329fa38b973",
+          "anchorId": "anchor-36d09ecb-5bb2-453a-8222-b7bb1c962814"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-3182eef3-68e6-430e-a6ed-27862f2148ee",
+          "sourceNodeId": "connection-node-aece4f8a-d4ee-43ae-9a5e-7fe0fb82f9e4",
+          "targetNodeId": "connection-node-4766b296-c3fe-4758-970e-c7aa797aee0c",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-ae603929-0b22-41f0-9cf8-3a7c9de1a84a",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-6c857044-d65e-4056-be5d-3a8d38025176",
+          "kind": "element-anchor",
+          "elementId": "4b1311ef-52a1-4291-a9b9-e329fa38b973",
+          "anchorId": "anchor-8f729400-5496-4e7a-8153-5e8ba500795a"
+        },
+        {
+          "id": "connection-node-e479dc03-51b2-45fb-9373-60385c6dc3a3",
+          "kind": "element-anchor",
+          "elementId": "d558574c-8e00-4606-bdec-ef5ad6dc49b9",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-0808f7d4-f182-4272-886f-13d97b38ecef",
+          "sourceNodeId": "connection-node-6c857044-d65e-4056-be5d-3a8d38025176",
+          "targetNodeId": "connection-node-e479dc03-51b2-45fb-9373-60385c6dc3a3",
+          "color": "#0084FF"
+        }
+      ]
+    },
+    {
+      "id": "connection-network-a88083ca-ea98-40bd-8e55-5feb4f0700a6",
+      "diagramId": "power-pod-a28e7167-6584-41fe-bd9f-e44231dd9600",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-d0edb234-c8c9-419f-a60d-18b304101ac6",
+          "kind": "element-anchor",
+          "elementId": "315b29e0-b523-4f24-9765-6bcf778cc77c",
+          "anchorId": "anchor-8e51f00f-3a22-408c-85f0-1a4995082ba1"
+        },
+        {
+          "id": "connection-node-59f80229-0c6d-452f-a4fe-c1de1f67aeee",
+          "kind": "element-anchor",
+          "elementId": "25bcdebf-f0e2-4620-a299-d75afccf469c",
+          "anchorId": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-183ac67a-704a-43ae-acac-bbc74aaa0a1b",
+          "sourceNodeId": "connection-node-d0edb234-c8c9-419f-a60d-18b304101ac6",
+          "targetNodeId": "connection-node-59f80229-0c6d-452f-a4fe-c1de1f67aeee",
+          "color": "#00F074"
+        }
+      ]
     }
   ],
   "assets": [
@@ -6448,14 +9537,6 @@
           "type": "electrical"
         },
         {
-          "id": "anchor-feeb79d8-13b4-4126-b076-679f55aacdde",
-          "name": "电路 3",
-          "x": 24,
-          "y": 48,
-          "direction": "bottom",
-          "type": "electrical"
-        },
-        {
           "id": "anchor-37fd7cfb-ed34-4cb2-8196-4d00cf4b78c8",
           "name": "电路 4",
           "x": 48,
@@ -6482,22 +9563,6 @@
           "type": "electrical"
         },
         {
-          "id": "anchor-dc881595-f86e-474a-8391-49e15080d8a5",
-          "name": "电路 2",
-          "x": 0,
-          "y": 24,
-          "direction": "left",
-          "type": "electrical"
-        },
-        {
-          "id": "anchor-236a7eec-b450-4835-94c7-2bd8519b0cb4",
-          "name": "电路 3",
-          "x": 48,
-          "y": 24,
-          "direction": "right",
-          "type": "electrical"
-        },
-        {
           "id": "anchor-23be9dfe-0789-4ec1-9be7-0d7ccb5c769b",
           "name": "电路 4",
           "x": 24,
@@ -6516,27 +9581,11 @@
       "intrinsicHeight": 48,
       "anchors": [
         {
-          "id": "anchor-01634144-1bd1-4b62-9b4e-6b8faa07354c",
-          "name": "电路 1",
-          "x": 0,
-          "y": 24,
-          "direction": "left",
-          "type": "electrical"
-        },
-        {
           "id": "anchor-5fe54af5-0857-4e44-a1f7-fbae646c57eb",
           "name": "电路 2",
           "x": 24,
           "y": 0,
           "direction": "top",
-          "type": "electrical"
-        },
-        {
-          "id": "anchor-b71d12cb-7fa6-4a3d-a6cf-61afd7d55078",
-          "name": "电路 3",
-          "x": 48,
-          "y": 24,
-          "direction": "right",
           "type": "electrical"
         },
         {
@@ -6610,14 +9659,6 @@
       "intrinsicHeight": 48,
       "anchors": [
         {
-          "id": "anchor-8318bccf-9417-4bb3-866d-091cce589aac",
-          "name": "电路 1",
-          "x": 24,
-          "y": 0,
-          "direction": "top",
-          "type": "electrical"
-        },
-        {
           "id": "anchor-ff80db68-120f-4501-8a4b-46fe4456dc0d",
           "name": "电路 2",
           "x": 0,
@@ -6654,9 +9695,9 @@
     },
     {
       "key": "cabinet",
-      "name": "Cabinet",
+      "name": "Cabinet A",
       "category": "电力",
-      "source": "src/assets/symbols/Cabinet.svg",
+      "source": "src/assets/symbols/Cabinet A.svg",
       "intrinsicWidth": 48,
       "intrinsicHeight": 48,
       "anchors": [
@@ -6758,6 +9799,32 @@
           "x": 32,
           "y": 64,
           "direction": "bottom",
+          "type": "electrical"
+        }
+      ]
+    },
+    {
+      "key": "cabinet-b",
+      "name": "Cabinet B",
+      "category": "电力",
+      "source": "src/assets/symbols/Cabinet B.svg",
+      "intrinsicWidth": 48,
+      "intrinsicHeight": 48,
+      "anchors": [
+        {
+          "id": "anchor-c52c0777-53e5-4f19-bb59-54d556ead491",
+          "name": "电路 1",
+          "x": 0,
+          "y": 24,
+          "direction": "left",
+          "type": "electrical"
+        },
+        {
+          "id": "anchor-8e51f00f-3a22-408c-85f0-1a4995082ba1",
+          "name": "电路 2",
+          "x": 48,
+          "y": 24,
+          "direction": "right",
           "type": "electrical"
         }
       ]

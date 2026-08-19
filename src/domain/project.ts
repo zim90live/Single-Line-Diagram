@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 13 as const
+export const SCHEMA_VERSION = 15 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -18,6 +18,115 @@ export const anchorTypeSchema = z.enum([
 
 export const anchorDirectionSchema = z.enum(['top', 'right', 'bottom', 'left'])
 export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
+export const monitorMetricPrecisionSchema = z.union([z.literal(0), z.literal(1), z.literal(2)])
+export const monitorAlarmSeveritySchema = z.enum(['normal', 'minor', 'major', 'critical'])
+
+const monitorMetricUpperThresholdSchema = z.object({
+  mode: z.literal('upper'),
+  minor: z.number().finite(),
+  major: z.number().finite(),
+  critical: z.number().finite(),
+})
+
+const monitorMetricLowerThresholdSchema = z.object({
+  mode: z.literal('lower'),
+  minor: z.number().finite(),
+  major: z.number().finite(),
+  critical: z.number().finite(),
+})
+
+const monitorMetricOutsideThresholdSchema = z.object({
+  mode: z.literal('outside'),
+  minorLow: z.number().finite(),
+  minorHigh: z.number().finite(),
+  majorLow: z.number().finite(),
+  majorHigh: z.number().finite(),
+  criticalLow: z.number().finite(),
+  criticalHigh: z.number().finite(),
+})
+
+export const monitorMetricAlarmSchema = z.discriminatedUnion('mode', [
+  monitorMetricUpperThresholdSchema,
+  monitorMetricLowerThresholdSchema,
+  monitorMetricOutsideThresholdSchema,
+])
+
+const monitorMetricNumberSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1, '指标名称不能为空').max(40, '指标名称不能超过 40 个字符'),
+  valueType: z.literal('number'),
+  unit: z.string().trim().max(12, '单位不能超过 12 个字符').optional(),
+  precision: monitorMetricPrecisionSchema,
+  simulationMin: z.number().finite(),
+  simulationMax: z.number().finite(),
+  alarm: monitorMetricAlarmSchema,
+}).superRefine((metric, context) => {
+  if (metric.simulationMin >= metric.simulationMax) {
+    context.addIssue({
+      code: 'custom',
+      path: ['simulationMax'],
+      message: '模拟最大值必须大于最小值',
+    })
+  }
+  const alarm = metric.alarm
+  if (alarm.mode === 'upper' && !(alarm.minor < alarm.major && alarm.major < alarm.critical)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['alarm'],
+      message: '上限阈值必须满足：次要 < 重要 < 紧急',
+    })
+  }
+  if (alarm.mode === 'lower' && !(alarm.critical < alarm.major && alarm.major < alarm.minor)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['alarm'],
+      message: '下限阈值必须满足：紧急 < 重要 < 次要',
+    })
+  }
+  if (alarm.mode === 'outside' && !(
+    alarm.criticalLow < alarm.majorLow &&
+    alarm.majorLow < alarm.minorLow &&
+    alarm.minorLow < alarm.minorHigh &&
+    alarm.minorHigh < alarm.majorHigh &&
+    alarm.majorHigh < alarm.criticalHigh
+  )) {
+    context.addIssue({
+      code: 'custom',
+      path: ['alarm'],
+      message: '区间阈值必须从紧急下界到紧急上界依次递增',
+    })
+  }
+})
+
+export const monitorMetricTextOptionSchema = z.object({
+  id: z.string().min(1),
+  value: z.string().trim().min(1, '状态内容不能为空').max(24, '状态内容不能超过 24 个字符'),
+  severity: monitorAlarmSeveritySchema,
+})
+
+const monitorMetricTextSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1, '指标名称不能为空').max(40, '指标名称不能超过 40 个字符'),
+  valueType: z.literal('text'),
+  textOptions: z.array(monitorMetricTextOptionSchema).min(1, '文本指标至少需要一个候选状态'),
+}).superRefine((metric, context) => {
+  const optionIds = new Set<string>()
+  metric.textOptions.forEach((option, index) => {
+    if (optionIds.has(option.id)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['textOptions', index, 'id'],
+        message: '状态标识不能重复',
+      })
+    }
+    optionIds.add(option.id)
+  })
+})
+
+export const monitorMetricSchema = z.union([
+  monitorMetricNumberSchema,
+  monitorMetricTextSchema,
+])
 
 export const symbolAnchorSchema = z.object({
   id: z.string().min(1),
@@ -50,6 +159,8 @@ export const diagramElementSchema = z.object({
   rotation: z.number().finite(),
   labelVisible: z.boolean().optional(),
   labelPlacement: elementLabelPlacementSchema.optional(),
+  monitorDataVisible: z.boolean().optional(),
+  monitorMetrics: z.array(monitorMetricSchema).max(5, '每个图元最多配置 5 项运行指标').optional(),
   properties: z.record(
     z.string(),
     z.union([z.string(), z.number(), z.boolean(), z.null()]),
@@ -344,6 +455,17 @@ export const projectDocumentSchema = z
           message: `图元“${element.name}”引用了不存在的素材`,
         })
       }
+      const metricIds = new Set<string>()
+      for (const metric of element.monitorMetrics ?? []) {
+        if (metricIds.has(metric.id)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['elements', element.id, 'monitorMetrics', metric.id],
+            message: `图元“${element.name}”的运行指标 ID 必须唯一`,
+          })
+        }
+        metricIds.add(metric.id)
+      }
       for (const [property, label] of [
         ['color', '颜色'],
         ['switchOffColor', '关状态颜色'],
@@ -632,6 +754,11 @@ export type DiagramLevel = z.infer<typeof diagramLevelSchema>
 export type AnchorType = z.infer<typeof anchorTypeSchema>
 export type AnchorDirection = z.infer<typeof anchorDirectionSchema>
 export type ElementLabelPlacement = z.infer<typeof elementLabelPlacementSchema>
+export type MonitorMetricPrecision = z.infer<typeof monitorMetricPrecisionSchema>
+export type MonitorAlarmSeverity = z.infer<typeof monitorAlarmSeveritySchema>
+export type MonitorMetricAlarm = z.infer<typeof monitorMetricAlarmSchema>
+export type MonitorMetricTextOption = z.infer<typeof monitorMetricTextOptionSchema>
+export type MonitorMetric = z.infer<typeof monitorMetricSchema>
 export type SymbolAnchor = z.infer<typeof symbolAnchorSchema>
 export type AssetDefinition = z.infer<typeof assetDefinitionSchema>
 export type DiagramElement = z.infer<typeof diagramElementSchema>
@@ -953,7 +1080,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const withCurrentAssetShape = input.schemaVersion === 1 && Array.isArray(input.assets) ? {
@@ -1000,7 +1127,16 @@ function migrateProjectDocument(
       if (!isRecord(value) || typeof value.diagramId !== 'string') return value
       const properties = isRecord(value.properties) ? value.properties : {}
       const currentTag = properties.tag
-      if (typeof currentTag === 'string' && currentTag.trim()) return value
+      const monitorMetrics = Array.isArray(value.monitorMetrics)
+        ? value.monitorMetrics.map((metric) => (
+          isRecord(metric) && metric.valueType === undefined
+            ? { ...metric, valueType: 'number' }
+            : metric
+        ))
+        : value.monitorMetrics
+      if (typeof currentTag === 'string' && currentTag.trim()) {
+        return { ...value, monitorMetrics }
+      }
       const base = typeof value.name === 'string' && value.name.trim()
         ? value.name.trim()
         : typeof value.assetKey === 'string' && value.assetKey.trim()
@@ -1015,7 +1151,7 @@ function migrateProjectDocument(
       }
       used.add(tag)
       usedTagsByDiagram.set(value.diagramId, used)
-      return { ...value, properties: { ...properties, tag } }
+      return { ...value, monitorMetrics, properties: { ...properties, tag } }
     }),
   }
 }
@@ -1026,7 +1162,8 @@ export function parseProjectDocument(
 ): ProjectDocument {
   const document = projectDocumentSchema.parse(migrateProjectDocument(input, installedAssets))
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
-  return {
+  const documentAssetKeys = new Set(document.assets.map((asset) => asset.key))
+  const synchronized = {
     ...document,
     lineSystems: document.lineSystems.map((lineSystem) => (
       lineSystem.type === 'power'
@@ -1035,13 +1172,32 @@ export function parseProjectDocument(
     )),
     assets: document.assets.map((asset) => ({
       ...asset,
-      category: installedByKey.get(asset.key)?.category ?? asset.category,
-    })),
+      ...(installedByKey.has(asset.key) ? {
+        name: installedByKey.get(asset.key)!.name,
+        category: installedByKey.get(asset.key)!.category,
+        source: installedByKey.get(asset.key)!.source,
+        intrinsicWidth: installedByKey.get(asset.key)!.intrinsicWidth,
+        intrinsicHeight: installedByKey.get(asset.key)!.intrinsicHeight,
+      } : {}),
+    })).concat(
+      installedAssets
+        .filter((asset) => !documentAssetKeys.has(asset.key))
+        .map((asset) => ({
+          ...asset,
+          anchors: asset.anchors.map((anchor) => ({ ...anchor })),
+        })),
+    ),
+    elements: document.elements.map((element) => (
+      element.assetKey === 'cabinet' && element.name === 'Cabinet'
+        ? { ...element, name: 'Cabinet A' }
+        : element
+    )),
     diagrams: document.diagrams.map((diagram) => ({
       ...diagram,
       canvas: { ...diagram.canvas, gridSize: EDITOR_GRID_SIZE },
     })),
   }
+  return projectDocumentSchema.parse(synchronized)
 }
 
 export function getDiagramPath(document: ProjectDocument, diagramId: string) {

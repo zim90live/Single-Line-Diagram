@@ -2,6 +2,28 @@ import { expect, test, type Locator } from '@playwright/test'
 
 import { GRID_DOT_SCREEN_RADIUS } from '../src/editor/gridScale'
 import { defaultConnectionColor } from '../src/editor/objectColors'
+import realSceneArchive from '../scene-archives/WuHu AIDC 0814.json' with { type: 'json' }
+
+const CONNECTED_REAL_SCENE_ELEMENT_IDS = [...new Set(
+  realSceneArchive.connections.flatMap((network) => network.nodes.flatMap((node) => (
+    node.kind === 'element-anchor' && 'elementId' in node ? [node.elementId] : []
+  ))),
+)]
+
+test('registers Cabinet A and Cabinet B as separate insertable symbols', async ({ page }) => {
+  await page.goto('/')
+
+  const cabinetA = page.getByTitle('拖动或双击插入Cabinet A')
+  const cabinetB = page.getByTitle('拖动或双击插入Cabinet B')
+  await expect(cabinetA).toBeVisible()
+  await expect(cabinetB).toBeVisible()
+
+  await cabinetA.dblclick()
+  await cabinetB.dblclick()
+
+  await expect(page.locator('.diagram-element[data-asset-key="cabinet"]')).toHaveCount(1)
+  await expect(page.locator('.diagram-element[data-asset-key="cabinet-b"]')).toHaveCount(1)
+})
 
 test('uses a flat four-region workspace with transparent canvas HUD', async ({ page }) => {
   await page.goto('/')
@@ -17,6 +39,40 @@ test('uses a flat four-region workspace with transparent canvas HUD', async ({ p
   await expect(canvasStage).toHaveCSS('border-radius', '0px')
   await expect(canvasFrame.locator('.canvas-titlebar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(canvasFrame.locator('.status-bar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('keeps zoom and pan as unsaved session-only view state', async ({ page }) => {
+  await page.goto('/')
+
+  const savedStatus = page.locator('.workspace-header').getByText('已保存', { exact: true })
+  const stage = page.getByTestId('diagram-canvas')
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  const zoomReadout = page.getByRole('button', { name: '重置画布缩放' })
+  await expect(savedStatus).toBeVisible()
+
+  await page.getByRole('button', { name: '放大画布' }).click()
+  await expect(zoomReadout).toHaveText('120%')
+  await expect(savedStatus).toBeVisible()
+
+  const canvasBox = await canvas.boundingBox()
+  if (!canvasBox) throw new Error('无法读取画布尺寸')
+  const center = {
+    x: canvasBox.x + canvasBox.width / 2,
+    y: canvasBox.y + canvasBox.height / 2,
+  }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.wheel(0, 120)
+  await expect(zoomReadout).not.toHaveText('120%')
+  await expect(savedStatus).toBeVisible()
+
+  const beforePanX = Number(await stage.getAttribute('data-grid-translation-x'))
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down({ button: 'middle' })
+  await page.mouse.move(center.x + 40, center.y + 24)
+  await page.mouse.up({ button: 'middle' })
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-x')))
+    .not.toBe(beforePanX)
+  await expect(savedStatus).toBeVisible()
 })
 
 test('copies and cuts selected objects across compatible diagrams', async ({ page }) => {
@@ -108,8 +164,47 @@ test('switches to monitor mode, locks editing, and toggles Switch runtime state'
 
   await page.getByRole('button', { name: '播放流动' }).click()
   await expect(page.getByRole('button', { name: '暂停流动' })).toBeVisible()
-  await expect(page.getByText('正在显示 Grid → POD 运行流向')).toBeVisible()
+  await expect(page.getByText('正在显示电力起点 → 终点运行流向')).toBeVisible()
   expect(pageErrors).toEqual([])
+})
+
+test('previews numeric and text metrics in edit mode and refreshes them in monitor mode', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByTitle('拖动或双击插入CHWP').dblclick()
+  const element = page.locator('.diagram-element[data-asset-key="chwp"]')
+  await element.locator('.diagram-element__image').click({ force: true })
+  await page.getByRole('switch', { name: '显示运行数据' }).click()
+  await page.getByRole('button', { name: '添加' }).click()
+  const numericMetricEditor = page.locator('.monitor-metric-editor__item').filter({ hasText: '指标 1' })
+  await numericMetricEditor.locator('summary').click()
+  await numericMetricEditor.getByLabel('单位').fill('kW')
+  await numericMetricEditor.getByLabel('单位').press('Enter')
+  await page.getByRole('button', { name: '添加' }).click()
+  const textMetricEditor = page.locator('.monitor-metric-editor__item').filter({ hasText: '指标 2' })
+  await textMetricEditor.locator('summary').click()
+  await textMetricEditor.getByLabel('数据类型').selectOption('text')
+
+  const editPreviewLabel = page.locator('.element-label').filter({ hasText: 'CHWP-01' })
+  await expect(editPreviewLabel.locator('.element-metric-row')).toHaveCount(2)
+  await expect(editPreviewLabel.locator('.element-metric-row__label').nth(0)).toHaveText('指标 1(kW)')
+  await expect(editPreviewLabel.locator('.element-metric-row__value').nth(0)).toHaveText('50.0')
+  await expect(editPreviewLabel.locator('.element-metric-row__label').nth(1)).toHaveText('指标 2')
+  await expect(editPreviewLabel.locator('.element-metric-row__value').nth(1)).toHaveText('运行')
+
+  await page.getByRole('tab', { name: '监控模式' }).click()
+  const combinedLabel = page.locator('.element-label').filter({ hasText: 'CHWP-01' })
+  await expect(combinedLabel).toHaveCount(1)
+  await expect(combinedLabel.locator('.element-metric-row__value').nth(0)).toHaveText(/^\d+\.\d$/)
+  await expect(combinedLabel.locator('.element-metric-row__value').nth(0))
+    .toHaveAttribute('data-severity', /^(normal|minor|major|critical)$/)
+  await expect(combinedLabel.locator('.element-metric-row__value').nth(1))
+    .toHaveText(/^(运行|停机|离线)$/)
+  await expect(combinedLabel.locator('.element-metric-row__value').nth(1))
+    .toHaveAttribute('data-severity', /^(normal|minor|major|critical)$/)
+  await expect(combinedLabel).not.toContainText('紧急')
+  await expect(combinedLabel).not.toContainText('重要')
+  await expect(combinedLabel).not.toContainText('次要')
 })
 
 test('loads the hybrid editor and completes the phase-one editing path', async ({ page }) => {
@@ -673,7 +768,7 @@ test('keeps real-scene connected moves clear of full-route main-thread blocking'
   await expect(page.getByText('已导入 WuHu AIDC 0814.json')).toBeVisible()
 
   const powerTree = page.locator('.tree-line').filter({ hasText: '电力线路' })
-  await powerTree.locator('.tree-row').first().click()
+  await powerTree.getByText('1 号楼', { exact: true }).click()
 
   const stage = page.getByTestId('diagram-canvas')
   await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })
@@ -739,8 +834,22 @@ test('keeps real-scene connected moves clear of full-route main-thread blocking'
   await page.keyboard.press('Escape')
   await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(0)
 
+  const interactiveConnectedElementId = await page.locator('.diagram-element').evaluateAll(
+    (nodes, connectedIds) => nodes.flatMap((node) => {
+      const elementId = (node as SVGGElement).dataset.elementId ?? ''
+      if (!connectedIds.includes(elementId)) return []
+      const rect = node.getBoundingClientRect()
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      const target = document.elementFromPoint(center.x, center.y)
+      return target?.closest('.diagram-element') === node ? [elementId] : []
+    })[0] ?? null,
+    CONNECTED_REAL_SCENE_ELEMENT_IDS,
+  )
+  if (!interactiveConnectedElementId) {
+    throw new Error('真实归档可视区域缺少可拖动的已接线图元')
+  }
   const connectedElement = page.locator(
-    '.diagram-element[data-element-id="2a3ad201-e791-402a-aa7b-63a75c6de1b7"] .diagram-element__image',
+    `.diagram-element[data-element-id="${interactiveConnectedElementId}"] .diagram-element__image`,
   )
 
   await page.evaluate(() => {

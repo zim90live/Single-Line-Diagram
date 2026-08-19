@@ -63,7 +63,8 @@ const metadata: SymbolMetadata[] = [
   { file: 'Transformer.svg', name: 'Transformer', category: '电力', width: 64, height: 64, configurableColor: true },
   { file: 'UPS.svg', name: 'UPS', category: '电力', width: 48, height: 48 },
   { file: 'CPD.svg', name: 'CPD', category: '冷却', width: 80, height: 80 },
-  { file: 'Cabinet.svg', name: 'Cabinet', category: '电力', width: 48, height: 48 },
+  { file: 'Cabinet A.svg', key: 'cabinet', name: 'Cabinet A', category: '电力', width: 48, height: 48 },
+  { file: 'Cabinet B.svg', key: 'cabinet-b', name: 'Cabinet B', category: '电力', width: 48, height: 48 },
   { file: 'ComputePOD.svg', name: '算力 POD', category: '电力', width: 64, height: 64 },
   { file: 'PowerPOD.svg', name: '动力 POD', category: '电力', width: 64, height: 64 },
 ]

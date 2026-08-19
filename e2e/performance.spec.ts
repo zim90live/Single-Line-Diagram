@@ -14,7 +14,7 @@ test('keeps real-scene routing incremental and mounts anchors only when needed',
   await expect(page.getByText('已导入 WuHu AIDC 0814.json')).toBeVisible()
 
   const powerTree = page.locator('.tree-line').filter({ hasText: '电力线路' })
-  await powerTree.locator('.tree-row').first().click()
+  await powerTree.getByText('1 号楼', { exact: true }).click()
 
   const stage = page.getByTestId('diagram-canvas')
   await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })

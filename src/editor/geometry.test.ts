@@ -69,6 +69,28 @@ describe('editor geometry', () => {
     expect(elementsEqual([createElement()], [createElement({ labelVisible: false })])).toBe(false)
   })
 
+  it('treats monitoring visibility and metric configuration as element history changes', () => {
+    expect(elementsEqual(
+      [createElement()],
+      [createElement({ monitorDataVisible: true })],
+    )).toBe(false)
+    expect(elementsEqual(
+      [createElement()],
+      [createElement({
+        monitorMetrics: [{
+          id: 'load',
+          name: '负载率',
+          valueType: 'number',
+          unit: '%',
+          precision: 1,
+          simulationMin: 0,
+          simulationMax: 100,
+          alarm: { mode: 'upper', minor: 70, major: 85, critical: 95 },
+        }],
+      })],
+    )).toBe(false)
+  })
+
   it('includes complete busbars in marquee selection and mixed bounds', () => {
     const busbar: Busbar = {
       id: 'busbar-1',

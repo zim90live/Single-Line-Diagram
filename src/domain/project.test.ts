@@ -430,6 +430,79 @@ describe('project document', () => {
     expect(parsed.assets[0].anchors).toEqual(document.assets[0].anchors)
   })
 
+  it('refreshes installed asset metadata, appends new assets, and preserves Cabinet data', () => {
+    const legacyCabinet = {
+      ...asset,
+      key: 'cabinet',
+      name: 'Cabinet',
+      category: '旧分类',
+      source: 'src/assets/symbols/Cabinet.svg',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+      anchors: [{
+        id: 'cabinet-anchor',
+        name: '电路 1',
+        x: 0,
+        y: 8,
+        direction: 'left' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const cabinetA = {
+      ...legacyCabinet,
+      name: 'Cabinet A',
+      category: '电力',
+      source: 'src/assets/symbols/Cabinet A.svg',
+      anchors: [],
+    }
+    const cabinetB = {
+      ...cabinetA,
+      key: 'cabinet-b',
+      name: 'Cabinet B',
+      source: 'src/assets/symbols/Cabinet B.svg',
+    }
+    const document = createDefaultProject('Cabinet 素材同步', [legacyCabinet])
+    document.elements.push(
+      {
+        id: 'default-cabinet-name',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cabinet',
+        name: 'Cabinet',
+        x: 0,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'custom-cabinet-name',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cabinet',
+        name: '东侧机柜',
+        x: 56,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+    )
+
+    const parsed = parseProjectDocument(document, [cabinetA, cabinetB])
+
+    expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
+      name: 'Cabinet A',
+      category: '电力',
+      source: 'src/assets/symbols/Cabinet A.svg',
+      anchors: legacyCabinet.anchors,
+    })
+    expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(cabinetB)
+    expect(parsed.elements.map((element) => element.name)).toEqual(['Cabinet A', '东侧机柜'])
+  })
+
   it('validates anchor grid, edge, corner, duplicate, and outward direction rules', () => {
     const valid = createDefaultProject('锚点校验', [{
       ...asset,
@@ -707,6 +780,79 @@ describe('project document', () => {
     document.busbars[0].x = 0
     document.busbars[0].diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
     expect(() => parseProjectDocument(document)).toThrow('必须属于有效的电力图纸')
+  })
+
+  it('migrates legacy numeric metrics and validates numeric and text monitoring metrics', () => {
+    const document = createDefaultProject('运行指标', [asset])
+    document.elements.push({
+      id: 'metric-element',
+      diagramId: document.diagrams[0].id,
+      assetKey: asset.key,
+      name: asset.name,
+      x: 0,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      labelVisible: false,
+      monitorDataVisible: true,
+      monitorMetrics: [{
+        id: 'temperature',
+        name: '出水温度',
+        valueType: 'number',
+        unit: '°C',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
+      }],
+      properties: { tag: 'CHWP-01' },
+      extensions: {},
+    })
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    expect(parsed.elements[0]).toMatchObject({
+      monitorDataVisible: true,
+      monitorMetrics: [{ name: '出水温度', valueType: 'number', precision: 1 }],
+    })
+
+    const schemaV14 = JSON.parse(JSON.stringify(document))
+    schemaV14.schemaVersion = 14
+    delete schemaV14.elements[0].monitorMetrics[0].valueType
+    expect(parseProjectDocument(schemaV14).elements[0].monitorMetrics?.[0])
+      .toMatchObject({ name: '出水温度', valueType: 'number' })
+
+    const textMetric = JSON.parse(JSON.stringify(document))
+    textMetric.elements[0].monitorMetrics = [{
+      id: 'running-state',
+      name: '运行状态',
+      valueType: 'text',
+      textOptions: [
+        { id: 'running', value: '运行', severity: 'normal' },
+        { id: 'offline', value: '离线', severity: 'critical' },
+      ],
+    }]
+    expect(parseProjectDocument(textMetric).elements[0].monitorMetrics?.[0])
+      .toMatchObject({ name: '运行状态', valueType: 'text' })
+
+    textMetric.elements[0].monitorMetrics[0].textOptions = []
+    expect(() => parseProjectDocument(textMetric)).toThrow('文本指标至少需要一个候选状态')
+
+    const legacy = JSON.parse(JSON.stringify(document))
+    legacy.schemaVersion = 13
+    delete legacy.elements[0].monitorDataVisible
+    delete legacy.elements[0].monitorMetrics
+    expect(parseProjectDocument(legacy).elements[0].monitorMetrics).toBeUndefined()
+
+    const duplicateIds = JSON.parse(JSON.stringify(document))
+    duplicateIds.elements[0].monitorMetrics.push({
+      ...duplicateIds.elements[0].monitorMetrics[0],
+    })
+    expect(() => parseProjectDocument(duplicateIds)).toThrow('运行指标 ID 必须唯一')
+
+    const invalidOrder = JSON.parse(JSON.stringify(document))
+    invalidOrder.elements[0].monitorMetrics[0].alarm.major = 50
+    expect(() => parseProjectDocument(invalidOrder)).toThrow('次要 < 重要 < 紧急')
   })
 
   it('rejects cyclic diagram hierarchy references', () => {

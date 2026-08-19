@@ -39,6 +39,7 @@ import {
   type SymbolColorSlot,
 } from '../editor/symbolCatalog'
 import { Button, NumericField, TextField } from './ui'
+import { MonitorMetricsEditor } from './MonitorMetricsEditor'
 
 interface PropertiesPanelProps {
   selectedElements: DiagramElement[]
@@ -722,6 +723,18 @@ export function PropertiesPanel({
           description="仅控制当前图元"
           checked={element.labelVisible !== false}
           onChange={(labelVisible) => onPatch(element.id, { labelVisible })}
+        />
+        <PropertyToggle
+          label="显示运行数据"
+          description={(element.monitorMetrics?.length ?? 0) > 0
+            ? '编辑预览 · 监控动态更新'
+            : '添加指标后生效'}
+          checked={element.monitorDataVisible === true}
+          onChange={(monitorDataVisible) => onPatch(element.id, { monitorDataVisible })}
+        />
+        <MonitorMetricsEditor
+          metrics={element.monitorMetrics ?? []}
+          onChange={(monitorMetrics) => onPatch(element.id, { monitorMetrics })}
         />
         {isSwitch ? (
           <PropertyToggle

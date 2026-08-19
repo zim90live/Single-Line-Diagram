@@ -154,6 +154,81 @@ describe('PropertiesPanel color property', () => {
     expect(onPatch).toHaveBeenLastCalledWith(current.id, { labelVisible: true })
   })
 
+  it('configures runtime-data visibility and metrics on the selected element instance', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const current = element('chwp', { tag: 'CHWP-01' })
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onPatch={onPatch}
+        onColorPreview={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const dataSwitch = screen.getByRole('switch', { name: '显示运行数据' })
+    expect(dataSwitch).toHaveAttribute('aria-checked', 'false')
+    await user.click(dataSwitch)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, { monitorDataVisible: true })
+
+    await user.click(screen.getByRole('button', { name: '添加' }))
+    const metricPatch = onPatch.mock.calls.find(([, patch]) => 'monitorMetrics' in patch)?.[1]
+    expect(metricPatch.monitorMetrics).toEqual([
+      expect.objectContaining({
+        id: expect.stringMatching(/^monitor-metric-/),
+        name: '指标 1',
+        valueType: 'number',
+        precision: 1,
+        alarm: { mode: 'upper', minor: 70, major: 85, critical: 95 },
+      }),
+    ])
+  })
+
+  it('converts an instance metric to text states with normal-dominant defaults', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const current: DiagramElement = {
+      ...element('chwp', { tag: 'CHWP-01' }),
+      monitorMetrics: [{
+        id: 'metric-1',
+        name: '运行状态',
+        valueType: 'number',
+        unit: '',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 70, major: 85, critical: 95 },
+      }],
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onPatch={onPatch}
+        onColorPreview={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByText('运行状态'))
+    await user.selectOptions(screen.getByLabelText('数据类型'), 'text')
+
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      monitorMetrics: [{
+        id: 'metric-1',
+        name: '运行状态',
+        valueType: 'text',
+        textOptions: [
+          expect.objectContaining({ value: '运行', severity: 'normal' }),
+          expect.objectContaining({ value: '停机', severity: 'major' }),
+          expect.objectContaining({ value: '离线', severity: 'critical' }),
+        ],
+      }],
+    })
+  })
+
   it('shows color editing for a supported symbol and commits the selected color', () => {
     const onPatch = vi.fn()
     const onColorPreview = vi.fn()

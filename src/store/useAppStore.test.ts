@@ -22,18 +22,9 @@ describe('app document state', () => {
     expect(useAppStore.getState().dirty).toBe(false)
   })
 
-  it('persists viewport changes and marks the project dirty', () => {
-    const { currentDiagramId } = useAppStore.getState()
-    useAppStore.getState().updateDiagramViewport(currentDiagramId, {
-      zoom: 1.5,
-      tx: 120,
-      ty: -30,
-    })
-    const diagram = useAppStore.getState().document.diagrams.find(
-      (candidate) => candidate.id === currentDiagramId,
-    )
-    expect(diagram?.canvas.viewport).toEqual({ zoom: 1.5, tx: 120, ty: -30 })
-    expect(useAppStore.getState().dirty).toBe(true)
+  it('keeps viewport mutation outside the business document store', () => {
+    expect('updateDiagramViewport' in useAppStore.getState()).toBe(false)
+    expect(useAppStore.getState().dirty).toBe(false)
   })
 
   it('applies asset anchors immediately and marks the project dirty', () => {

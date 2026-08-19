@@ -8,7 +8,6 @@ import {
   type Busbar,
   type ConnectionNetwork,
   type DiagramElement,
-  type DiagramViewport,
   type ProjectDocument,
   type SymbolAnchor,
 } from '../domain/project'
@@ -33,7 +32,6 @@ interface AppState {
     connections: ConnectionNetwork[],
   ) => void
   replaceAssetAnchors: (assetKey: string, anchors: SymbolAnchor[]) => void
-  updateDiagramViewport: (diagramId: string, viewport: DiagramViewport) => void
   renameProject: (name: string) => void
   markSaved: () => void
 }
@@ -149,30 +147,6 @@ export const useAppStore = create<AppState>((set) => ({
             document.elements,
             nextAssets,
             document.busbars,
-          ),
-        })),
-        dirty: true,
-      }
-    }),
-
-  updateDiagramViewport: (diagramId, viewport) =>
-    set((state) => {
-      const diagram = state.document.diagrams.find((candidate) => candidate.id === diagramId)
-      if (
-        !diagram ||
-        (diagram.canvas.viewport.zoom === viewport.zoom &&
-          diagram.canvas.viewport.tx === viewport.tx &&
-          diagram.canvas.viewport.ty === viewport.ty)
-      ) {
-        return state
-      }
-      return {
-        document: updateDocument(state.document, (document) => ({
-          ...document,
-          diagrams: document.diagrams.map((candidate) =>
-            candidate.id === diagramId
-              ? { ...candidate, canvas: { ...candidate.canvas, viewport } }
-              : candidate,
           ),
         })),
         dirty: true,

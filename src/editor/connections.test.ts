@@ -225,6 +225,55 @@ describe('connection topology and routing', () => {
     expect(routed.invalidEdgeIds).toEqual([])
   })
 
+  it('prefers fewer turns before shared segments on equal-length network routes', () => {
+    const left = powerElement('turn-priority-left', 0, 0)
+    const middle = powerElement('turn-priority-middle', 128, 0)
+    const target = {
+      ...powerElement('turn-priority-target', 256, 64),
+      rotation: 90,
+    }
+    const network: ConnectionNetwork = {
+      id: 'turn-priority-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'left-anchor', kind: 'element-anchor',
+          elementId: left.id, anchorId: 'bottom-electrical',
+        },
+        {
+          id: 'middle-anchor', kind: 'element-anchor',
+          elementId: middle.id, anchorId: 'bottom-electrical',
+        },
+        {
+          id: 'target-anchor', kind: 'element-anchor',
+          elementId: target.id, anchorId: 'bottom-electrical',
+        },
+      ],
+      edges: [
+        { id: 'existing-edge', sourceNodeId: 'middle-anchor', targetNodeId: 'target-anchor' },
+        { id: 'later-edge', sourceNodeId: 'left-anchor', targetNodeId: 'target-anchor' },
+      ],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [left, middle, target],
+      [directionalElectricalAsset],
+      8,
+    )
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(routed.edges[0].points).toEqual([
+      { x: 160, y: 64 },
+      { x: 160, y: 96 },
+      { x: 256, y: 96 },
+    ])
+    expect(routed.edges[1].points).toEqual([
+      { x: 32, y: 64 },
+      { x: 32, y: 96 },
+      { x: 256, y: 96 },
+    ])
+  })
+
   it('keeps routed trunks stable while moved element endpoints follow a lightweight preview', () => {
     const source = powerElement('preview-source', 64, -96)
     const left = powerElement('preview-left', 0, 80)

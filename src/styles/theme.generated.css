@@ -35,6 +35,9 @@
   --error: #df816f;
   --error-soft: rgba(223, 129, 111, 0.13);
   --warning: #d9a464;
+  --alarm-critical: #e36f62;
+  --alarm-major: #dc934f;
+  --alarm-minor: #d8bf63;
   --success: #8eac94;
   --success-soft: rgba(142, 172, 148, 0.13);
   --border-default: rgba(235, 237, 232, 0.11);

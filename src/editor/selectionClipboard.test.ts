@@ -6,6 +6,7 @@ import {
   centeredSelectionOffset,
   copyConnectionsWithinSelection,
   createEmptySelectionClipboard,
+  instantiateCopiedElement,
   instantiateCopiedConnections,
 } from './selectionClipboard'
 
@@ -135,5 +136,57 @@ describe('selection clipboard topology', () => {
       labelEndpoint: 'source',
       labelSide: 'positive',
     }))
+  })
+
+  it('copies monitoring configuration with fresh metric IDs and no runtime values', () => {
+    const source: DiagramElement = {
+      id: 'source-element',
+      diagramId: 'diagram-a',
+      assetKey: 'chwp',
+      name: 'CHWP',
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 40,
+      rotation: 0,
+      monitorDataVisible: true,
+      monitorMetrics: [{
+        id: 'source-temperature',
+        name: '出水温度',
+        valueType: 'number',
+        unit: '°C',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
+      }],
+      properties: { tag: 'CHWP-01' },
+      extensions: {},
+    }
+    const copy = instantiateCopiedElement(source, {
+      id: 'copy-element',
+      diagramId: 'diagram-b',
+      x: 80,
+      y: 80,
+    }, (prefix) => `${prefix}-copy`)
+
+    expect(copy).toMatchObject({
+      id: 'copy-element',
+      diagramId: 'diagram-b',
+      monitorDataVisible: true,
+      monitorMetrics: [{
+        id: 'monitor-metric-copy',
+        name: '出水温度',
+        alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
+      }],
+    })
+    expect(copy.monitorMetrics?.[0]).not.toBe(source.monitorMetrics?.[0])
+    const copiedMetric = copy.monitorMetrics?.[0]
+    const sourceMetric = source.monitorMetrics?.[0]
+    expect(copiedMetric?.valueType).toBe('number')
+    if (copiedMetric?.valueType === 'number' && sourceMetric?.valueType === 'number') {
+      expect(copiedMetric.alarm).not.toBe(sourceMetric.alarm)
+    }
+    expect(copy).not.toHaveProperty('monitorReadings')
   })
 })
