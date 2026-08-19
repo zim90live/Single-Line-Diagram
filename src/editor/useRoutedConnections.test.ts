@@ -64,4 +64,15 @@ describe('routed connection snapshots', () => {
       scopeKey: 'other:diagram',
     }).edges).toEqual([])
   })
+
+  it('reuses routed geometry when only edge display properties change', () => {
+    const completedInput = input()
+    const snapshot: RouteSnapshot = { input: completedInput, routed }
+    const displayOnlyInput = input([{
+      ...network,
+      edges: network.edges.map((edge) => ({ ...edge, label: 'Feeder' })),
+    }])
+
+    expect(routedConnectionsForInput(snapshot, displayOnlyInput)).toBe(routed)
+  })
 })

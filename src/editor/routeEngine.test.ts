@@ -44,6 +44,10 @@ class ControlledRunner implements RouteJobRunner {
   }
 }
 
+class CancellableControlledRunner extends ControlledRunner {
+  cancel = vi.fn()
+}
+
 describe('latest route scheduler', () => {
   it('keeps only the newest pending route request', () => {
     const runner = new ControlledRunner()
@@ -76,5 +80,24 @@ describe('latest route scheduler', () => {
 
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ scopeKey: 'only' }), emptyRoutes)
     expect(runner.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('cancels an active job and starts the latest request immediately when supported', () => {
+    const runner = new CancellableControlledRunner()
+    const apply = vi.fn()
+    const scheduler = createLatestRouteScheduler(runner, apply)
+
+    scheduler.request(input('stale'))
+    scheduler.request(input('latest'))
+
+    expect(runner.cancel).toHaveBeenCalledOnce()
+    expect(runner.jobs).toHaveLength(2)
+    expect(runner.jobs[1].job.input.scopeKey).toBe('latest')
+
+    runner.finish(0)
+    expect(apply).not.toHaveBeenCalled()
+    runner.finish(1)
+    expect(apply).toHaveBeenCalledOnce()
+    expect(apply.mock.calls[0][0].scopeKey).toBe('latest')
   })
 })

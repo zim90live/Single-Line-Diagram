@@ -197,7 +197,7 @@ export function FlowAnimationLayer({
     <div className="monitor-flow-layer" data-testid="monitor-flow-layer" aria-hidden="true">
       <Canvas
         orthographic
-        frameloop="always"
+        frameloop={reducedMotion ? 'demand' : 'always'}
         dpr={[1, 1.75]}
         camera={{ position: [0, 0, 1] }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}

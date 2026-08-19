@@ -89,6 +89,11 @@ function formatSavedTime(value: string) {
   }).format(new Date(value))
 }
 
+function isTextEditingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
+
 function ConfirmDialog({ request, onClose }: { request: ConfirmRequest; onClose: () => void }) {
   const [busy, setBusy] = useState(false)
   return (
@@ -306,6 +311,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleSaveShortcut)
   }, [saveProject])
 
+  useEffect(() => {
+    const handleClipboardShortcut = (event: globalThis.KeyboardEvent) => {
+      if (
+        workspaceMode !== 'edit' ||
+        event.defaultPrevented ||
+        event.repeat ||
+        isTextEditingTarget(event.target) ||
+        !(event.ctrlKey || event.metaKey)
+      ) return
+      const key = event.key.toLowerCase()
+      if (!['c', 'x', 'v'].includes(key)) return
+      event.preventDefault()
+      if (key === 'c') editorRef.current?.copy()
+      if (key === 'x') editorRef.current?.cut()
+      if (key === 'v') editorRef.current?.paste()
+    }
+    window.addEventListener('keydown', handleClipboardShortcut)
+    return () => window.removeEventListener('keydown', handleClipboardShortcut)
+  }, [workspaceMode])
+
   const confirmNewProject = () => {
     const create = () => {
       createProject()
@@ -480,64 +505,6 @@ export default function App() {
         </nav>
       </header>
 
-      <div className="context-toolbar">
-        <div className="location-control">
-          <Button
-            variant="neutral-ghost"
-            aria-label="返回上一级"
-            leadingIcon={<ArrowLeft />}
-            disabled={!parentDiagram}
-            onClick={() => { if (parentDiagram) setCurrentDiagram(parentDiagram.id) }}
-          >
-            返回
-          </Button>
-          <StatusTag tone={currentLine?.type === 'cooling' ? 'cooling' : 'electrical'} dot>
-            {currentLine?.name}
-          </StatusTag>
-          <nav className="breadcrumbs" aria-label="当前图纸路径">
-            {diagramPath.map((diagram, index) => (
-              <span key={diagram.id}>
-                {index ? <span className="breadcrumb-separator">/</span> : null}
-                <button type="button" onClick={() => setCurrentDiagram(diagram.id)}>{diagram.name}</button>
-              </span>
-            ))}
-          </nav>
-        </div>
-
-        <div className="edit-actions" aria-label={workspaceMode === 'edit' ? '画布编辑命令' : '监控命令'}>
-          {workspaceMode === 'edit' ? (
-            <>
-              <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
-              <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
-              <span className="toolbar-divider" />
-              <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
-              <IconButton label="粘贴" icon={<ClipboardPaste />} onClick={() => editorRef.current?.paste()} />
-              <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
-              <span className="toolbar-divider" />
-            </>
-          ) : (
-            <>
-              <Button
-                variant={animationPlaying ? 'primary-solid' : 'neutral-ghost'}
-                leadingIcon={animationPlaying ? <Pause /> : <Play />}
-                onClick={() => setAnimationPlaying((playing) => !playing)}
-              >
-                {animationPlaying ? '暂停流动' : '播放流动'}
-              </Button>
-              <StatusTag tone={animationPlaying ? 'success' : 'neutral'} dot>
-                {animationPlaying ? '动画运行中' : '动画已暂停'}
-              </StatusTag>
-              <span className="toolbar-divider" />
-            </>
-          )}
-          <IconButton label="缩小画布" icon={<Minus />} onClick={() => editorRef.current?.zoomOut()} />
-          <button type="button" className="zoom-readout" aria-label="重置画布缩放" onClick={() => editorRef.current?.zoomReset()}>
-            {Math.round(commandState.zoom * 100)}%
-          </button>
-          <IconButton label="放大画布" icon={<Plus />} onClick={() => editorRef.current?.zoomIn()} />
-        </div>
-      </div>
-
       <main className="workspace-main" data-mode={workspaceMode}>
         <aside className="left-sidebar" data-mode={workspaceMode}>
           <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
@@ -551,11 +518,11 @@ export default function App() {
           ) : null}
         </aside>
 
-        <section className="canvas-column" aria-label={`${currentDiagram.name}${workspaceMode === 'edit' ? '编辑区' : '监控区'}`}>
-          <div className="canvas-titlebar">
-            <div><strong>{currentDiagram.name}</strong><span>{currentElements.length} 个图元 · {currentBusbars.length} 条母线 · {currentConnections.length} 个线路网络</span></div>
-            <span className="canvas-hint">滚轮缩放 · 鼠标中键移动画布</span>
-          </div>
+        <section
+          className="canvas-column"
+          data-mode={workspaceMode}
+          aria-label={`${currentDiagram.name}${workspaceMode === 'edit' ? '编辑区' : '监控区'}`}
+        >
           <div className="canvas-frame">
             <DiagramCanvas
               ref={editorRef}
@@ -577,37 +544,95 @@ export default function App() {
               onCommandStateChange={setCommandState}
               onPointerChange={setPointerPosition}
               onSwitchStateChange={handleSwitchStateChange}
+              onActionMessage={showToast}
             />
+            <div className="canvas-titlebar" aria-label="画布信息与导航">
+              <IconButton
+                className="canvas-back-button"
+                label="返回上一级"
+                icon={<ArrowLeft />}
+                disabled={!parentDiagram}
+                onClick={() => { if (parentDiagram) setCurrentDiagram(parentDiagram.id) }}
+              />
+              <span className="canvas-line-context" data-line-type={currentLine?.type}>
+                {currentLine?.name}
+              </span>
+              <nav className="breadcrumbs" aria-label="当前图纸路径">
+                {diagramPath.map((diagram, index) => (
+                  <span key={diagram.id}>
+                    {index ? <span className="breadcrumb-separator">/</span> : null}
+                    <button
+                      type="button"
+                      aria-current={diagram.id === currentDiagram.id ? 'page' : undefined}
+                      onClick={() => setCurrentDiagram(diagram.id)}
+                    >
+                      {diagram.name}
+                    </button>
+                  </span>
+                ))}
+              </nav>
+              <span className="canvas-metrics">
+                {currentElements.length} 个图元 · {currentBusbars.length} 条母线 · {currentConnections.length} 个线路网络
+              </span>
+            </div>
+            <div
+              className="canvas-actionbar"
+              aria-label={workspaceMode === 'edit' ? '画布编辑命令' : '监控命令'}
+            >
+              {workspaceMode === 'edit' ? (
+                <>
+                  <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
+                  <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
+                  <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
+                  <IconButton label="粘贴" icon={<ClipboardPaste />} onClick={() => editorRef.current?.paste()} />
+                  <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
+                </>
+              ) : (
+                <IconButton
+                  label={animationPlaying ? '暂停流动' : '播放流动'}
+                  variant={animationPlaying ? 'primary-solid' : 'neutral-soft'}
+                  icon={animationPlaying ? <Pause /> : <Play />}
+                  onClick={() => setAnimationPlaying((playing) => !playing)}
+                />
+              )}
+            </div>
+            <div className="canvas-zoom-controls" aria-label="画布缩放">
+              <IconButton label="缩小画布" icon={<Minus />} onClick={() => editorRef.current?.zoomOut()} />
+              <button type="button" className="zoom-readout" aria-label="重置画布缩放" onClick={() => editorRef.current?.zoomReset()}>
+                {Math.round(commandState.zoom * 100)}%
+              </button>
+              <IconButton label="放大画布" icon={<Plus />} onClick={() => editorRef.current?.zoomIn()} />
+            </div>
             {currentElements.length === 0 && currentBusbars.length === 0 ? (
               <div className="canvas-empty-guide" aria-hidden="true">
                 <strong>{workspaceMode === 'edit' ? '从左侧拖入图元' : '当前图纸暂无监控对象'}</strong>
                 <span>{workspaceMode === 'edit' ? '或双击素材插入视口中心' : '切换到编辑模式添加图元与线路'}</span>
               </div>
             ) : null}
+            <footer className="status-bar">
+              <span>X {pointerPosition?.x ?? '—'}&nbsp;&nbsp;Y {pointerPosition?.y ?? '—'}</span>
+              <span>
+                网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
+              </span>
+              <span>
+                {workspaceMode === 'monitor'
+                  ? animationPlaying ? '正在显示 Grid → POD 运行流向' : '监控模式 · 点击 Switch 切换状态'
+                  : commandState.wiringType
+                  ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
+                  : commandState.selectedConnection && commandState.selectedBusbar
+                    ? '已选择母线与子线'
+                    : commandState.selectedConnection
+                      ? '已选择子线'
+                    : commandState.selectedBusbar
+                      ? '已选择母线'
+                    : selectedElements.length
+                      ? `已选择 ${selectedElements.length}`
+                      : '未选择图元'}
+              </span>
+              <span className="status-spacer" />
+              <span>图纸 ID {currentDiagram.id.slice(0, 12)}</span>
+            </footer>
           </div>
-          <footer className="status-bar">
-            <span>X {pointerPosition?.x ?? '—'}&nbsp;&nbsp;Y {pointerPosition?.y ?? '—'}</span>
-            <span>
-              网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
-            </span>
-            <span>
-              {workspaceMode === 'monitor'
-                ? animationPlaying ? '正在显示 Grid → POD 运行流向' : '监控模式 · 点击 Switch 切换状态'
-                : commandState.wiringType
-                ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
-                : commandState.selectedConnection && commandState.selectedBusbar
-                  ? '已选择母线与子线'
-                  : commandState.selectedConnection
-                    ? '已选择子线'
-                  : commandState.selectedBusbar
-                    ? '已选择母线'
-                  : selectedElements.length
-                    ? `已选择 ${selectedElements.length}`
-                    : '未选择图元'}
-            </span>
-            <span className="status-spacer" />
-            <span>图纸 ID {currentDiagram.id.slice(0, 12)}</span>
-          </footer>
         </section>
 
         {workspaceMode === 'edit' ? <PropertiesPanel

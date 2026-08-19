@@ -55,7 +55,7 @@ button:focus-visible,
 
 .app-shell {
   display: grid;
-  grid-template-rows: 52px 42px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-width: 1180px;
@@ -117,9 +117,9 @@ button:focus-visible,
 .brand-block,
 .project-name-control,
 .file-actions,
-.location-control,
-.edit-actions,
 .canvas-titlebar,
+.canvas-actionbar,
+.canvas-zoom-controls,
 .status-bar,
 .tree-line__heading,
 .tree-row,
@@ -243,23 +243,6 @@ button:focus-visible,
   background: var(--divider);
 }
 
-.context-toolbar {
-  z-index: 5;
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-lg);
-  padding: 0 10px 0 8px;
-  border-bottom: 1px solid var(--divider);
-  background: color-mix(in srgb, var(--panel) 94%, var(--canvas));
-}
-
-.location-control {
-  min-width: 0;
-  gap: 8px;
-}
-
 .breadcrumbs {
   min-width: 0;
   overflow: hidden;
@@ -289,10 +272,6 @@ button:focus-visible,
 .breadcrumb-separator {
   padding: 0 7px;
   color: color-mix(in srgb, var(--dim) 60%, transparent);
-}
-
-.edit-actions {
-  gap: 3px;
 }
 
 .zoom-readout {
@@ -656,53 +635,110 @@ button:focus-visible,
 }
 
 .canvas-column {
-  display: grid;
-  grid-template-rows: 34px minmax(0, 1fr) 26px;
+  position: relative;
   min-width: 0;
   min-height: 0;
   background: var(--canvas-deep);
 }
 
 .canvas-titlebar {
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--divider);
+  position: absolute;
+  z-index: 7;
+  top: 32px;
+  left: 32px;
+  max-width: calc(100% - 252px);
+  height: 28px;
+  gap: 8px;
+  overflow: hidden;
   color: var(--dim);
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  background: transparent;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
-.canvas-titlebar > div {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
+.canvas-titlebar button,
+.canvas-actionbar,
+.canvas-zoom-controls {
+  pointer-events: auto;
 }
 
-.canvas-titlebar strong {
-  color: var(--ink);
-  font-size: var(--text-body);
+.canvas-titlebar .canvas-back-button {
+  flex: 0 0 auto;
 }
 
-.canvas-titlebar span {
+.canvas-line-context {
+  flex: 0 0 auto;
+  color: var(--muted);
   font-size: var(--text-caption);
+}
+
+.canvas-line-context[data-line-type='cooling'] {
+  color: var(--cooling);
+}
+
+.canvas-line-context[data-line-type='power'] {
+  color: var(--electrical);
+}
+
+.canvas-titlebar .breadcrumbs {
+  pointer-events: none;
+}
+
+.canvas-titlebar .breadcrumbs button {
+  pointer-events: auto;
+}
+
+.canvas-titlebar .breadcrumbs button[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.canvas-titlebar span,
+.canvas-titlebar button {
+  font-size: var(--text-caption);
+}
+
+.canvas-metrics {
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+
+.canvas-actionbar {
+  position: absolute;
+  z-index: 7;
+  top: 32px;
+  right: 6px;
+  gap: 3px;
+  background: transparent;
+}
+
+.canvas-zoom-controls {
+  position: absolute;
+  z-index: 7;
+  right: 6px;
+  bottom: 6px;
+  gap: 3px;
+  background: transparent;
 }
 
 .canvas-frame {
   position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  padding: 7px;
+  padding: 0;
 }
 
 .canvas-stage {
   position: absolute;
-  inset: 7px;
+  inset: 0;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
   grid-template-rows: 26px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border: 0;
+  border-radius: 0;
   background: #121316;
 }
 
@@ -1121,15 +1157,22 @@ button:focus-visible,
 }
 
 .status-bar {
+  position: absolute;
+  z-index: 7;
+  right: 186px;
+  bottom: 6px;
+  left: 32px;
+  height: 28px;
   gap: 17px;
-  padding: 0 10px;
+  padding: 0;
   overflow: hidden;
-  border-top: 1px solid var(--divider);
+  border: 0;
   color: var(--dim);
-  background: var(--panel);
+  background: transparent;
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
   white-space: nowrap;
 }
 

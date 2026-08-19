@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, type Ref } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,7 @@ vi.mock('./editor/DiagramCanvas', () => ({
       undo: vi.fn(),
       redo: vi.fn(),
       copy: vi.fn(),
+      cut: vi.fn(),
       paste: vi.fn(),
       duplicate: duplicateMock,
       deleteSelected: vi.fn(),
@@ -81,7 +82,7 @@ describe('AIDC editor workspace', () => {
   })
 
   it('renders the project, both line trees, canvas, symbols, and properties panel', () => {
-    renderApp()
+    const { container } = renderApp()
 
     expect(screen.getByLabelText('项目名称')).toHaveValue('测试接线图')
     expect(screen.getAllByText('冷却线路').length).toBeGreaterThanOrEqual(1)
@@ -90,6 +91,16 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByText('CHWP')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '母线' })).toBeDisabled()
     expect(screen.getByText('点击颜色，替换当前画布中同类同色对象。')).toBeInTheDocument()
+
+    const canvasFrame = container.querySelector('.canvas-frame')
+    expect(canvasFrame).not.toBeNull()
+    expect(container.querySelector('.context-toolbar')).not.toBeInTheDocument()
+    expect(canvasFrame?.querySelector('.canvas-titlebar')).not.toBeNull()
+    expect(canvasFrame?.querySelector('.status-bar')).not.toBeNull()
+    expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '返回上一级' })).toBeDisabled()
+    expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '缩小画布' })).toBeEnabled()
+    expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '重置画布缩放' })).toBeEnabled()
+    expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '放大画布' })).toBeEnabled()
   })
 
   it('enables the busbar tool only on power diagrams', async () => {

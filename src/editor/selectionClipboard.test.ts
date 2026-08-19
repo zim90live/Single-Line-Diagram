@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ConnectionNetwork } from '../domain/project'
+import type { Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
 import {
+  clipboardCanPasteInto,
+  centeredSelectionOffset,
   copyConnectionsWithinSelection,
+  createEmptySelectionClipboard,
   instantiateCopiedConnections,
 } from './selectionClipboard'
 
@@ -31,6 +34,52 @@ const network: ConnectionNetwork = {
 }
 
 describe('selection clipboard topology', () => {
+  it('starts empty and only permits the matching line system', () => {
+    const clipboard = {
+      ...createEmptySelectionClipboard(),
+      sourceDiagramId: 'cooling-a',
+      sourceLineSystemType: 'cooling' as const,
+    }
+
+    expect(clipboardCanPasteInto(clipboard, 'cooling')).toBe(true)
+    expect(clipboardCanPasteInto(clipboard, 'power')).toBe(false)
+    expect(createEmptySelectionClipboard()).toEqual(expect.objectContaining({
+      operation: 'copy',
+      sourceDiagramId: null,
+      elements: [],
+      busbars: [],
+      connections: [],
+    }))
+  })
+
+  it('centers mixed copied objects on the target viewport while preserving 8px geometry', () => {
+    const element: DiagramElement = {
+      id: 'element-a',
+      diagramId: 'diagram-a',
+      assetKey: 'switch',
+      name: 'Switch',
+      x: 16,
+      y: 24,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const busbar: Busbar = {
+      id: 'busbar-a',
+      diagramId: 'diagram-a',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 80,
+      y: 80,
+      length: 64,
+    }
+
+    expect(centeredSelectionOffset([element], [busbar], { x: 404, y: 300 }, 8))
+      .toEqual({ x: 328, y: 248 })
+  })
+
   it('copies only logical edges whose endpoint objects are both selected', () => {
     const copied = copyConnectionsWithinSelection(
       [network],

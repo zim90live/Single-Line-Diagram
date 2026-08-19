@@ -3,6 +3,66 @@ import { expect, test, type Locator } from '@playwright/test'
 import { GRID_DOT_SCREEN_RADIUS } from '../src/editor/gridScale'
 import { defaultConnectionColor } from '../src/editor/objectColors'
 
+test('uses a flat four-region workspace with transparent canvas HUD', async ({ page }) => {
+  await page.goto('/')
+
+  const canvasFrame = page.locator('.canvas-frame')
+  const canvasStage = canvasFrame.locator('.canvas-stage')
+  await expect(page.locator('.context-toolbar')).toHaveCount(0)
+  await expect(canvasFrame.locator('.canvas-titlebar')).toHaveCount(1)
+  await expect(canvasFrame.locator('.status-bar')).toHaveCount(1)
+  await expect(canvasFrame.getByRole('button', { name: '返回上一级' })).toBeVisible()
+  await expect(canvasFrame.getByRole('button', { name: '缩小画布' })).toBeVisible()
+  await expect(canvasFrame).toHaveCSS('padding', '0px')
+  await expect(canvasStage).toHaveCSS('border-radius', '0px')
+  await expect(canvasFrame.locator('.canvas-titlebar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(canvasFrame.locator('.status-bar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('copies and cuts selected objects across compatible diagrams', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByTitle('拖动或双击插入CHWP').dblclick()
+  const sourceElement = page.locator('.diagram-element[data-asset-key="chwp"]')
+  await expect(sourceElement).toHaveCount(1)
+  await sourceElement.locator('.diagram-element__image').click({ force: true })
+  await page.keyboard.press('Control+c')
+
+  const coolingTree = page.locator('.tree-line').filter({ hasText: '冷却线路' })
+  await coolingTree.getByText('1 号楼', { exact: true }).click()
+  await expect(page.getByRole('region', { name: '1 号楼编辑区' })).toBeVisible()
+  await page.keyboard.press('Control+v')
+
+  const copiedElement = page.locator('.diagram-element[data-asset-key="chwp"]')
+  await expect(copiedElement).toHaveCount(1)
+  await expect(copiedElement).toHaveAttribute('data-selected', 'true')
+  const targetCanvasBox = await page.getByLabel('一次接线图编辑画布').boundingBox()
+  const copiedImageBox = await copiedElement.locator('.diagram-element__image').boundingBox()
+  if (!targetCanvasBox || !copiedImageBox) throw new Error('无法读取跨图纸粘贴位置')
+  expect(copiedImageBox.x + copiedImageBox.width / 2).toBeCloseTo(
+    targetCanvasBox.x + targetCanvasBox.width / 2,
+    -1,
+  )
+  expect(copiedImageBox.y + copiedImageBox.height / 2).toBeCloseTo(
+    targetCanvasBox.y + targetCanvasBox.height / 2,
+    -1,
+  )
+
+  await page.keyboard.press('Control+x')
+  await expect(copiedElement).toHaveCount(0)
+  await coolingTree.getByText('园区总图', { exact: true }).click()
+  await page.keyboard.press('Control+v')
+  await expect(sourceElement).toHaveCount(2)
+  await expect(page.locator('.diagram-element[data-selected="true"]')).toHaveCount(1)
+
+  await page.keyboard.press('Control+c')
+  const powerTree = page.locator('.tree-line').filter({ hasText: '电力线路' })
+  await powerTree.getByText('园区总图', { exact: true }).click()
+  await page.keyboard.press('Control+v')
+  await expect(page.locator('.diagram-element')).toHaveCount(0)
+  await expect(page.getByText('只能粘贴到相同线路系统的图纸。')).toBeVisible()
+})
+
 test('switches to monitor mode, locks editing, and toggles Switch runtime state', async ({ page }) => {
   const offColor = defaultConnectionColor('cooling-secondary-cold')
   const onColor = defaultConnectionColor('cooling-primary-hot')
@@ -48,7 +108,7 @@ test('switches to monitor mode, locks editing, and toggles Switch runtime state'
 
   await page.getByRole('button', { name: '播放流动' }).click()
   await expect(page.getByRole('button', { name: '暂停流动' })).toBeVisible()
-  await expect(page.getByText('动画运行中')).toBeVisible()
+  await expect(page.getByText('正在显示 Grid → POD 运行流向')).toBeVisible()
   expect(pageErrors).toEqual([])
 })
 
@@ -866,7 +926,7 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await expect(page.locator('.busbar')).toHaveAttribute('data-orientation', 'vertical')
   await page.getByRole('button', { name: '撤销' }).click()
   await expect(page.locator('.busbar')).toHaveAttribute('data-orientation', 'horizontal')
-  await page.mouse.click(canvasBox.x + canvasBox.width - 24, canvasBox.y + 24)
+  await page.mouse.click(canvasBox.x + canvasBox.width - 180, canvasBox.y + 24)
 
   const busbarQuarterPoint = await busbarHit.evaluate((node) => {
     const path = node as SVGPathElement
@@ -1146,10 +1206,10 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
   ))).toBe('#77B4BF')
   const childCanvasBox = await canvas.boundingBox()
   if (!childCanvasBox) throw new Error('无法读取子线测试画布尺寸')
-  await canvas.click({ position: { x: childCanvasBox.width - 24, y: childCanvasBox.height - 24 } })
+  await canvas.click({ position: { x: childCanvasBox.width - 180, y: childCanvasBox.height - 24 } })
   await page.locator('.connection-edge__hit').click({ force: true })
   await expect(page.getByLabel('子线颜色 HEX')).toHaveValue('#77B4BF')
-  await canvas.click({ position: { x: childCanvasBox.width - 24, y: childCanvasBox.height - 24 } })
+  await canvas.click({ position: { x: childCanvasBox.width - 180, y: childCanvasBox.height - 24 } })
   const globalChildColor = page.getByRole('button', {
     name: '全局修改子线颜色 #77B4BF',
   })

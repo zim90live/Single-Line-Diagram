@@ -1,18 +1,18 @@
-import type {
-  AssetDefinition,
-  Busbar,
-  ConnectionNetwork,
-  DiagramElement,
-} from '../domain/project'
-import { routeConnectionNetworks, type RoutedConnections } from './connections'
+import {
+  routeConnectionNetworksIncrementally,
+  type ConnectionRouteInput,
+  type RoutedConnections,
+} from './connections'
 
-export interface RouteComputationInput {
+export interface RouteComputationInput extends ConnectionRouteInput {
   scopeKey: string
-  networks: ConnectionNetwork[]
-  elements: DiagramElement[]
-  assets: AssetDefinition[]
-  gridSize: number
-  busbars: Busbar[]
+}
+
+export interface RouteComputationStats {
+  durationMs: number
+  mode: 'full' | 'incremental' | 'reused'
+  dirtyNetworkCount: number
+  reusedEdgeCount: number
 }
 
 export interface RouteJob {
@@ -23,10 +23,12 @@ export interface RouteJob {
 export interface RouteJobResult {
   id: number
   routed: RoutedConnections
+  stats?: RouteComputationStats
 }
 
 export interface RouteJobRunner {
   run: (job: RouteJob, complete: (result: RouteJobResult) => void) => void
+  cancel?: () => void
   dispose: () => void
 }
 
@@ -37,7 +39,11 @@ export interface LatestRouteScheduler {
 
 export function createLatestRouteScheduler(
   runner: RouteJobRunner,
-  apply: (input: RouteComputationInput, routed: RoutedConnections) => void,
+  apply: (
+    input: RouteComputationInput,
+    routed: RoutedConnections,
+    stats?: RouteComputationStats,
+  ) => void,
 ): LatestRouteScheduler {
   let nextId = 1
   let latestId = 0
@@ -51,7 +57,10 @@ export function createLatestRouteScheduler(
       if (disposed || active?.id !== result.id) return
       const completed = active
       active = null
-      if (completed.id === latestId) apply(completed.input, result.routed)
+      if (completed.id === latestId) {
+        if (result.stats) apply(completed.input, result.routed, result.stats)
+        else apply(completed.input, result.routed)
+      }
       const next = pending
       pending = null
       if (next) start(next)
@@ -63,7 +72,12 @@ export function createLatestRouteScheduler(
       if (disposed) return latestId
       const job = { id: nextId++, input }
       latestId = job.id
-      if (active) pending = job
+      if (active && runner.cancel) {
+        pending = null
+        active = null
+        runner.cancel()
+        start(job)
+      } else if (active) pending = job
       else start(job)
       return job.id
     },
@@ -78,26 +92,39 @@ export function createLatestRouteScheduler(
 
 class DeferredMainThreadRouteRunner implements RouteJobRunner {
   private timer: number | null = null
+  private completed: { input: RouteComputationInput; routed: RoutedConnections } | null = null
 
   run(job: RouteJob, complete: (result: RouteJobResult) => void) {
     this.timer = window.setTimeout(() => {
       this.timer = null
+      const startedAt = performance.now()
+      const incremental = routeConnectionNetworksIncrementally(
+        this.completed?.input.scopeKey === job.input.scopeKey ? this.completed.input : null,
+        this.completed?.input.scopeKey === job.input.scopeKey ? this.completed.routed : null,
+        job.input,
+      )
+      this.completed = { input: job.input, routed: incremental.routed }
       complete({
         id: job.id,
-        routed: routeConnectionNetworks(
-          job.input.networks,
-          job.input.elements,
-          job.input.assets,
-          job.input.gridSize,
-          job.input.busbars,
-        ),
+        routed: incremental.routed,
+        stats: {
+          durationMs: performance.now() - startedAt,
+          mode: incremental.mode,
+          dirtyNetworkCount: incremental.dirtyNetworkCount,
+          reusedEdgeCount: incremental.reusedEdgeCount,
+        },
       })
     }, 0)
   }
 
-  dispose() {
+  cancel = () => {
     if (this.timer !== null) window.clearTimeout(this.timer)
     this.timer = null
+  }
+
+  dispose() {
+    this.cancel()
+    this.completed = null
   }
 }
 
@@ -110,6 +137,10 @@ class WorkerRouteRunner implements RouteJobRunner {
   } | null = null
 
   constructor() {
+    this.createWorker()
+  }
+
+  private createWorker() {
     try {
       this.worker = new Worker(new URL('./route.worker.ts', import.meta.url), { type: 'module' })
       this.worker.addEventListener('message', this.handleMessage)
@@ -133,12 +164,16 @@ class WorkerRouteRunner implements RouteJobRunner {
   }
 
   dispose() {
-    this.worker?.removeEventListener('message', this.handleMessage)
-    this.worker?.removeEventListener('error', this.handleError)
-    this.worker?.terminate()
-    this.worker = null
+    this.destroyWorker()
     this.active = null
     this.fallback.dispose()
+  }
+
+  cancel = () => {
+    this.active = null
+    this.fallback.cancel()
+    this.destroyWorker()
+    this.createWorker()
   }
 
   private handleMessage = (event: MessageEvent<RouteJobResult>) => {
@@ -155,10 +190,16 @@ class WorkerRouteRunner implements RouteJobRunner {
 
   private fallbackFromWorker() {
     const current = this.active
-    this.worker?.terminate()
-    this.worker = null
+    this.destroyWorker()
     this.active = null
     if (current) this.fallback.run(current.job, current.complete)
+  }
+
+  private destroyWorker() {
+    this.worker?.removeEventListener('message', this.handleMessage)
+    this.worker?.removeEventListener('error', this.handleError)
+    this.worker?.terminate()
+    this.worker = null
   }
 }
 

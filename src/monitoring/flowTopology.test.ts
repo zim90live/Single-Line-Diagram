@@ -38,7 +38,7 @@ describe('monitor power flow topology', () => {
     expect(flow.energizedElementIds).toEqual(new Set(['grid', 'switch']))
   })
 
-  it('keeps source-side feeder flow before the line adjacent to an open Switch', () => {
+  it('hides the whole source-side chain when an open Switch leaves no reachable target', () => {
     const feederElements: DiagramElement[] = [
       elements[0],
       { id: 'transformer', diagramId: 'd', assetKey: 'transformer', name: 'Transformer', x: 48, y: 0, width: 32, height: 32, rotation: 0, properties: {}, extensions: {} },
@@ -69,7 +69,91 @@ describe('monitor power flow topology', () => {
       switchStates: { switch: false },
     })
 
-    expect(flow.edges).toEqual([{ edgeId: 'source-feeder', direction: 'forward' }])
+    expect(flow.edges).toEqual([])
+  })
+
+  it('does not animate a closed source chain without a business target', () => {
+    const noTargetNetwork: ConnectionNetwork = {
+      ...network,
+      nodes: network.nodes.filter((node) => node.id !== 'pod-node'),
+      edges: network.edges.filter((edge) => edge.id !== 'downstream'),
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: elements.filter((element) => element.id !== 'pod'),
+      busbars: [],
+      networks: [noTargetNetwork],
+      switchStates: { switch: true },
+    })
+
+    expect(flow.edges).toEqual([])
+  })
+
+  it('keeps a valid target path but removes a dead-end branch', () => {
+    const branchElement: DiagramElement = {
+      id: 'cabinet', diagramId: 'd', assetKey: 'cabinet', name: 'Cabinet',
+      x: 160, y: 80, width: 64, height: 64, rotation: 0, properties: {}, extensions: {},
+    }
+    const branchedNetwork: ConnectionNetwork = {
+      id: 'branched-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+        { id: 'cabinet-node', kind: 'element-anchor', elementId: 'cabinet', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'target-feed', sourceNodeId: 'grid-node', targetNodeId: 'pod-node' },
+        { id: 'dead-end', sourceNodeId: 'grid-node', targetNodeId: 'cabinet-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [elements[0], elements[2], branchElement],
+      busbars: [],
+      networks: [branchedNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([{ edgeId: 'target-feed', direction: 'forward' }])
+  })
+
+  it('keeps all equally short valid paths to a target', () => {
+    const left: DiagramElement = {
+      id: 'left', diagramId: 'd', assetKey: 'cabinet', name: 'Left',
+      x: 80, y: -40, width: 64, height: 64, rotation: 0, properties: {}, extensions: {},
+    }
+    const right: DiagramElement = {
+      ...left, id: 'right', name: 'Right', y: 40,
+    }
+    const parallelNetwork: ConnectionNetwork = {
+      id: 'parallel-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'in' },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'in' },
+        { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'left-in', sourceNodeId: 'grid-node', targetNodeId: 'left-node' },
+        { id: 'left-out', sourceNodeId: 'left-node', targetNodeId: 'pod-node' },
+        { id: 'right-in', sourceNodeId: 'grid-node', targetNodeId: 'right-node' },
+        { id: 'right-out', sourceNodeId: 'right-node', targetNodeId: 'pod-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [elements[0], elements[2], left, right],
+      busbars: [],
+      networks: [parallelNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'left-in', direction: 'forward' },
+      { edgeId: 'left-out', direction: 'forward' },
+      { edgeId: 'right-in', direction: 'forward' },
+      { edgeId: 'right-out', direction: 'forward' },
+    ])
   })
 
   it('restores downstream flow when the Switch is closed', () => {
@@ -87,27 +171,34 @@ describe('monitor power flow topology', () => {
     expect(flow.energizedElementIds).toEqual(new Set(['grid', 'switch', 'pod']))
   })
 
-  it('directs busbar spans away from the energized tap', () => {
+  it('directs only the busbar spans that lead to a business target', () => {
     const busbars: Busbar[] = [{
       id: 'busbar', diagramId: 'd', type: 'electrical', orientation: 'horizontal',
-      x: 0, y: 64, length: 160,
+      x: 0, y: 64, length: 192,
     }]
+    const cabinet: DiagramElement = {
+      id: 'cabinet', diagramId: 'd', assetKey: 'cabinet', name: 'Cabinet',
+      x: 192, y: 64, width: 64, height: 64, rotation: 0, properties: {}, extensions: {},
+    }
     const busbarNetwork: ConnectionNetwork = {
       id: 'busbar-network', diagramId: 'd', type: 'electrical',
       nodes: [
         { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
         { id: 'tap-source', kind: 'busbar-tap', busbarId: 'busbar', offset: 32 },
         { id: 'tap-target', kind: 'busbar-tap', busbarId: 'busbar', offset: 128 },
+        { id: 'tap-dead-end', kind: 'busbar-tap', busbarId: 'busbar', offset: 160 },
         { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+        { id: 'cabinet-node', kind: 'element-anchor', elementId: 'cabinet', anchorId: 'in' },
       ],
       edges: [
         { id: 'feed', sourceNodeId: 'grid-node', targetNodeId: 'tap-source' },
         { id: 'load', sourceNodeId: 'tap-target', targetNodeId: 'pod-node' },
+        { id: 'dead-end', sourceNodeId: 'tap-dead-end', targetNodeId: 'cabinet-node' },
       ],
     }
 
     const flow = derivePowerFlowTopology({
-      elements,
+      elements: [...elements, cabinet],
       busbars,
       networks: [busbarNetwork],
       switchStates: {},
@@ -118,5 +209,9 @@ describe('monitor power flow topology', () => {
       start: { x: 32, y: 64 },
       end: { x: 128, y: 64 },
     })])
+    expect(flow.edges).toEqual([
+      { edgeId: 'feed', direction: 'forward' },
+      { edgeId: 'load', direction: 'forward' },
+    ])
   })
 })

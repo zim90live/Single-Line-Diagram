@@ -32,10 +32,11 @@ interface GraphLink {
   to: string
   kind: 'line' | 'internal' | 'busbar'
   edgeId?: string
-  busbarId?: string
+  busbarLinkId?: string
 }
 
 interface BusbarGraphLink {
+  id: string
   busbarId: string
   leftNodeId: string
   rightNodeId: string
@@ -65,6 +66,31 @@ function connectNodeGroup(
   for (let index = 1; index < nodeIds.length; index += 1) {
     connectPair(adjacency, nodeIds[index - 1], nodeIds[index], { kind })
   }
+}
+
+function graphDistances(
+  adjacency: Map<string, GraphLink[]>,
+  sourceNodeIds: string[],
+  blockedLineEdgeIds: Set<string> = new Set(),
+) {
+  const distance = new Map<string, number>()
+  const queue: string[] = []
+  for (const nodeId of sourceNodeIds) {
+    if (distance.has(nodeId)) continue
+    distance.set(nodeId, 0)
+    queue.push(nodeId)
+  }
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const nodeId = queue[cursor]
+    const nextDistance = (distance.get(nodeId) ?? 0) + 1
+    for (const link of adjacency.get(nodeId) ?? []) {
+      if (link.edgeId && blockedLineEdgeIds.has(link.edgeId)) continue
+      if (distance.has(link.to)) continue
+      distance.set(link.to, nextDistance)
+      queue.push(link.to)
+    }
+  }
+  return distance
 }
 
 export function derivePowerFlowTopology({
@@ -136,8 +162,9 @@ export function derivePowerFlowTopology({
     for (let index = 1; index < ordered.length; index += 1) {
       const left = ordered[index - 1]
       const right = ordered[index]
-      connectPair(adjacency, left.id, right.id, { kind: 'busbar', busbarId })
-      busbarLinks.push({ busbarId, leftNodeId: left.id, rightNodeId: right.id })
+      const id = `busbar-flow:${busbarId}:${left.id}:${right.id}`
+      connectPair(adjacency, left.id, right.id, { kind: 'busbar', busbarLinkId: id })
+      busbarLinks.push({ id, busbarId, leftNodeId: left.id, rightNodeId: right.id })
     }
   }
 
@@ -146,33 +173,51 @@ export function derivePowerFlowTopology({
     const element = elementsById.get(node.elementId)
     return element && POWER_SOURCE_ASSET_KEYS.has(element.assetKey) ? [node.id] : []
   })
-  const distance = new Map<string, number>()
-  const queue: string[] = []
-  for (const nodeId of sourceNodeIds) {
-    if (distance.has(nodeId)) continue
-    distance.set(nodeId, 0)
-    queue.push(nodeId)
-  }
-  for (let cursor = 0; cursor < queue.length; cursor += 1) {
-    const nodeId = queue[cursor]
-    const nextDistance = (distance.get(nodeId) ?? 0) + 1
+  const targetNodeIds = nodes.flatMap((node) => {
+    if (node.kind !== 'element-anchor') return []
+    const element = elementsById.get(node.elementId)
+    return element && POWER_TARGET_ASSET_KEYS.has(element.assetKey) ? [node.id] : []
+  })
+  const blockedLineEdgeIds = new Set(networks.flatMap((network) => (
+    network.edges.flatMap((edge) => (
+      openSwitchNodeIds.has(edge.sourceNodeId) || openSwitchNodeIds.has(edge.targetNodeId)
+        ? [edge.id]
+        : []
+    ))
+  )))
+  const energizedDistance = graphDistances(adjacency, sourceNodeIds)
+  const distance = graphDistances(adjacency, sourceNodeIds, blockedLineEdgeIds)
+
+  // Trace the shortest-path predecessor DAG backwards from every reachable
+  // business target. This keeps shared supply trunks while excluding complete
+  // source-only components and dead-end branches that do not feed a POD.
+  const flowingEdgeIds = new Set<string>()
+  const flowingBusbarLinkIds = new Set<string>()
+  const tracedNodeIds = new Set<string>()
+  const traceQueue = targetNodeIds.filter((nodeId) => {
+    if (!distance.has(nodeId) || tracedNodeIds.has(nodeId)) return false
+    tracedNodeIds.add(nodeId)
+    return true
+  })
+  for (let cursor = 0; cursor < traceQueue.length; cursor += 1) {
+    const nodeId = traceQueue[cursor]
+    const nodeDistance = distance.get(nodeId)
+    if (nodeDistance === undefined || nodeDistance === 0) continue
     for (const link of adjacency.get(nodeId) ?? []) {
-      if (distance.has(link.to)) continue
-      distance.set(link.to, nextDistance)
-      queue.push(link.to)
+      if (link.edgeId && blockedLineEdgeIds.has(link.edgeId)) continue
+      if (distance.get(link.to) !== nodeDistance - 1) continue
+      if (link.edgeId) flowingEdgeIds.add(link.edgeId)
+      if (link.busbarLinkId) flowingBusbarLinkIds.add(link.busbarLinkId)
+      if (tracedNodeIds.has(link.to)) continue
+      tracedNodeIds.add(link.to)
+      traceQueue.push(link.to)
     }
   }
 
   const directedEdges: DirectedFlowEdge[] = []
   for (const network of networks) {
     for (const edge of network.edges) {
-      // An open switch visually interrupts every conductor that terminates on it.
-      // The graph still reaches the source-side anchor so upstream topology can be
-      // evaluated, but neither immediately adjacent line is allowed to animate.
-      if (
-        openSwitchNodeIds.has(edge.sourceNodeId) ||
-        openSwitchNodeIds.has(edge.targetNodeId)
-      ) continue
+      if (!flowingEdgeIds.has(edge.id)) continue
       const sourceDistance = distance.get(edge.sourceNodeId)
       const targetDistance = distance.get(edge.targetNodeId)
       if (
@@ -188,6 +233,7 @@ export function derivePowerFlowTopology({
   }
 
   const directedBusbarSegments = busbarLinks.flatMap((link) => {
+    if (!flowingBusbarLinkIds.has(link.id)) return []
     const busbar = busbarsById.get(link.busbarId)
     const leftNode = nodesById.get(link.leftNodeId)
     const rightNode = nodesById.get(link.rightNodeId)
@@ -211,7 +257,7 @@ export function derivePowerFlowTopology({
     )
     if (leftPoint.x === rightPoint.x && leftPoint.y === rightPoint.y) return []
     return [{
-      id: `busbar-flow:${link.busbarId}:${link.leftNodeId}:${link.rightNodeId}`,
+      id: link.id,
       busbarId: link.busbarId,
       start: leftDistance < rightDistance ? leftPoint : rightPoint,
       end: leftDistance < rightDistance ? rightPoint : leftPoint,
@@ -219,7 +265,7 @@ export function derivePowerFlowTopology({
   })
 
   const energizedElementIds = new Set<string>()
-  for (const nodeId of distance.keys()) {
+  for (const nodeId of energizedDistance.keys()) {
     const node = nodesById.get(nodeId)
     if (node?.kind === 'element-anchor') energizedElementIds.add(node.elementId)
   }

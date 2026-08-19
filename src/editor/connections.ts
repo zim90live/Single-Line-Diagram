@@ -35,11 +35,39 @@ export interface ConnectionCrossing extends Point {
   underEdgeId: string
 }
 
+export type ConnectionCrossingIndex = ReadonlyMap<string, ConnectionCrossing[]>
+export type ConnectionCrossingSource = ConnectionCrossing[] | ConnectionCrossingIndex
+
+export function indexConnectionCrossings(crossings: ConnectionCrossing[]) {
+  const indexed = new Map<string, ConnectionCrossing[]>()
+  crossings.forEach((crossing) => {
+    const edgeCrossings = indexed.get(crossing.bridgeEdgeId) ?? []
+    edgeCrossings.push(crossing)
+    indexed.set(crossing.bridgeEdgeId, edgeCrossings)
+  })
+  return indexed
+}
+
 export interface RoutedConnections {
   edges: RoutedConnectionEdge[]
   crossings: ConnectionCrossing[]
   invalidEdgeIds: string[]
   resolvedBusbarTapOffsets: Record<string, number>
+}
+
+export interface ConnectionRouteInput {
+  networks: ConnectionNetwork[]
+  elements: DiagramElement[]
+  assets: AssetDefinition[]
+  gridSize: number
+  busbars: Busbar[]
+}
+
+export interface IncrementalRouteResult {
+  routed: RoutedConnections
+  mode: 'full' | 'incremental' | 'reused'
+  dirtyNetworkCount: number
+  reusedEdgeCount: number
 }
 
 export type ConnectionTerminal =
@@ -547,8 +575,8 @@ function routeFlexibleBusbarsWithinBounds(
   targetCandidates: FlexibleBusbarCandidate[],
   sourceDirections: number[],
   targetDirections: number[],
-  obstacles: Rect[],
   occupiedEdges: Set<string>,
+  blockedEdges: Set<string>,
   gridSize: number,
   bounds: Rect,
 ): FlexibleBusbarRoute | null {
@@ -568,7 +596,6 @@ function routeFlexibleBusbarsWithinBounds(
     (Math.abs(point.x - candidate.point.x) + Math.abs(point.y - candidate.point.y)) / gridSize
   )))
   const open = new MinHeap()
-  const blockedEdges = blockedGridEdges(obstacles, gridSize)
   const best = new Map<string, {
     steps: number
     turns: number
@@ -703,8 +730,8 @@ function routeFlexibleBusbars(
   targetCandidates: FlexibleBusbarCandidate[],
   sourceBusbar: Busbar,
   targetBusbar: Busbar,
-  obstacles: Rect[],
   occupiedEdges: Set<string>,
+  blockedEdges: Set<string>,
   gridSize: number,
 ) {
   if (!sourceCandidates.length || !targetCandidates.length) return null
@@ -729,8 +756,8 @@ function routeFlexibleBusbars(
       targetCandidates,
       busbarConnectionDirections(sourceBusbar),
       busbarConnectionDirections(targetBusbar),
-      obstacles,
       occupiedEdges,
+      blockedEdges,
       gridSize,
       bounds,
     )
@@ -778,6 +805,7 @@ function routeEndpoints(
   occupiedEdges: Set<string>,
   gridSize: number,
   reusableEdges?: Set<string>,
+  blockedEdges?: Set<string>,
 ) {
   const route = routeOrthogonalGrid(
     source.grid,
@@ -791,6 +819,7 @@ function routeEndpoints(
       startAllowedDirections: source.departureDirections,
       endAllowedDirections: target.arrivalDirections,
       reusableEdges,
+      blockedEdges,
     },
   )
   return route
@@ -839,48 +868,100 @@ function segmentCrossing(a1: Point, a2: Point, b1: Point, b2: Point): Point | nu
     : null
 }
 
+const CROSSING_INDEX_CELL_SIZE = 128
+
+interface IndexedRouteSegment {
+  edge: RoutedConnectionEdge
+  edgeIndex: number
+  segmentIndex: number
+  start: Point
+  end: Point
+}
+
+function crossingIndexKeys(start: Point, end: Point) {
+  const left = Math.floor(Math.min(start.x, end.x) / CROSSING_INDEX_CELL_SIZE)
+  const right = Math.floor(Math.max(start.x, end.x) / CROSSING_INDEX_CELL_SIZE)
+  const top = Math.floor(Math.min(start.y, end.y) / CROSSING_INDEX_CELL_SIZE)
+  const bottom = Math.floor(Math.max(start.y, end.y) / CROSSING_INDEX_CELL_SIZE)
+  const keys: string[] = []
+  for (let x = left; x <= right; x += 1) {
+    for (let y = top; y <= bottom; y += 1) keys.push(`${x},${y}`)
+  }
+  return keys
+}
+
 function findCrossings(edges: RoutedConnectionEdge[]) {
-  const crossings: ConnectionCrossing[] = []
+  const crossings: Array<ConnectionCrossing & {
+    laterIndex: number
+    earlierIndex: number
+    laterSegmentIndex: number
+    earlierSegmentIndex: number
+  }> = []
   const seen = new Set<string>()
-  for (let laterIndex = 1; laterIndex < edges.length; laterIndex += 1) {
+  const segmentIndex = new Map<string, IndexedRouteSegment[]>()
+  for (let laterIndex = 0; laterIndex < edges.length; laterIndex += 1) {
     const later = edges[laterIndex]
-    for (let earlierIndex = 0; earlierIndex < laterIndex; earlierIndex += 1) {
-      const earlier = edges[earlierIndex]
-      if (later.networkId === earlier.networkId) continue
+    for (let leftIndex = 1; leftIndex < later.points.length; leftIndex += 1) {
+      const start = later.points[leftIndex - 1]
+      const end = later.points[leftIndex]
+      const candidates = new Set<IndexedRouteSegment>()
+      crossingIndexKeys(start, end).forEach((key) => {
+        segmentIndex.get(key)?.forEach((segment) => candidates.add(segment))
+      })
+      candidates.forEach((earlierSegment) => {
+        const earlier = earlierSegment.edge
+        if (later.networkId === earlier.networkId) return
+        const point = segmentCrossing(start, end, earlierSegment.start, earlierSegment.end)
+        if (!point) return
       const sharedNodeIds = new Set([
         later.sourceNodeId,
         later.targetNodeId,
       ].filter((id) => id === earlier.sourceNodeId || id === earlier.targetNodeId))
-      for (let leftIndex = 1; leftIndex < later.points.length; leftIndex += 1) {
-        for (let rightIndex = 1; rightIndex < earlier.points.length; rightIndex += 1) {
-          const point = segmentCrossing(
-            later.points[leftIndex - 1],
-            later.points[leftIndex],
-            earlier.points[rightIndex - 1],
-            earlier.points[rightIndex],
-          )
-          if (!point) continue
-          const atSharedEndpoint = sharedNodeIds.size > 0 && (
-            pointsEqual(point, later.points[0]) ||
-            pointsEqual(point, later.points.at(-1)!)
-          ) && (
-            pointsEqual(point, earlier.points[0]) ||
-            pointsEqual(point, earlier.points.at(-1)!)
-          )
-          if (atSharedEndpoint) continue
-          const key = `${later.edgeId}::${earlier.edgeId}::${pointKey(point)}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          crossings.push({
-            ...point,
-            bridgeEdgeId: later.edgeId,
-            underEdgeId: earlier.edgeId,
-          })
-        }
+        const atSharedEndpoint = sharedNodeIds.size > 0 && (
+          pointsEqual(point, later.points[0]) ||
+          pointsEqual(point, later.points.at(-1)!)
+        ) && (
+          pointsEqual(point, earlier.points[0]) ||
+          pointsEqual(point, earlier.points.at(-1)!)
+        )
+        if (atSharedEndpoint) return
+        const key = `${later.edgeId}::${earlier.edgeId}::${pointKey(point)}`
+        if (seen.has(key)) return
+        seen.add(key)
+        crossings.push({
+          ...point,
+          bridgeEdgeId: later.edgeId,
+          underEdgeId: earlier.edgeId,
+          laterIndex,
+          earlierIndex: earlierSegment.edgeIndex,
+          laterSegmentIndex: leftIndex,
+          earlierSegmentIndex: earlierSegment.segmentIndex,
+        })
+      })
+    }
+    for (let segmentIndexInEdge = 1; segmentIndexInEdge < later.points.length; segmentIndexInEdge += 1) {
+      const segment: IndexedRouteSegment = {
+        edge: later,
+        edgeIndex: laterIndex,
+        segmentIndex: segmentIndexInEdge,
+        start: later.points[segmentIndexInEdge - 1],
+        end: later.points[segmentIndexInEdge],
       }
+      crossingIndexKeys(segment.start, segment.end).forEach((key) => {
+        const segments = segmentIndex.get(key) ?? []
+        segments.push(segment)
+        segmentIndex.set(key, segments)
+      })
     }
   }
   return crossings
+    .sort((left, right) => (
+      left.laterIndex - right.laterIndex ||
+      left.earlierIndex - right.earlierIndex ||
+      left.laterSegmentIndex - right.laterSegmentIndex ||
+      left.earlierSegmentIndex - right.earlierSegmentIndex
+    ))
+    .map(({ laterIndex: _later, earlierIndex: _earlier, laterSegmentIndex: _left, earlierSegmentIndex: _right, ...crossing }) => crossing)
 }
 
 function findBusbarCrossings(
@@ -1228,8 +1309,8 @@ function resolveBusbarTapPairOffsets(
   targetTap: Extract<ConnectionNode, { kind: 'busbar-tap' }>,
   busbarsById: Map<string, Busbar>,
   resolvedBusbarTapOffsets: Map<string, number>,
-  obstacles: Rect[],
   occupiedEdges: Set<string>,
+  blockedEdges: Set<string>,
   routedEdges: RoutedConnectionEdge[],
   tapBusbarIds: Map<string, string>,
   gridSize: number,
@@ -1256,8 +1337,8 @@ function resolveBusbarTapPairOffsets(
     targetCandidates,
     sourceBusbar,
     targetBusbar,
-    obstacles,
     occupiedEdges,
+    blockedEdges,
     gridSize,
   )
   if (!route) return false
@@ -1276,6 +1357,7 @@ function resolveBusbarTapOffset(
   resolvedBusbarTapOffsets: Map<string, number>,
   obstacles: Rect[],
   occupiedEdges: Set<string>,
+  blockedEdges: Set<string>,
   routedEdges: RoutedConnectionEdge[],
   tapBusbarIds: Map<string, string>,
   gridSize: number,
@@ -1345,8 +1427,24 @@ function resolveBusbarTapOffset(
     let valid = true
     for (const item of incident) {
       const points = item.tapIsSource
-        ? routeEndpoints(tapEndpoint, item.otherEndpoint, obstacles, candidateOccupied, gridSize)
-        : routeEndpoints(item.otherEndpoint, tapEndpoint, obstacles, candidateOccupied, gridSize)
+        ? routeEndpoints(
+            tapEndpoint,
+            item.otherEndpoint,
+            obstacles,
+            candidateOccupied,
+            gridSize,
+            undefined,
+            blockedEdges,
+          )
+        : routeEndpoints(
+            item.otherEndpoint,
+            tapEndpoint,
+            obstacles,
+            candidateOccupied,
+            gridSize,
+            undefined,
+            blockedEdges,
+          )
       if (!points) {
         valid = false
         break
@@ -1362,30 +1460,58 @@ function resolveBusbarTapOffset(
   return best?.offset ?? fallback
 }
 
-export function routeConnectionNetworks(
+interface RouteSeed {
+  dirtyNetworkIds: Set<string>
+  previous: RoutedConnections
+}
+
+function routeConnectionNetworksWithSeed(
   networks: ConnectionNetwork[],
   elements: DiagramElement[],
   assets: AssetDefinition[],
   gridSize: number,
   busbars: Busbar[] = [],
+  seed?: RouteSeed,
 ): RoutedConnections {
   const elementsById = new Map(elements.map((element) => [element.id, element]))
   const assetsByKey = new Map(assets.map((asset) => [asset.key, asset]))
   const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
+  const edgeOrder = new Map<string, number>()
+  let nextOrder = 0
+  networks.forEach((network) => network.edges.forEach((edge) => {
+    edgeOrder.set(edge.id, nextOrder++)
+  }))
+  const currentEdgeIds = new Set(edgeOrder.keys())
+  const dirtyNetworkIds = seed?.dirtyNetworkIds ?? new Set(networks.map((network) => network.id))
+  const dirtyTapNodeIds = new Set(networks.flatMap((network) => (
+    dirtyNetworkIds.has(network.id)
+      ? network.nodes.flatMap((node) => node.kind === 'busbar-tap' ? [node.id] : [])
+      : []
+  )))
   const tapBusbarIds = new Map(networks.flatMap((network) => network.nodes.flatMap((node) => (
     node.kind === 'busbar-tap' ? [[node.id, node.busbarId] as const] : []
   ))))
   const obstacles = elements.map((element) => elementsBounds([element])!).filter(Boolean)
+  const blockedEdges = blockedGridEdges(obstacles, gridSize)
   const occupied = new Set<string>()
   busbars.forEach((busbar) => {
     addOccupiedSegments([busbarPoint(busbar, 0), busbarEndPoint(busbar)], occupied, gridSize)
   })
-  const routedEdges: RoutedConnectionEdge[] = []
-  const invalidEdgeIds: string[] = []
-  const resolvedBusbarTapOffsets = new Map<string, number>()
-  let order = 0
+  const routedEdges: RoutedConnectionEdge[] = (seed?.previous.edges ?? []).filter((edge) => (
+    currentEdgeIds.has(edge.edgeId) && !dirtyNetworkIds.has(edge.networkId)
+  ))
+  routedEdges.forEach((edge) => addOccupiedSegments(edge.points, occupied, gridSize))
+  const invalidEdgeIds: string[] = (seed?.previous.invalidEdgeIds ?? []).filter((edgeId) => (
+    currentEdgeIds.has(edgeId) && !dirtyNetworkIds.has(
+      networks.find((network) => network.edges.some((edge) => edge.id === edgeId))?.id ?? '',
+    )
+  ))
+  const resolvedBusbarTapOffsets = new Map(Object.entries(
+    seed?.previous.resolvedBusbarTapOffsets ?? {},
+  ).filter(([nodeId]) => !dirtyTapNodeIds.has(nodeId)))
 
   for (const network of networks) {
+    if (!dirtyNetworkIds.has(network.id)) continue
     const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
     const reusableSegments = new Set<string>()
     for (const edge of network.edges) {
@@ -1397,8 +1523,8 @@ export function routeConnectionNetworks(
           target,
           busbarsById,
           resolvedBusbarTapOffsets,
-          obstacles,
           occupied,
+          blockedEdges,
           routedEdges,
           tapBusbarIds,
           gridSize,
@@ -1416,6 +1542,7 @@ export function routeConnectionNetworks(
           resolvedBusbarTapOffsets,
           obstacles,
           occupied,
+          blockedEdges,
           routedEdges,
           tapBusbarIds,
           gridSize,
@@ -1452,6 +1579,7 @@ export function routeConnectionNetworks(
         occupied,
         gridSize,
         reusableSegments,
+        blockedEdges,
       )
       if (!points) {
         invalidEdgeIds.push(edge.id)
@@ -1464,13 +1592,18 @@ export function routeConnectionNetworks(
         sourceNodeId: edge.sourceNodeId,
         targetNodeId: edge.targetNodeId,
         points,
-        order: order++,
+        order: edgeOrder.get(edge.id) ?? nextOrder++,
       }
       routedEdges.push(routed)
       addOccupiedSegments(points, reusableSegments, gridSize)
     }
     reusableSegments.forEach((segment) => occupied.add(segment))
   }
+  routedEdges.sort((left, right) => left.order - right.order)
+  invalidEdgeIds.sort((left, right) => (
+    (edgeOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+    (edgeOrder.get(right) ?? Number.MAX_SAFE_INTEGER)
+  ))
   return {
     edges: routedEdges,
     crossings: [
@@ -1479,6 +1612,281 @@ export function routeConnectionNetworks(
     ],
     invalidEdgeIds,
     resolvedBusbarTapOffsets: Object.fromEntries(resolvedBusbarTapOffsets),
+  }
+}
+
+export function routeConnectionNetworks(
+  networks: ConnectionNetwork[],
+  elements: DiagramElement[],
+  assets: AssetDefinition[],
+  gridSize: number,
+  busbars: Busbar[] = [],
+): RoutedConnections {
+  return routeConnectionNetworksWithSeed(networks, elements, assets, gridSize, busbars)
+}
+
+function routingElementsEqual(left: DiagramElement, right: DiagramElement) {
+  return left.id === right.id &&
+    left.assetKey === right.assetKey &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height &&
+    left.rotation === right.rotation
+}
+
+function routingBusbarsEqual(left: Busbar, right: Busbar) {
+  return left.id === right.id &&
+    left.type === right.type &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.length === right.length &&
+    left.orientation === right.orientation
+}
+
+function routingNodesEqual(left: ConnectionNode, right: ConnectionNode) {
+  if (left.id !== right.id || left.kind !== right.kind) return false
+  if (left.kind === 'element-anchor' && right.kind === 'element-anchor') {
+    return left.elementId === right.elementId && left.anchorId === right.anchorId
+  }
+  if (left.kind === 'busbar-tap' && right.kind === 'busbar-tap') {
+    return left.busbarId === right.busbarId && left.offset === right.offset
+  }
+  return false
+}
+
+function routingNetworksEqual(left: ConnectionNetwork, right: ConnectionNetwork) {
+  return left.id === right.id &&
+    left.type === right.type &&
+    left.nodes.length === right.nodes.length &&
+    left.edges.length === right.edges.length &&
+    left.nodes.every((node, index) => routingNodesEqual(node, right.nodes[index])) &&
+    left.edges.every((edge, index) => (
+      edge.id === right.edges[index].id &&
+      edge.sourceNodeId === right.edges[index].sourceNodeId &&
+      edge.targetNodeId === right.edges[index].targetNodeId
+    ))
+}
+
+function routingAssetsEqual(left: AssetDefinition[], right: AssetDefinition[]) {
+  if (left.length !== right.length) return false
+  const rightByKey = new Map(right.map((asset) => [asset.key, asset]))
+  return left.every((asset) => {
+    const candidate = rightByKey.get(asset.key)
+    return candidate !== undefined &&
+      asset.intrinsicWidth === candidate.intrinsicWidth &&
+      asset.intrinsicHeight === candidate.intrinsicHeight &&
+      asset.anchors.length === candidate.anchors.length &&
+      asset.anchors.every((anchor, index) => {
+        const other = candidate.anchors[index]
+        return anchor.id === other.id &&
+          anchor.x === other.x &&
+          anchor.y === other.y &&
+          anchor.direction === other.direction &&
+          anchor.type === other.type
+      })
+  })
+}
+
+export function connectionRouteInputsEqual(
+  left: ConnectionRouteInput,
+  right: ConnectionRouteInput,
+) {
+  if (
+    left.gridSize !== right.gridSize ||
+    left.networks.length !== right.networks.length ||
+    left.elements.length !== right.elements.length ||
+    left.busbars.length !== right.busbars.length ||
+    !routingAssetsEqual(left.assets, right.assets)
+  ) return false
+  const rightElementsById = new Map(right.elements.map((element) => [element.id, element]))
+  const rightBusbarsById = new Map(right.busbars.map((busbar) => [busbar.id, busbar]))
+  return left.networks.every((network, index) => (
+    routingNetworksEqual(network, right.networks[index])
+  )) && left.elements.every((element) => {
+    const candidate = rightElementsById.get(element.id)
+    return candidate !== undefined && routingElementsEqual(element, candidate)
+  }) && left.busbars.every((busbar) => {
+    const candidate = rightBusbarsById.get(busbar.id)
+    return candidate !== undefined && routingBusbarsEqual(busbar, candidate)
+  })
+}
+
+function expandedRect(rect: Rect, margin: number): Rect {
+  return {
+    x: rect.x - margin,
+    y: rect.y - margin,
+    width: rect.width + margin * 2,
+    height: rect.height + margin * 2,
+  }
+}
+
+function busbarRect(busbar: Busbar): Rect {
+  const end = busbarEndPoint(busbar)
+  return {
+    x: Math.min(busbar.x, end.x),
+    y: Math.min(busbar.y, end.y),
+    width: Math.abs(end.x - busbar.x),
+    height: Math.abs(end.y - busbar.y),
+  }
+}
+
+function segmentIntersectsRect(start: Point, end: Point, rect: Rect) {
+  const right = rect.x + rect.width
+  const bottom = rect.y + rect.height
+  if (start.y === end.y) {
+    return start.y >= rect.y && start.y <= bottom &&
+      Math.max(Math.min(start.x, end.x), rect.x) <= Math.min(Math.max(start.x, end.x), right)
+  }
+  if (start.x === end.x) {
+    return start.x >= rect.x && start.x <= right &&
+      Math.max(Math.min(start.y, end.y), rect.y) <= Math.min(Math.max(start.y, end.y), bottom)
+  }
+  return false
+}
+
+function routeIntersectsAnyRect(route: RoutedConnectionEdge, rects: Rect[]) {
+  if (!rects.length) return false
+  for (let index = 1; index < route.points.length; index += 1) {
+    if (rects.some((rect) => segmentIntersectsRect(
+      route.points[index - 1],
+      route.points[index],
+      rect,
+    ))) return true
+  }
+  return false
+}
+
+function networkReferencesElements(network: ConnectionNetwork, elementIds: Set<string>) {
+  return network.nodes.some((node) => (
+    node.kind === 'element-anchor' && elementIds.has(node.elementId)
+  ))
+}
+
+function networkReferencesBusbars(network: ConnectionNetwork, busbarIds: Set<string>) {
+  return network.nodes.some((node) => (
+    node.kind === 'busbar-tap' && busbarIds.has(node.busbarId)
+  ))
+}
+
+/**
+ * Reuses stable routed networks after a committed edit. Directly connected networks and routes
+ * inside the changed geometry's local search corridor are recomputed against retained routes.
+ * Display-only edits (labels, colors, visibility) reuse the entire routed snapshot.
+ */
+export function routeConnectionNetworksIncrementally(
+  previousInput: ConnectionRouteInput | null,
+  previousRouted: RoutedConnections | null,
+  nextInput: ConnectionRouteInput,
+): IncrementalRouteResult {
+  if (
+    !previousInput ||
+    !previousRouted ||
+    previousInput.gridSize !== nextInput.gridSize ||
+    !routingAssetsEqual(previousInput.assets, nextInput.assets)
+  ) {
+    return {
+      routed: routeConnectionNetworks(
+        nextInput.networks,
+        nextInput.elements,
+        nextInput.assets,
+        nextInput.gridSize,
+        nextInput.busbars,
+      ),
+      mode: 'full',
+      dirtyNetworkCount: nextInput.networks.length,
+      reusedEdgeCount: 0,
+    }
+  }
+
+  const previousNetworksById = new Map(previousInput.networks.map((network) => [network.id, network]))
+  const nextNetworksById = new Map(nextInput.networks.map((network) => [network.id, network]))
+  const previousElementsById = new Map(previousInput.elements.map((element) => [element.id, element]))
+  const nextElementsById = new Map(nextInput.elements.map((element) => [element.id, element]))
+  const previousBusbarsById = new Map(previousInput.busbars.map((busbar) => [busbar.id, busbar]))
+  const nextBusbarsById = new Map(nextInput.busbars.map((busbar) => [busbar.id, busbar]))
+  const changedElementIds = new Set<string>()
+  const changedBusbarIds = new Set<string>()
+  const influenceRects: Rect[] = []
+  const influenceMargin = nextInput.gridSize * 12
+
+  new Set([...previousElementsById.keys(), ...nextElementsById.keys()]).forEach((id) => {
+    const previous = previousElementsById.get(id)
+    const next = nextElementsById.get(id)
+    if (previous && next && routingElementsEqual(previous, next)) return
+    changedElementIds.add(id)
+    const previousBounds = previous ? elementsBounds([previous]) : null
+    const nextBounds = next ? elementsBounds([next]) : null
+    if (previousBounds) influenceRects.push(expandedRect(previousBounds, influenceMargin))
+    if (nextBounds) influenceRects.push(expandedRect(nextBounds, influenceMargin))
+  })
+
+  new Set([...previousBusbarsById.keys(), ...nextBusbarsById.keys()]).forEach((id) => {
+    const previous = previousBusbarsById.get(id)
+    const next = nextBusbarsById.get(id)
+    if (previous && next && routingBusbarsEqual(previous, next)) return
+    changedBusbarIds.add(id)
+    if (previous) influenceRects.push(expandedRect(busbarRect(previous), influenceMargin))
+    if (next) influenceRects.push(expandedRect(busbarRect(next), influenceMargin))
+  })
+
+  const dirtyNetworkIds = new Set<string>()
+  let routeStructureChanged = previousInput.networks.length !== nextInput.networks.length
+  nextInput.networks.forEach((network, index) => {
+    const previous = previousNetworksById.get(network.id)
+    if (!previous || !routingNetworksEqual(previous, network)) {
+      dirtyNetworkIds.add(network.id)
+      routeStructureChanged = true
+    }
+    if (previousInput.networks[index]?.id !== network.id) routeStructureChanged = true
+  })
+  previousInput.networks.forEach((network) => {
+    if (!nextNetworksById.has(network.id)) routeStructureChanged = true
+  })
+
+  for (const network of [...previousInput.networks, ...nextInput.networks]) {
+    if (
+      networkReferencesElements(network, changedElementIds) ||
+      networkReferencesBusbars(network, changedBusbarIds)
+    ) dirtyNetworkIds.add(network.id)
+  }
+
+  previousRouted.edges.forEach((route) => {
+    if (
+      nextNetworksById.has(route.networkId) &&
+      !dirtyNetworkIds.has(route.networkId) &&
+      routeIntersectsAnyRect(route, influenceRects)
+    ) dirtyNetworkIds.add(route.networkId)
+  })
+
+  if (!routeStructureChanged && !influenceRects.length && !dirtyNetworkIds.size) {
+    return {
+      routed: previousRouted,
+      mode: 'reused',
+      dirtyNetworkCount: 0,
+      reusedEdgeCount: previousRouted.edges.length,
+    }
+  }
+
+  const existingDirtyNetworkIds = new Set(
+    [...dirtyNetworkIds].filter((id) => nextNetworksById.has(id)),
+  )
+  const routed = routeConnectionNetworksWithSeed(
+    nextInput.networks,
+    nextInput.elements,
+    nextInput.assets,
+    nextInput.gridSize,
+    nextInput.busbars,
+    { dirtyNetworkIds: existingDirtyNetworkIds, previous: previousRouted },
+  )
+  const dirtyEdgeIds = new Set(nextInput.networks.flatMap((network) => (
+    existingDirtyNetworkIds.has(network.id) ? network.edges.map((edge) => edge.id) : []
+  )))
+  return {
+    routed,
+    mode: 'incremental',
+    dirtyNetworkCount: existingDirtyNetworkIds.size,
+    reusedEdgeCount: routed.edges.filter((edge) => !dirtyEdgeIds.has(edge.edgeId)).length,
   }
 }
 
@@ -2115,14 +2523,13 @@ function bridgeArcsOnSegment(
   start: Point,
   end: Point,
   crossings: ConnectionCrossing[],
-  edgeId: string,
   gridSize: number,
 ) {
   const horizontal = start.y === end.y
   const direction = horizontal ? Math.sign(end.x - start.x) : Math.sign(end.y - start.y)
   if (!direction) return []
   const points = crossings
-    .filter((crossing) => crossing.bridgeEdgeId === edgeId && (
+    .filter((crossing) => (
       horizontal
         ? crossing.y === start.y &&
           crossing.x > Math.min(start.x, end.x) && crossing.x < Math.max(start.x, end.x)
@@ -2171,22 +2578,32 @@ function bridgeArcsOnSegment(
   }).filter((arc) => arc.radius > 0)
 }
 
+function crossingsForEdge(
+  crossings: ConnectionCrossingSource,
+  edgeId: string,
+): ConnectionCrossing[] {
+  return Array.isArray(crossings)
+    ? crossings.filter((crossing) => crossing.bridgeEdgeId === edgeId)
+    : crossings.get(edgeId) ?? []
+}
+
 function arcPathCommand(arc: BridgeArc) {
   return `A ${arc.radius} ${arc.radius} 0 0 ${arc.sweep} ${arc.end.x} ${arc.end.y}`
 }
 
 export function bridgedPathData(
   route: RoutedConnectionEdge,
-  crossings: ConnectionCrossing[],
+  crossings: ConnectionCrossingSource,
   gridSize: number,
 ) : BridgedPathData {
   if (!route.points.length) return { linePath: '', bridgeCasingPath: '' }
+  const edgeCrossings = crossingsForEdge(crossings, route.edgeId)
   let linePath = `M ${route.points[0].x} ${route.points[0].y}`
   const casingParts: string[] = []
   for (let index = 1; index < route.points.length; index += 1) {
     const start = route.points[index - 1]
     const end = route.points[index]
-    const arcs = bridgeArcsOnSegment(start, end, crossings, route.edgeId, gridSize)
+    const arcs = bridgeArcsOnSegment(start, end, edgeCrossings, gridSize)
     for (const arc of arcs) {
       const command = arcPathCommand(arc)
       linePath += ` L ${arc.start.x} ${arc.start.y} ${command}`
@@ -2210,16 +2627,17 @@ function appendDistinctPoint(points: Point[], point: Point) {
  */
 export function bridgedPolylinePoints(
   route: RoutedConnectionEdge,
-  crossings: ConnectionCrossing[],
+  crossings: ConnectionCrossingSource,
   gridSize: number,
   arcSteps = 8,
 ) {
   if (!route.points.length) return []
+  const edgeCrossings = crossingsForEdge(crossings, route.edgeId)
   const points: Point[] = [{ ...route.points[0] }]
   for (let index = 1; index < route.points.length; index += 1) {
     const start = route.points[index - 1]
     const end = route.points[index]
-    const arcs = bridgeArcsOnSegment(start, end, crossings, route.edgeId, gridSize)
+    const arcs = bridgeArcsOnSegment(start, end, edgeCrossings, gridSize)
     for (const arc of arcs) {
       appendDistinctPoint(points, arc.start)
       const center = {
@@ -2244,7 +2662,7 @@ export function bridgedPolylinePoints(
 
 export function pathDataWithBridges(
   route: RoutedConnectionEdge,
-  crossings: ConnectionCrossing[],
+  crossings: ConnectionCrossingSource,
   gridSize: number,
 ) {
   return bridgedPathData(route, crossings, gridSize).linePath

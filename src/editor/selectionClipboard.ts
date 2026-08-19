@@ -3,12 +3,51 @@ import type {
   ConnectionNetwork,
   ConnectionNode,
   DiagramElement,
+  LineSystemType,
 } from '../domain/project'
+import { diagramObjectsBounds, snap, type Point } from './geometry'
+
+export type DiagramClipboardOperation = 'copy' | 'cut'
 
 export interface DiagramSelectionClipboard {
+  operation: DiagramClipboardOperation
+  sourceDiagramId: string | null
+  sourceLineSystemType: LineSystemType | null
   elements: DiagramElement[]
   busbars: Busbar[]
   connections: ConnectionNetwork[]
+}
+
+export function createEmptySelectionClipboard(): DiagramSelectionClipboard {
+  return {
+    operation: 'copy',
+    sourceDiagramId: null,
+    sourceLineSystemType: null,
+    elements: [],
+    busbars: [],
+    connections: [],
+  }
+}
+
+export function clipboardCanPasteInto(
+  clipboard: DiagramSelectionClipboard,
+  lineSystemType: LineSystemType,
+) {
+  return clipboard.sourceLineSystemType === lineSystemType
+}
+
+export function centeredSelectionOffset(
+  elements: DiagramElement[],
+  busbars: Busbar[],
+  targetCenter: Point,
+  gridSize: number,
+): Point {
+  const bounds = diagramObjectsBounds(elements, busbars)
+  if (!bounds) return { x: 0, y: 0 }
+  return {
+    x: snap(targetCenter.x - (bounds.x + bounds.width / 2), gridSize),
+    y: snap(targetCenter.y - (bounds.y + bounds.height / 2), gridSize),
+  }
 }
 
 function nodeBelongsToSelection(

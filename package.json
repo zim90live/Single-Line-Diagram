@@ -10,6 +10,7 @@
     "build": "npm run check:theme && tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
+    "test:performance": "RUN_ROUTING_BENCHMARK=1 vitest run src/editor/routing.real-scene.performance.test.ts --reporter=verbose --disableConsoleIntercept",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },

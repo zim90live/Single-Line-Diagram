@@ -62,6 +62,7 @@ import {
   connectTerminals,
   connectionTypesCompatible,
   crossingPointKeys,
+  indexConnectionCrossings,
   nearestPointOnBusbar,
   normalizeConnectionNetworks,
   occupiedAnchorKeys,
@@ -102,8 +103,12 @@ import { DEFAULT_BUSBAR_COLOR, defaultConnectionColor, normalizeHexColor } from 
 import { Rulers } from './Rulers'
 import { useRoutedConnections } from './useRoutedConnections'
 import {
+  clipboardCanPasteInto,
+  centeredSelectionOffset,
   copyConnectionsWithinSelection,
+  createEmptySelectionClipboard,
   instantiateCopiedConnections,
+  type DiagramClipboardOperation,
   type DiagramSelectionClipboard,
 } from './selectionClipboard'
 import {
@@ -144,6 +149,7 @@ export interface DiagramCanvasHandle {
   undo: () => void
   redo: () => void
   copy: () => void
+  cut: () => void
   paste: () => void
   duplicate: () => void
   deleteSelected: () => void
@@ -190,6 +196,7 @@ interface DiagramCanvasProps {
   onCommandStateChange: (state: EditorCommandState) => void
   onPointerChange: (position: PointerPosition | null) => void
   onSwitchStateChange: (elementId: string, on: boolean) => void
+  onActionMessage: (message: string, tone: 'success' | 'danger') => void
 }
 
 interface EditorSnapshot {
@@ -369,6 +376,7 @@ interface DiagramElementItemProps {
   symbol?: SymbolDefinition
   symbolColor?: string
   selected: boolean
+  anchorsVisible: boolean
   wiringType: AnchorType | null
   lineSystemType: LineSystemType
   occupiedAnchors: Set<string>
@@ -385,6 +393,7 @@ interface DiagramElementItemProps {
     type: AnchorType,
   ) => void>
   toggleSwitch: HandlerRef<(elementId: string, on: boolean) => void>
+  hoverElement: HandlerRef<(elementId: string | null) => void>
 }
 
 const DiagramElementItem = memo(function DiagramElementItem({
@@ -394,6 +403,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
   symbol,
   symbolColor,
   selected,
+  anchorsVisible,
   wiringType,
   lineSystemType,
   occupiedAnchors,
@@ -405,10 +415,11 @@ const DiagramElementItem = memo(function DiagramElementItem({
   leaveAnchor,
   pressAnchor,
   toggleSwitch,
+  hoverElement,
 }: DiagramElementItemProps) {
   const centerX = element.x + element.width / 2
   const centerY = element.y + element.height / 2
-  const colorFilterId = `symbol-color-filter-${element.id}`
+  const colorFilterId = symbolColor ? symbolColorFilterId(symbolColor) : undefined
   return (
     <g
       ref={(node) => {
@@ -421,24 +432,11 @@ const DiagramElementItem = memo(function DiagramElementItem({
       data-selected={selected || undefined}
       data-monitor-switch={mode === 'monitor' && element.assetKey === 'switch' || undefined}
       transform={`rotate(${element.rotation} ${centerX} ${centerY})`}
+      onPointerEnter={() => hoverElement.current(element.id)}
+      onPointerLeave={() => hoverElement.current(null)}
     >
       {symbol ? (
         <>
-          {symbolColor ? (
-            <defs>
-              <filter
-                id={colorFilterId}
-                x="-5%"
-                y="-5%"
-                width="110%"
-                height="110%"
-                colorInterpolationFilters="sRGB"
-              >
-                <feFlood floodColor={symbolColor} result="symbol-color" />
-                <feComposite in="symbol-color" in2="SourceAlpha" operator="in" />
-              </filter>
-            </defs>
-          ) : null}
           <image
             className="diagram-element__image"
             data-symbol-color={symbolColor}
@@ -461,7 +459,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
               startMove.current(event, element.id)
             }}
           />
-          {mode === 'edit' ? asset?.anchors.map((anchor) => {
+          {mode === 'edit' && anchorsVisible ? asset?.anchors.map((anchor) => {
             const resolved = resolveElementAnchor(element, asset, anchor)
             const compatible = wiringType
               ? connectionTypesCompatible(wiringType, anchor.type)
@@ -652,6 +650,49 @@ const DEFAULT_BUSBAR_LENGTH = 160
 const NETWORK_SELECTION_PREFIX = 'network:'
 const MULTI_CONNECTION_SELECTION_PREFIX = 'edges:'
 const NUDGE_COMMIT_DELAY_MS = 120
+const VIEWPORT_COMMIT_DELAY_MS = 150
+const RENDER_CULLING_OBJECT_THRESHOLD = 180
+const RENDER_OVERSCAN_SCREEN_PX = 160
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+
+const symbolColorFilterId = (color: string) => (
+  `symbol-color-filter-${normalizeSymbolColor(color).slice(1).toLowerCase()}`
+)
+
+function rectsIntersect(left: Rect, right: Rect) {
+  return left.x <= right.x + right.width &&
+    left.x + left.width >= right.x &&
+    left.y <= right.y + right.height &&
+    left.y + left.height >= right.y
+}
+
+function pointInsideRect(point: Point, rect: Rect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.width &&
+    point.y >= rect.y && point.y <= rect.y + rect.height
+}
+
+function segmentIntersectsViewport(start: Point, end: Point, rect: Rect) {
+  if (pointInsideRect(start, rect) || pointInsideRect(end, rect)) return true
+  if (start.y === end.y) {
+    return start.y >= rect.y && start.y <= rect.y + rect.height &&
+      Math.max(Math.min(start.x, end.x), rect.x) <=
+        Math.min(Math.max(start.x, end.x), rect.x + rect.width)
+  }
+  if (start.x === end.x) {
+    return start.x >= rect.x && start.x <= rect.x + rect.width &&
+      Math.max(Math.min(start.y, end.y), rect.y) <=
+        Math.min(Math.max(start.y, end.y), rect.y + rect.height)
+  }
+  return false
+}
+
+function polylineIntersectsViewport(points: Point[], rect: Rect) {
+  if (points.some((point) => pointInsideRect(point, rect))) return true
+  for (let index = 1; index < points.length; index += 1) {
+    if (segmentIntersectsViewport(points[index - 1], points[index], rect)) return true
+  }
+  return false
+}
 
 function networkSelectionToken(networkId: string) {
   return `${NETWORK_SELECTION_PREFIX}${networkId}`
@@ -940,6 +981,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onCommandStateChange,
       onPointerChange,
       onSwitchStateChange,
+      onActionMessage,
     },
     ref,
   ) {
@@ -951,6 +993,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onCommandStateChange,
       onPointerChange,
       onSwitchStateChange,
+      onActionMessage,
     })
     const committedElementsRef = useRef(elements)
     const committedBusbarsRef = useRef(busbars)
@@ -962,11 +1005,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const wiringRef = useRef<WiringState | null>(null)
     const hoveredWiringTargetRef = useRef<ConnectionTerminal | null>(null)
     const historyRef = useRef<HistoryState>({ past: [], future: [] })
-    const clipboardRef = useRef<DiagramSelectionClipboard>({
-      elements: [],
-      busbars: [],
-      connections: [],
-    })
+    const clipboardRef = useRef<DiagramSelectionClipboard>(createEmptySelectionClipboard())
     const pasteCountRef = useRef(0)
     const interactionRef = useRef<Interaction | null>(null)
     const previewElementsRef = useRef<DiagramElement[] | null>(null)
@@ -975,12 +1014,19 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const connectionLabelPlacementPreviewRef = useRef<ConnectionLabelPlacement | null>(null)
     const nudgeSessionActiveRef = useRef(false)
     const nudgeCommitRef = useRef<() => void>(() => undefined)
+    const symbolColorDefsRef = useRef<SVGDefsElement | null>(null)
     const elementNodeRefs = useRef(new Map<string, SVGGElement>())
     const elementLabelLayoutCacheRef = useRef(new Map<string, ElementLabelLayout>())
     const busbarNodeRefs = useRef(new Map<string, SVGGElement>())
     const busbarTapNodeRefs = useRef(new Map<string, SVGCircleElement>())
     const busbarCandidateNodeRef = useRef<SVGCircleElement | null>(null)
     const connectionEdgeNodeRefs = useRef(new Map<string, SVGGElement>())
+    const renderedConnectionPathCacheRef = useRef(new Map<string, {
+      route: RoutedConnectionEdge
+      crossingKey: string
+      gridSize: number
+      rendered: ReturnType<typeof bridgedPathData>
+    }>())
     const startElementMoveRef = useRef<
       (event: PointerEvent<SVGImageElement>, elementId: string) => void
     >(() => undefined)
@@ -1009,6 +1055,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       (event: PointerEvent<SVGPathElement>, edgeId: string) => void
     >(() => undefined)
     const toggleSwitchRef = useRef<(elementId: string, on: boolean) => void>(() => undefined)
+    const hoverElementRef = useRef<(elementId: string | null) => void>(() => undefined)
     const previewElementColorsRef = useRef(new Map<
       string,
       { slot: SymbolColorSlot; color: string }
@@ -1034,6 +1081,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     >([])
     const [marquee, setMarquee] = useState<Rect | null>(null)
     const [activeMoveElementIds, setActiveMoveElementIds] = useState<string[]>([])
+    const [hoveredElementId, setHoveredElementId] = useState<string | null>(null)
     const [libraryDragTarget, setLibraryDragTarget] = useState<AlignmentTarget | null>(null)
     const lastPointerPositionRef = useRef<PointerPosition | null>(null)
 
@@ -1055,6 +1103,20 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       (callback) => window.requestAnimationFrame(callback),
       (handle) => window.cancelAnimationFrame(handle),
       (position: PointerPosition) => callbacksRef.current.onPointerChange(position),
+    ), [])
+    const viewportFrameScheduler = useMemo(() => createLatestFrameScheduler(
+      (callback) => window.requestAnimationFrame(callback),
+      (handle) => window.cancelAnimationFrame(handle),
+      (nextViewport: DiagramViewport) => {
+        setViewportValue(nextViewport)
+        queueMicrotask(emitCommandState)
+      },
+    ), [])
+    const viewportCommitScheduler = useMemo(() => createTrailingScheduler(
+      (callback, delay) => window.setTimeout(callback, delay),
+      (handle) => window.clearTimeout(handle),
+      VIEWPORT_COMMIT_DELAY_MS,
+      () => callbacksRef.current.onViewportChange(viewportValueRef.current),
     ), [])
     const nudgeCommitScheduler = useMemo(() => createTrailingScheduler(
       (callback, delay) => window.setTimeout(callback, delay),
@@ -1090,10 +1152,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       onCommandStateChange,
       onPointerChange,
       onSwitchStateChange,
+      onActionMessage,
     }
     toggleSwitchRef.current = (elementId, on) => {
       if (mode === 'monitor') callbacksRef.current.onSwitchStateChange(elementId, on)
     }
+    hoverElementRef.current = setHoveredElementId
 
     const emitCommandState = () => {
       callbacksRef.current.onCommandStateChange({
@@ -1366,9 +1430,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     const applyViewport = (nextViewport: DiagramViewport, persist = true) => {
       viewportValueRef.current = nextViewport
-      setViewportValue(nextViewport)
-      if (persist) callbacksRef.current.onViewportChange(nextViewport)
-      queueMicrotask(emitCommandState)
+      viewportFrameScheduler.schedule(nextViewport)
+      if (persist) {
+        callbacksRef.current.onViewportChange(nextViewport)
+        emitCommandState()
+      }
     }
 
     const clientPoint = (clientX: number, clientY: number): Point => {
@@ -1382,6 +1448,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const displayedElements = previewElements ?? elements
     const displayedBusbars = previewBusbars ?? busbars
     const displayedConnections = previewConnections ?? connections
+    const displayedBusbarsById = useMemo(
+      () => new Map(displayedBusbars.map((busbar) => [busbar.id, busbar])),
+      [displayedBusbars],
+    )
     const selectedConnectionEdgeIdSet = useMemo(() => new Set(
       selectedConnectionEdges(selectedConnectionId, displayedConnections).map((edge) => edge.id),
     ), [displayedConnections, selectedConnectionId])
@@ -1399,6 +1469,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const {
       routed: computedRoutedConnections,
       isRouting,
+      routeStats,
     } = useRoutedConnections(routeInput)
     const committedRoutedConnections = useMemo(() => {
       const computedEdgeIds = new Set(
@@ -1472,6 +1543,62 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       previewConnections,
       previewElements,
     ])
+    const renderWorldRect = useMemo(() => {
+      const overscan = RENDER_OVERSCAN_SCREEN_PX / viewportValue.zoom
+      return {
+        x: -viewportValue.tx / viewportValue.zoom - overscan,
+        y: -viewportValue.ty / viewportValue.zoom - overscan,
+        width: canvasSize.width / viewportValue.zoom + overscan * 2,
+        height: canvasSize.height / viewportValue.zoom + overscan * 2,
+      }
+    }, [canvasSize.height, canvasSize.width, viewportValue])
+    const cullingEnabled = displayedElements.length + displayedBusbars.length +
+      routedConnections.edges.length > RENDER_CULLING_OBJECT_THRESHOLD
+    const visibleElements = useMemo(() => {
+      if (!cullingEnabled) return displayedElements
+      const retainedIds = new Set([
+        ...selectedIds,
+        ...activeMoveElementIds,
+        ...(hoveredElementId ? [hoveredElementId] : []),
+        ...(wiring?.source.kind === 'anchor' ? [wiring.source.elementId] : []),
+      ])
+      return displayedElements.filter((element) => {
+        if (retainedIds.has(element.id)) return true
+        const bounds = elementsBounds([element])
+        return bounds ? rectsIntersect(bounds, renderWorldRect) : false
+      })
+    }, [
+      activeMoveElementIds,
+      cullingEnabled,
+      displayedElements,
+      hoveredElementId,
+      renderWorldRect,
+      selectedIds,
+      wiring,
+    ])
+    const visibleBusbars = useMemo(() => {
+      if (!cullingEnabled) return displayedBusbars
+      const retainedIds = new Set([
+        ...selectedBusbarIds,
+        ...(wiring?.source.kind === 'busbar' ? [wiring.source.busbarId] : []),
+      ])
+      return displayedBusbars.filter((busbar) => (
+        retainedIds.has(busbar.id) ||
+        segmentIntersectsViewport(busbar, busbarEndPoint(busbar), renderWorldRect)
+      ))
+    }, [cullingEnabled, displayedBusbars, renderWorldRect, selectedBusbarIds, wiring])
+    const visibleRoutes = useMemo(() => {
+      if (!cullingEnabled) return routedConnections.edges
+      return routedConnections.edges.filter((route) => (
+        selectedConnectionEdgeIdSet.has(route.edgeId) ||
+        polylineIntersectsViewport(route.points, renderWorldRect)
+      ))
+    }, [
+      cullingEnabled,
+      renderWorldRect,
+      routedConnections.edges,
+      selectedConnectionEdgeIdSet,
+    ])
     const occupiedAnchors = useMemo(
       () => occupiedAnchorKeys(displayedConnections),
       [displayedConnections],
@@ -1480,12 +1607,32 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       () => crossingPointKeys(routedConnections.crossings),
       [routedConnections.crossings],
     )
-    const renderedConnectionPaths = useMemo(() => new Map(
-      routedConnections.edges.map((route) => [
-        route.edgeId,
-        bridgedPathData(route, routedConnections.crossings, gridSize),
-      ]),
-    ), [gridSize, routedConnections.crossings, routedConnections.edges])
+    const crossingsByEdgeId = useMemo(
+      () => indexConnectionCrossings(routedConnections.crossings),
+      [routedConnections.crossings],
+    )
+    const renderedConnectionPaths = useMemo(() => {
+      const cache = renderedConnectionPathCacheRef.current
+      const activeEdgeIds = new Set(routedConnections.edges.map((route) => route.edgeId))
+      cache.forEach((_, edgeId) => {
+        if (!activeEdgeIds.has(edgeId)) cache.delete(edgeId)
+      })
+      return new Map(visibleRoutes.map((route) => {
+        const edgeCrossings = crossingsByEdgeId.get(route.edgeId) ?? []
+        const crossingKey = edgeCrossings.map((crossing) => (
+          `${crossing.x},${crossing.y}:${crossing.underEdgeId}`
+        )).join('|')
+        const cached = cache.get(route.edgeId)
+        if (
+          cached?.route === route &&
+          cached.gridSize === gridSize &&
+          cached.crossingKey === crossingKey
+        ) return [route.edgeId, cached.rendered] as const
+        const rendered = bridgedPathData(route, crossingsByEdgeId, gridSize)
+        cache.set(route.edgeId, { route, crossingKey, gridSize, rendered })
+        return [route.edgeId, rendered] as const
+      }))
+    }, [crossingsByEdgeId, gridSize, routedConnections.edges, visibleRoutes])
     const powerFlowTopology = useMemo(() => lineSystemType === 'power'
       ? derivePowerFlowTopology({
           elements: displayedElements,
@@ -1507,12 +1654,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const directionByEdgeId = new Map(
         powerFlowTopology.edges.map((edge) => [edge.edgeId, edge.direction]),
       )
-      const edgePaths = routedConnections.edges.flatMap((route) => {
+      const edgePaths = visibleRoutes.flatMap((route) => {
         const direction = directionByEdgeId.get(route.edgeId)
         if (!direction) return []
         const points = bridgedPolylinePoints(
           route,
-          routedConnections.crossings,
+          crossingsByEdgeId,
           gridSize,
         )
         return points.length > 1 ? [{
@@ -1522,20 +1669,26 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       })
       return [
         ...edgePaths,
-        ...powerFlowTopology.busbarSegments.map((segment) => ({
-          id: segment.id,
-          points: [segment.start, segment.end],
-          screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
-        })),
+        ...powerFlowTopology.busbarSegments.flatMap((segment) => (
+          !cullingEnabled || segmentIntersectsViewport(segment.start, segment.end, renderWorldRect)
+            ? [{
+                id: segment.id,
+                points: [segment.start, segment.end],
+                screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
+              }]
+            : []
+        )),
       ]
     }, [
       animationPlaying,
+      cullingEnabled,
+      crossingsByEdgeId,
       gridSize,
       mode,
       powerFlowTopology.busbarSegments,
       powerFlowTopology.edges,
-      routedConnections.crossings,
-      routedConnections.edges,
+      renderWorldRect,
+      visibleRoutes,
     ])
     const assetsByKey = useMemo(
       () => new Map(assets.map((asset) => [asset.key, asset])),
@@ -1543,7 +1696,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     )
     const elementLabelLayouts = useMemo(() => {
       const nextCache = new Map<string, ElementLabelLayout>()
-      const layouts = layoutElementLabels(displayedElements, assetsByKey).map((layout) => {
+      const layouts = layoutElementLabels(visibleElements, assetsByKey).map((layout) => {
         const previous = elementLabelLayoutCacheRef.current.get(layout.elementId)
         const stable = previous &&
           previous.text === layout.text &&
@@ -1559,18 +1712,18 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       })
       elementLabelLayoutCacheRef.current = nextCache
       return layouts
-    }, [assetsByKey, displayedElements])
+    }, [assetsByKey, visibleElements])
     const busbarLabelLayouts = useMemo(
-      () => layoutBusbarLabels(displayedBusbars),
-      [displayedBusbars],
+      () => layoutBusbarLabels(visibleBusbars),
+      [visibleBusbars],
     )
     const connectionLabelLayouts = useMemo(
       () => layoutConnectionLabels(
-        routedConnections.edges,
+        visibleRoutes,
         displayedConnections,
         connectionLabelPlacementPreview,
       ),
-      [connectionLabelPlacementPreview, displayedConnections, routedConnections.edges],
+      [connectionLabelPlacementPreview, displayedConnections, visibleRoutes],
     )
     const wiringPreviewContext = useMemo(() => wiring
       ? prepareConnectionPreview(
@@ -1911,10 +2064,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       if (commitDiagram(next, nextBusbars, nextConnections)) setObjectSelection([], [])
     }
 
-    const copySelected = () => {
+    const copySelected = (operation: DiagramClipboardOperation = 'copy') => {
       const selectedElements = new Set(selectedIdsRef.current)
       const selectedBusbars = new Set(selectedBusbarIdsRef.current)
+      if (!selectedElements.size && !selectedBusbars.size) return false
       clipboardRef.current = {
+        operation,
+        sourceDiagramId: diagramId,
+        sourceLineSystemType: lineSystemType,
         elements: committedElementsRef.current
           .filter((element) => selectedElements.has(element.id))
           .map(cloneElement),
@@ -1928,19 +2085,40 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         ),
       }
       pasteCountRef.current = 0
+      return true
+    }
+
+    const cutSelected = () => {
+      if (!copySelected('cut')) return
+      deleteSelected()
     }
 
     const paste = () => {
       const clipboard = clipboardRef.current
       if (!clipboard.elements.length && !clipboard.busbars.length) return
-      pasteCountRef.current += 1
-      const offset = copiedSelectionOffset(
-        clipboard.elements,
-        clipboard.busbars,
-        clipboard.connections.length > 0,
-        gridSize,
-        pasteCountRef.current,
-      )
+      if (!clipboardCanPasteInto(clipboard, lineSystemType)) {
+        callbacksRef.current.onActionMessage('只能粘贴到相同线路系统的图纸。', 'danger')
+        return
+      }
+      const crossDiagram = clipboard.sourceDiagramId !== diagramId
+      if (!crossDiagram) pasteCountRef.current += 1
+      const offset = crossDiagram
+        ? centeredSelectionOffset(
+            clipboard.elements,
+            clipboard.busbars,
+            screenToWorld(
+              { x: canvasSize.width / 2, y: canvasSize.height / 2 },
+              viewportValueRef.current,
+            ),
+            gridSize,
+          )
+        : copiedSelectionOffset(
+            clipboard.elements,
+            clipboard.busbars,
+            clipboard.connections.length > 0,
+            gridSize,
+            pasteCountRef.current,
+          )
       const elementIdMap = new Map<string, string>()
       const busbarIdMap = new Map<string, string>()
       const pastedElements = clipboard.elements.map((element) => {
@@ -1984,6 +2162,19 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         nextBusbars,
         nextConnections,
       )) {
+        if (crossDiagram) {
+          clipboardRef.current = {
+            operation: 'copy',
+            sourceDiagramId: diagramId,
+            sourceLineSystemType: lineSystemType,
+            elements: pastedElements.map(cloneElement),
+            busbars: pastedBusbars.map(cloneBusbar),
+            connections: pastedConnections,
+          }
+          pasteCountRef.current = 0
+        } else if (clipboard.operation === 'cut') {
+          clipboardRef.current = { ...clipboard, operation: 'copy' }
+        }
         setObjectSelection(
           pastedElements.map((element) => element.id),
           pastedBusbars.map((busbar) => busbar.id),
@@ -2156,9 +2347,31 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     const paintElementColor = (elementId: string, color: string) => {
       const elementNode = elementNodeRefs.current.get(elementId)
-      elementNode?.querySelector('feFlood')?.setAttribute('flood-color', color)
       const image = elementNode?.querySelector<SVGImageElement>('.diagram-element__image')
-      if (image) image.dataset.symbolColor = color
+      if (!image) return
+      const normalizedColor = normalizeSymbolColor(color)
+      const filterId = symbolColorFilterId(normalizedColor)
+      const defs = symbolColorDefsRef.current
+      if (defs && !defs.querySelector(`#${filterId}`)) {
+        const filter = document.createElementNS(SVG_NAMESPACE, 'filter')
+        filter.id = filterId
+        filter.setAttribute('x', '-5%')
+        filter.setAttribute('y', '-5%')
+        filter.setAttribute('width', '110%')
+        filter.setAttribute('height', '110%')
+        filter.setAttribute('color-interpolation-filters', 'sRGB')
+        const flood = document.createElementNS(SVG_NAMESPACE, 'feFlood')
+        flood.setAttribute('flood-color', normalizedColor)
+        flood.setAttribute('result', 'symbol-color')
+        const composite = document.createElementNS(SVG_NAMESPACE, 'feComposite')
+        composite.setAttribute('in', 'symbol-color')
+        composite.setAttribute('in2', 'SourceAlpha')
+        composite.setAttribute('operator', 'in')
+        filter.append(flood, composite)
+        defs.append(filter)
+      }
+      image.dataset.symbolColor = normalizedColor
+      image.setAttribute('filter', `url(#${filterId})`)
     }
 
     const previewElementColor = (
@@ -2397,11 +2610,15 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     useImperativeHandle(ref, () => ({
       undo,
       redo,
-      copy: copySelected,
+      copy: () => { copySelected() },
+      cut: cutSelected,
       paste,
       duplicate: duplicateSelected,
       deleteSelected,
-      selectAll: () => setSelection(committedElementsRef.current.map((element) => element.id)),
+      selectAll: () => setObjectSelection(
+        committedElementsRef.current.map((element) => element.id),
+        committedBusbarsRef.current.map((busbar) => busbar.id),
+      ),
       zoomIn: () => zoomBy(1.2),
       zoomOut: () => zoomBy(1 / 1.2),
       zoomReset: () => {
@@ -2429,16 +2646,17 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }, [busbars, connections, elements])
 
     useEffect(() => {
+      viewportFrameScheduler.cancel()
+      viewportCommitScheduler.cancel()
       viewportValueRef.current = viewport
       setViewportValue(viewport)
-    }, [viewport])
+    }, [viewport, viewportCommitScheduler, viewportFrameScheduler])
 
     useEffect(() => {
       committedElementsRef.current = elements
       committedBusbarsRef.current = busbars
       committedConnectionsRef.current = connections
       historyRef.current = { past: [], future: [] }
-      clipboardRef.current = { elements: [], busbars: [], connections: [] }
       pasteCountRef.current = 0
       previewElementColorsRef.current.clear()
       elementLabelLayoutCacheRef.current.clear()
@@ -2446,6 +2664,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       busbarTapNodeRefs.current.clear()
       busbarCandidateNodeRef.current = null
       connectionEdgeNodeRefs.current.clear()
+      renderedConnectionPathCacheRef.current.clear()
       interactionRef.current = null
       nudgeCommitScheduler.cancel()
       nudgeSessionActiveRef.current = false
@@ -2454,6 +2673,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       setConnectionPreview(null)
       setMarquee(null)
       setActiveMoveElementIds([])
+      setHoveredElementId(null)
       setLibraryDragTarget(null)
       setSelectedLabelElementId(null)
       setSelectedLabelBusbarId(null)
@@ -2467,6 +2687,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }, [diagramId, documentEpoch])
 
     useEffect(() => {
+      clipboardRef.current = createEmptySelectionClipboard()
+      pasteCountRef.current = 0
+    }, [documentEpoch])
+
+    useEffect(() => {
       if (mode !== 'monitor') return
       interactionRef.current = null
       setPreview(null)
@@ -2474,6 +2699,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       setConnectionPreview(null)
       setMarquee(null)
       setActiveMoveElementIds([])
+      setHoveredElementId(null)
       setLibraryDragTarget(null)
       setWiring(null)
       selectConnection(null)
@@ -2485,7 +2711,16 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       wiringPointerScheduler.cancel()
       pointerPositionScheduler.cancel()
       nudgeCommitScheduler.cancel()
-    }, [diagramPreviewScheduler, nudgeCommitScheduler, pointerPositionScheduler, wiringPointerScheduler])
+      viewportFrameScheduler.cancel()
+      viewportCommitScheduler.cancel()
+    }, [
+      diagramPreviewScheduler,
+      nudgeCommitScheduler,
+      pointerPositionScheduler,
+      viewportCommitScheduler,
+      viewportFrameScheduler,
+      wiringPointerScheduler,
+    ])
 
     const startElementMove = (event: PointerEvent<SVGImageElement>, elementId: string) => {
       if (mode !== 'edit' || event.button !== 0) return
@@ -3067,7 +3302,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const nextZoom = clampZoom(viewportValueRef.current.zoom * direction)
       applyViewport(
         zoomAroundPoint(viewportValueRef.current, clientPoint(event.clientX, event.clientY), nextZoom),
+        false,
       )
+      viewportCommitScheduler.schedule()
     }
 
     const nudgeSelection = (x: number, y: number) => {
@@ -3121,6 +3358,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       } else if (modifier && key === 'c') {
         event.preventDefault()
         copySelected()
+      } else if (modifier && key === 'x') {
+        event.preventDefault()
+        cutSelected()
       } else if (modifier && key === 'v') {
         event.preventDefault()
         paste()
@@ -3129,7 +3369,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         duplicateSelected()
       } else if (modifier && key === 'a') {
         event.preventDefault()
-        setSelection(committedElementsRef.current.map((element) => element.id))
+        setObjectSelection(
+          committedElementsRef.current.map((element) => element.id),
+          committedBusbarsRef.current.map((busbar) => busbar.id),
+        )
       } else if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         deleteSelected()
@@ -3259,6 +3502,23 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       '--grid-screen-step': `${gridScale.screenStep}px`,
       '--grid-dot-radius': `${gridScale.dotScreenRadius}px`,
     } as CSSProperties
+    const visibleElementPresentations = visibleElements.map((element) => {
+      const symbol = symbolsByKey.get(element.assetKey)
+      const visualState: SymbolVisualState = element.assetKey === 'switch' && switchStates[element.id]
+        ? 'on'
+        : 'off'
+      const activeColorSlot = symbolColorSlotForElement(element, visualState)
+      const colorPreview = previewElementColorsRef.current.get(element.id)
+      const symbolColor = symbol?.configurableColor
+        ? colorPreview?.slot === activeColorSlot
+          ? colorPreview.color
+          : resolvedSymbolColor(element, visualState)
+        : undefined
+      return { element, symbol, visualState, symbolColor }
+    })
+    const visibleSymbolColors = [...new Set(visibleElementPresentations.flatMap(({ symbolColor }) => (
+      symbolColor ? [symbolColor] : []
+    )))]
 
     return (
       <div
@@ -3274,6 +3534,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         data-grid-screen-step={gridScale.screenStep}
         data-grid-screen-dot-radius={gridScale.dotScreenRadius}
         data-routing-pending={isRouting || undefined}
+        data-route-mode={routeStats?.mode}
+        data-route-duration-ms={routeStats ? routeStats.durationMs.toFixed(2) : undefined}
+        data-route-dirty-networks={routeStats?.dirtyNetworkCount}
+        data-route-reused-edges={routeStats?.reusedEdgeCount}
+        data-render-culling={cullingEnabled || undefined}
+        data-rendered-elements={visibleElements.length}
+        data-rendered-busbars={visibleBusbars.length}
+        data-rendered-routes={visibleRoutes.length}
         data-mode={mode}
       >
         <Rulers viewport={viewportValue} width={canvasSize.width} height={canvasSize.height} gridSize={gridSize} />
@@ -3337,9 +3605,25 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             data-wiring={wiring ? 'true' : undefined}
             aria-hidden="true"
           >
+            <defs ref={symbolColorDefsRef}>
+              {visibleSymbolColors.map((color) => (
+                <filter
+                  key={color}
+                  id={symbolColorFilterId(color)}
+                  x="-5%"
+                  y="-5%"
+                  width="110%"
+                  height="110%"
+                  colorInterpolationFilters="sRGB"
+                >
+                  <feFlood floodColor={color} result="symbol-color" />
+                  <feComposite in="symbol-color" in2="SourceAlpha" operator="in" />
+                </filter>
+              ))}
+            </defs>
             <g transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}>
               <g className="busbar-layer" data-testid="busbar-layer">
-                {displayedBusbars.map((busbar) => {
+                {visibleBusbars.map((busbar) => {
                   const end = busbarEndPoint(busbar)
                   const data = `M ${busbar.x} ${busbar.y} L ${end.x} ${end.y}`
                   return (
@@ -3373,7 +3657,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 })}
               </g>
               <g className="connection-layer" data-testid="connection-layer">
-                {routedConnections.edges.map((route) => {
+                {visibleRoutes.map((route) => {
                   const renderedPath = renderedConnectionPaths.get(route.edgeId)
                   const linePath = renderedPath?.linePath ?? pathData(route.points)
                   return (
@@ -3394,10 +3678,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 })}
                 {displayedConnections.flatMap((network) => network.nodes.flatMap((node) => {
                   if (node.kind === 'busbar-tap') {
-                    const busbar = displayedBusbars.find((candidate) => candidate.id === node.busbarId)
+                    const busbar = displayedBusbarsById.get(node.busbarId)
                     if (!busbar) return []
                     const resolvedOffset = routedConnections.resolvedBusbarTapOffsets[node.id] ?? node.offset
                     const point = busbarPoint(busbar, resolvedOffset)
+                    if (cullingEnabled && !pointInsideRect(point, renderWorldRect)) return []
                     return [(
                       <circle
                         key={node.id}
@@ -3491,18 +3776,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               ) : null}
 
-              {displayedElements.map((element) => {
-                const symbol = symbolsByKey.get(element.assetKey)
-                const visualState: SymbolVisualState = element.assetKey === 'switch' && switchStates[element.id]
-                  ? 'on'
-                  : 'off'
-                const activeColorSlot = symbolColorSlotForElement(element, visualState)
-                const colorPreview = previewElementColorsRef.current.get(element.id)
-                const symbolColor = symbol?.configurableColor
-                  ? colorPreview?.slot === activeColorSlot
-                    ? colorPreview.color
-                    : resolvedSymbolColor(element, visualState)
-                  : undefined
+              {visibleElementPresentations.map(({ element, symbol, visualState, symbolColor }) => {
                 return (
                   <DiagramElementItem
                     key={element.id}
@@ -3512,6 +3786,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     symbol={symbol}
                     symbolColor={symbolColor}
                     selected={mode === 'edit' && selectedIdSet.has(element.id)}
+                    anchorsVisible={wiring !== null || hoveredElementId === element.id}
                     wiringType={wiring?.source.type ?? null}
                     lineSystemType={lineSystemType}
                     occupiedAnchors={occupiedAnchors}
@@ -3523,6 +3798,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     leaveAnchor={leaveAnchorRef}
                     pressAnchor={pressAnchorRef}
                     toggleSwitch={toggleSwitchRef}
+                    hoverElement={hoverElementRef}
                   />
                 )
               })}

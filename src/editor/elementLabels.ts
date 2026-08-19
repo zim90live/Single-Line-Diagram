@@ -27,6 +27,45 @@ const DIRECTION_VECTOR: Record<ElementLabelPlacement, Point> = {
   bottom: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
 }
+const LABEL_SPATIAL_CELL_SIZE = 128
+
+interface SpatialRectEntry<T> {
+  id: T
+  rect: Rect
+}
+
+class RectSpatialIndex<T> {
+  private cells = new Map<string, SpatialRectEntry<T>[]>()
+
+  insert(id: T, rect: Rect) {
+    const entry = { id, rect }
+    this.cellKeys(rect).forEach((key) => {
+      const entries = this.cells.get(key) ?? []
+      entries.push(entry)
+      this.cells.set(key, entries)
+    })
+  }
+
+  query(rect: Rect) {
+    const matches = new Set<SpatialRectEntry<T>>()
+    this.cellKeys(rect).forEach((key) => {
+      this.cells.get(key)?.forEach((entry) => matches.add(entry))
+    })
+    return [...matches]
+  }
+
+  private cellKeys(rect: Rect) {
+    const left = Math.floor(rect.x / LABEL_SPATIAL_CELL_SIZE)
+    const right = Math.floor((rect.x + rect.width) / LABEL_SPATIAL_CELL_SIZE)
+    const top = Math.floor(rect.y / LABEL_SPATIAL_CELL_SIZE)
+    const bottom = Math.floor((rect.y + rect.height) / LABEL_SPATIAL_CELL_SIZE)
+    const keys: string[] = []
+    for (let x = left; x <= right; x += 1) {
+      for (let y = top; y <= bottom; y += 1) keys.push(`${x},${y}`)
+    }
+    return keys
+  }
+}
 
 export function estimateLabelTextWidth(text: string) {
   let width = 0
@@ -154,7 +193,10 @@ export function layoutElementLabels(
     const bounds = elementsBounds([element])
     return bounds ? [[element.id, bounds] as const] : []
   }))
-  const placed: Rect[] = []
+  const elementRectIndex = new RectSpatialIndex<string>()
+  elementRects.forEach((rect, id) => elementRectIndex.insert(id, expandRect(rect, 2)))
+  const placedRectIndex = new RectSpatialIndex<number>()
+  let placedCount = 0
   return elements.flatMap((element) => {
     if (element.labelVisible === false) return []
     const elementBounds = elementRects.get(element.id)
@@ -176,13 +218,12 @@ export function layoutElementLabels(
           (total, corridor) => total + intersectionArea(bounds, corridor),
           0,
         )
-        const otherElementOverlap = elements.reduce((total, candidate) => {
+        const otherElementOverlap = elementRectIndex.query(bounds).reduce((total, candidate) => {
           if (candidate.id === element.id) return total
-          const rect = elementRects.get(candidate.id)
-          return total + (rect ? intersectionArea(bounds, expandRect(rect, 2)) : 0)
+          return total + intersectionArea(bounds, candidate.rect)
         }, 0)
-        const labelOverlap = placed.reduce(
-          (total, rect) => total + intersectionArea(bounds, expandRect(rect, 2)),
+        const labelOverlap = placedRectIndex.query(bounds).reduce(
+          (total, candidate) => total + intersectionArea(bounds, candidate.rect),
           0,
         )
         const score = corridorOverlap * 1_000_000_000 +
@@ -200,7 +241,7 @@ export function layoutElementLabels(
     }
 
     if (!best) return []
-    placed.push(best.bounds)
+    placedRectIndex.insert(placedCount++, expandRect(best.bounds, 2))
     return [{
       elementId: element.id,
       text,

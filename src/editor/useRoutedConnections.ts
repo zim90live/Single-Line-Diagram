@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  connectionRouteInputsEqual,
   previewConnectionRoutesForDiagram,
   type RoutedConnections,
 } from './connections'
@@ -9,6 +10,7 @@ import {
   createLatestRouteScheduler,
   type LatestRouteScheduler,
   type RouteComputationInput,
+  type RouteComputationStats,
 } from './routeEngine'
 
 const EMPTY_ROUTED_CONNECTIONS: RoutedConnections = {
@@ -39,6 +41,7 @@ export function routedConnectionsForInput(
     snapshot.input.gridSize === input.gridSize &&
     snapshot.input.busbars === input.busbars
   ) return snapshot.routed
+  if (connectionRouteInputsEqual(snapshot.input, input)) return snapshot.routed
 
   const retainedEdgeIds = currentEdgeIds(input)
   const retainedEdges = snapshot.routed.edges.filter((edge) => retainedEdgeIds.has(edge.edgeId))
@@ -65,15 +68,18 @@ export function routedConnectionsForInput(
 
 export function useRoutedConnections(input: RouteComputationInput) {
   const schedulerRef = useRef<LatestRouteScheduler | null>(null)
+  const requestedInputRef = useRef<RouteComputationInput | null>(null)
   const [snapshot, setSnapshot] = useState<RouteSnapshot | null>(null)
   const [isRouting, setIsRouting] = useState(false)
+  const [routeStats, setRouteStats] = useState<RouteComputationStats | null>(null)
 
   useEffect(() => {
     schedulerRef.current = createLatestRouteScheduler(
       createBrowserRouteJobRunner(),
-      (completedInput, routed) => {
+      (completedInput, routed, stats) => {
         startTransition(() => {
           setSnapshot({ input: completedInput, routed })
+          setRouteStats(stats ?? null)
           setIsRouting(false)
         })
       },
@@ -81,10 +87,17 @@ export function useRoutedConnections(input: RouteComputationInput) {
     return () => {
       schedulerRef.current?.dispose()
       schedulerRef.current = null
+      requestedInputRef.current = null
     }
   }, [])
 
   useEffect(() => {
+    const requested = requestedInputRef.current
+    if (
+      requested?.scopeKey === input.scopeKey &&
+      connectionRouteInputsEqual(requested, input)
+    ) return
+    requestedInputRef.current = input
     setIsRouting(true)
     schedulerRef.current?.request(input)
   }, [input])
@@ -94,5 +107,5 @@ export function useRoutedConnections(input: RouteComputationInput) {
     [input, snapshot],
   )
 
-  return { routed, isRouting }
+  return { routed, isRouting, routeStats }
 }
