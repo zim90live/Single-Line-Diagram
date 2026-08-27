@@ -1,6 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie'
 
-import type { ProjectDocument } from '../domain/project'
+import {
+  elementUsesOnOffState,
+  type ProjectDocument,
+} from '../domain/project'
 
 export interface ProjectSummary {
   id: string
@@ -12,20 +15,20 @@ interface StoredProject extends ProjectSummary {
   document: ProjectDocument
 }
 
-export interface MonitorSwitchState {
+export interface MonitorOnOffState {
   projectId: string
   elementId: string
   on: boolean
   updatedAt: string
 }
 
-interface StoredMonitorSwitchState extends MonitorSwitchState {
+interface StoredMonitorOnOffState extends MonitorOnOffState {
   key: string
 }
 
 interface ProjectDatabase extends Dexie {
   projects: EntityTable<StoredProject, 'id'>
-  monitorSwitchStates: EntityTable<StoredMonitorSwitchState, 'key'>
+  monitorSwitchStates: EntityTable<StoredMonitorOnOffState, 'key'>
 }
 
 const database = new Dexie('aidc-single-line-diagram') as ProjectDatabase
@@ -73,12 +76,12 @@ export const projectRepository: ProjectRepository = {
 }
 
 export interface MonitorStateRepository {
-  getSwitchStates(projectId: string): Promise<Record<string, boolean>>
-  setSwitchState(projectId: string, elementId: string, on: boolean): Promise<void>
+  getOnOffStates(projectId: string): Promise<Record<string, boolean>>
+  setOnOffState(projectId: string, elementId: string, on: boolean): Promise<void>
 }
 
 export const monitorStateRepository: MonitorStateRepository = {
-  async getSwitchStates(projectId) {
+  async getOnOffStates(projectId) {
     const records = await database.monitorSwitchStates
       .where('projectId')
       .equals(projectId)
@@ -86,13 +89,27 @@ export const monitorStateRepository: MonitorStateRepository = {
     return Object.fromEntries(records.map((record) => [record.elementId, record.on]))
   },
 
-  async setSwitchState(projectId, elementId, on) {
-    await database.monitorSwitchStates.put({
-      key: `${projectId}:${elementId}`,
-      projectId,
-      elementId,
-      on,
-      updatedAt: new Date().toISOString(),
+  async setOnOffState(projectId, elementId, on) {
+    await database.transaction('rw', database.projects, database.monitorSwitchStates, async () => {
+      await database.monitorSwitchStates.put({
+        key: `${projectId}:${elementId}`,
+        projectId,
+        elementId,
+        on,
+        updatedAt: new Date().toISOString(),
+      })
+      const stored = await database.projects.get(projectId)
+      if (!stored) return
+      const elements = stored.document.elements.map((element) => (
+        element.id === elementId && elementUsesOnOffState(element)
+          ? { ...element, onOffState: on ? 'on' as const : 'off' as const }
+          : element
+      ))
+      if (elements.every((element, index) => element === stored.document.elements[index])) return
+      await database.projects.put({
+        ...stored,
+        document: { ...stored.document, elements },
+      })
     })
   },
 }

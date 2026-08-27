@@ -72,3 +72,81 @@ test('keeps real-scene routing incremental and mounts anchors only when needed',
   expect(reusedEdgeCount).toBeGreaterThan(100)
   expect(durationMs).toBeLessThan(1_000)
 })
+
+test('pans the dense POD through the imperative viewport path', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles('scene-archives/WuHu AIDC 0814.json')
+  await expect(page.getByText('已导入 WuHu AIDC 0814.json')).toBeVisible()
+
+  const powerTree = page.locator('.tree-line').filter({ hasText: '电力线路' })
+  await powerTree.getByText('POD A', { exact: true }).click()
+
+  const stage = page.getByTestId('diagram-canvas')
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })
+  await page.getByRole('button', { name: '重置画布缩放' }).click()
+  for (let index = 0; index < 8; index += 1) {
+    await page.getByRole('button', { name: '缩小画布' }).click()
+  }
+  await expect(stage).toHaveAttribute('data-grid-zoom', '0.25')
+  expect(Number(await stage.getAttribute('data-rendered-elements'))).toBeGreaterThan(130)
+  const saveStatus = page.locator('.project-name-control .aidc-status-tag__label')
+  const saveStatusBefore = await saveStatus.textContent()
+
+  const canvasBox = await canvas.boundingBox()
+  if (!canvasBox) throw new Error('无法读取 POD A 画布尺寸')
+  const start = {
+    x: canvasBox.x + canvasBox.width * 0.52,
+    y: canvasBox.y + canvasBox.height * 0.54,
+  }
+  const world = page.locator('.viewport-world')
+  const transformBefore = await world.getAttribute('transform')
+  const renderRevisionBefore = Number(await stage.getAttribute('data-canvas-render-revision'))
+
+  await page.evaluate(() => {
+    const samples: number[] = []
+    let active = true
+    let previous = performance.now()
+    const sampleFrame = (now: number) => {
+      if (!active) return
+      samples.push(now - previous)
+      previous = now
+      requestAnimationFrame(sampleFrame)
+    }
+    requestAnimationFrame(sampleFrame)
+    ;(window as typeof window & {
+      __podPanFrames: { samples: number[]; stop: () => void }
+    }).__podPanFrames = { samples, stop: () => { active = false } }
+  })
+
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down({ button: 'middle' })
+  for (let index = 1; index <= 24; index += 1) {
+    await page.mouse.move(start.x + index * 3.5, start.y + Math.sin(index / 4) * 12)
+    await page.waitForTimeout(8)
+  }
+
+  await expect.poll(() => world.getAttribute('transform')).not.toBe(transformBefore)
+  expect(Number(await stage.getAttribute('data-canvas-render-revision')))
+    .toBe(renderRevisionBefore)
+
+  await page.mouse.up({ button: 'middle' })
+  const frameSamples = await page.evaluate(() => {
+    const state = (window as typeof window & {
+      __podPanFrames: { samples: number[]; stop: () => void }
+    }).__podPanFrames
+    state.stop()
+    return state.samples
+  })
+  const sortedFrameSamples = [...frameSamples].sort((left, right) => left - right)
+  const frameP95 = sortedFrameSamples[
+    Math.min(sortedFrameSamples.length - 1, Math.floor(sortedFrameSamples.length * 0.95))
+  ] ?? 0
+  expect(frameP95).toBeLessThan(25)
+  await expect.poll(async () => (
+    Number(await stage.getAttribute('data-canvas-render-revision'))
+  )).toBeGreaterThan(renderRevisionBefore)
+  expect(Number(await stage.getAttribute('data-canvas-render-revision')) - renderRevisionBefore)
+    .toBeLessThanOrEqual(4)
+  await expect(saveStatus).toHaveText(saveStatusBefore ?? '')
+})

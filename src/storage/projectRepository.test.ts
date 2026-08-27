@@ -42,21 +42,71 @@ describe('project repository', () => {
     expect(await projectRepository.get(document.project.id)).toBeUndefined()
   })
 
-  it('stores monitor switch state separately and removes it with the project', async () => {
-    const document = createDefaultProject('监控状态测试', [])
+  it('mirrors monitor On/Off states into the saved project and removes them with it', async () => {
+    const document = createDefaultProject('监控状态测试', [
+      {
+        key: 'switch',
+        name: 'Switch',
+        category: '电力',
+        source: 'switch.svg',
+        intrinsicWidth: 32,
+        intrinsicHeight: 32,
+        anchors: [],
+      },
+      {
+        key: '2-wv',
+        name: '2WV',
+        category: '冷却',
+        source: '2wv.svg',
+        intrinsicWidth: 32,
+        intrinsicHeight: 32,
+        anchors: [],
+      },
+    ])
+    document.elements = [
+      {
+        id: 'switch-1',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'switch',
+        name: 'Switch',
+        x: 0,
+        y: 0,
+        width: 32,
+        height: 32,
+        rotation: 0,
+        properties: { tag: 'SW-01' },
+        extensions: {},
+      },
+      {
+        id: '2-wv-1',
+        diagramId: document.diagrams[0].id,
+        assetKey: '2-wv',
+        name: '2WV',
+        x: 40,
+        y: 0,
+        width: 32,
+        height: 32,
+        rotation: 0,
+        properties: { tag: '2WV-01' },
+        extensions: {},
+      },
+    ]
     createdIds.push(document.project.id)
     await projectRepository.save(document)
 
-    await monitorStateRepository.setSwitchState(document.project.id, 'switch-1', true)
-    await monitorStateRepository.setSwitchState(document.project.id, 'switch-2', false)
+    await monitorStateRepository.setOnOffState(document.project.id, 'switch-1', true)
+    await monitorStateRepository.setOnOffState(document.project.id, '2-wv-1', false)
 
-    expect(await monitorStateRepository.getSwitchStates(document.project.id)).toEqual({
+    expect(await monitorStateRepository.getOnOffStates(document.project.id)).toEqual({
       'switch-1': true,
-      'switch-2': false,
+      '2-wv-1': false,
     })
-    expect(await projectRepository.get(document.project.id)).toEqual(document)
+    expect((await projectRepository.get(document.project.id))?.elements).toMatchObject([
+      { id: 'switch-1', onOffState: 'on' },
+      { id: '2-wv-1', onOffState: 'off' },
+    ])
 
     await projectRepository.delete(document.project.id)
-    expect(await monitorStateRepository.getSwitchStates(document.project.id)).toEqual({})
+    expect(await monitorStateRepository.getOnOffStates(document.project.id)).toEqual({})
   })
 })

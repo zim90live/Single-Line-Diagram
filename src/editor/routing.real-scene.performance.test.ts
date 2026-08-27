@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import realSceneArchive from '../../scene-archives/WuHu AIDC 0814.json'
 import { parseProjectDocument } from '../domain/project'
+import { symbolAssets } from './symbolCatalog'
 import {
   routeConnectionNetworks,
   routeConnectionNetworksIncrementally,
@@ -18,7 +19,7 @@ const benchmark = benchmarkEnabled ? it : it.skip
 
 describe('real scene routing performance', () => {
   benchmark('compares a complete route with an incremental connected-element move', () => {
-    const document = parseProjectDocument(realSceneArchive)
+    const document = parseProjectDocument(realSceneArchive, symbolAssets)
     const diagram = document.diagrams.find((candidate) => (
       document.connections.filter((network) => network.diagramId === candidate.id).length > 50
     ))

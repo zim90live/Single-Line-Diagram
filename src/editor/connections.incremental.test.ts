@@ -149,6 +149,37 @@ describe('incremental connection routing', () => {
     expect(result.routed.invalidEdgeIds).toEqual([])
   })
 
+  it('drops the old route when an edge keeps its id but moves to a new network', () => {
+    const previous = fixture()
+    const routed = routeConnectionNetworks(
+      previous.networks,
+      previous.elements,
+      previous.assets,
+      previous.gridSize,
+    )
+    const migrated = {
+      ...previous.networks[0],
+      id: 'migrated-network',
+    }
+    const next = {
+      ...previous,
+      networks: [migrated, previous.networks[1]],
+    }
+
+    const result = routeConnectionNetworksIncrementally(previous, routed, next)
+    const migratedRoutes = result.routed.edges.filter((edge) => (
+      edge.edgeId === migrated.edges[0].id
+    ))
+
+    expect(result.mode).toBe('incremental')
+    expect(result.dirtyNetworkCount).toBe(1)
+    expect(result.reusedEdgeCount).toBe(1)
+    expect(migratedRoutes).toHaveLength(1)
+    expect(migratedRoutes[0].networkId).toBe(migrated.id)
+    expect(new Set(result.routed.edges.map((edge) => edge.edgeId)).size)
+      .toBe(result.routed.edges.length)
+  })
+
   it('falls back to a full route when anchor geometry changes', () => {
     const previous = fixture()
     const routed = routeConnectionNetworks(
@@ -172,5 +203,69 @@ describe('incremental connection routing', () => {
     expect(result.mode).toBe('full')
     expect(result.dirtyNetworkCount).toBe(2)
     expect(result.reusedEdgeCount).toBe(0)
+  })
+
+  it('retries a previously invalid constrained network after an obstacle moves away', () => {
+    const source = element('manual-source', 0, 0)
+    const target = element('manual-target', 192, 0)
+    const blocker = element('unrelated-blocker', 176, 0)
+    const constrainedNetwork: ConnectionNetwork = {
+      id: 'invalid-manual-network',
+      diagramId: 'incremental-diagram',
+      type: 'electrical',
+      nodes: [
+        {
+          id: 'manual-source-anchor',
+          kind: 'element-anchor',
+          elementId: source.id,
+          anchorId: 'right',
+        },
+        {
+          id: 'manual-route-node',
+          kind: 'node',
+          x: 112,
+          y: 80,
+        },
+        {
+          id: 'manual-target-anchor',
+          kind: 'element-anchor',
+          elementId: target.id,
+          anchorId: 'left',
+        },
+      ],
+      edges: [{
+        id: 'invalid-manual-edge',
+        sourceNodeId: 'manual-source-anchor',
+        targetNodeId: 'manual-target-anchor',
+        routeNodeIds: ['manual-route-node'],
+      }],
+    }
+    const previous: ConnectionRouteInput = {
+      networks: [constrainedNetwork],
+      elements: [source, target, blocker],
+      assets: [asset],
+      gridSize: 8,
+      busbars: [],
+    }
+    const routed = routeConnectionNetworks(
+      previous.networks,
+      previous.elements,
+      previous.assets,
+      previous.gridSize,
+    )
+    expect(routed.invalidEdgeIds).toEqual(['invalid-manual-edge'])
+
+    const next = {
+      ...previous,
+      elements: previous.elements.map((item) => item.id === blocker.id
+        ? { ...item, x: 320 }
+        : item),
+    }
+    const result = routeConnectionNetworksIncrementally(previous, routed, next)
+
+    expect(result.mode).toBe('incremental')
+    expect(result.dirtyNetworkCount).toBe(1)
+    expect(result.routed.invalidEdgeIds).toEqual([])
+    expect(result.routed.edges.map((edge) => edge.edgeId)).toEqual(['invalid-manual-edge'])
   })
 })

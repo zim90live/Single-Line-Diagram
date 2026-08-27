@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="48" viewBox="0 0 96 48">
+  <rect x="1" y="1" width="94" height="46" fill="#121316" stroke="#777777" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="48" y="27" fill="#F5F6F7" font-family="monospace" font-size="10" font-weight="600" text-anchor="middle">TAG</text>
+</svg>

@@ -5,7 +5,9 @@ import {
   EDITOR_GRID_SIZE,
   getDiagramPath,
   parseProjectDocument,
+  projectOnOffStates,
   SCHEMA_VERSION,
+  withOnOffStateSnapshot,
 } from './project'
 
 const asset = {
@@ -54,6 +56,333 @@ describe('project document', () => {
     const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
 
     expect(parsed).toEqual(document)
+  })
+
+  it('round-trips explicit On/Off element states and fills export snapshots', () => {
+    const statefulAsset = { ...asset, key: 'switch', name: 'Switch' }
+    const document = createDefaultProject('开关状态往返', [statefulAsset])
+    document.elements = [{
+      id: 'switch-state-test',
+      diagramId: document.diagrams[0].id,
+      assetKey: 'switch',
+      name: 'Switch',
+      x: 0,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: { tag: 'SW-01' },
+      extensions: {},
+    }]
+
+    const snapshot = withOnOffStateSnapshot(document, { 'switch-state-test': true })
+    expect(snapshot.elements[0].onOffState).toBe('on')
+    expect(projectOnOffStates(snapshot)).toEqual({ 'switch-state-test': true })
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(snapshot)))).toEqual(snapshot)
+
+    const legacy = JSON.parse(JSON.stringify(snapshot))
+    legacy.schemaVersion = 22
+    delete legacy.elements[0].onOffState
+    expect(parseProjectDocument(legacy).elements[0].onOffState).toBeUndefined()
+  })
+
+  it('round-trips cooling device and pump-port roles and keeps v21 assets unclassified', () => {
+    const configured = createDefaultProject('冷却角色往返', [{
+      ...asset,
+      category: '冷却',
+      coolingDeviceRole: 'pump' as const,
+      anchors: [
+        {
+          id: 'pump-inlet',
+          name: '入口',
+          x: 0,
+          y: 32,
+          direction: 'left' as const,
+          type: 'cooling-primary-cold' as const,
+          flowRole: 'inlet' as const,
+        },
+        {
+          id: 'pump-outlet',
+          name: '出口',
+          x: 64,
+          y: 32,
+          direction: 'right' as const,
+          type: 'cooling-primary-cold' as const,
+          flowRole: 'outlet' as const,
+        },
+      ],
+    }])
+
+    const roundTripped = parseProjectDocument(JSON.parse(JSON.stringify(configured)))
+    expect(roundTripped.assets[0]).toMatchObject({
+      coolingDeviceRole: 'pump',
+      anchors: [
+        { id: 'pump-inlet', flowRole: 'inlet' },
+        { id: 'pump-outlet', flowRole: 'outlet' },
+      ],
+    })
+
+    const schemaV21 = JSON.parse(JSON.stringify(createDefaultProject('旧版冷却角色', [{
+      ...asset,
+      category: '冷却',
+      anchors: [{
+        id: 'legacy-cooling-anchor',
+        name: '冷却端口',
+        x: 0,
+        y: 32,
+        direction: 'left',
+        type: 'cooling-general',
+      }],
+    }])))
+    schemaV21.schemaVersion = 21
+
+    const migrated = parseProjectDocument(schemaV21)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.assets[0].coolingDeviceRole).toBeUndefined()
+    expect(migrated.assets[0].anchors[0].flowRole).toBeUndefined()
+  })
+
+  it('migrates a v23 CV into a top-to-bottom check valve without changing anchor ids', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('CV 单向迁移', [{
+      ...asset,
+      key: 'cv',
+      name: 'CV',
+      category: '冷却',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+      coolingDeviceRole: 'valve',
+      anchors: [
+        {
+          id: 'legacy-cv-top',
+          name: '通用 1',
+          x: 16,
+          y: 0,
+          direction: 'top',
+          type: 'cooling-general',
+        },
+        {
+          id: 'legacy-cv-bottom',
+          name: '通用 2',
+          x: 16,
+          y: 32,
+          direction: 'bottom',
+          type: 'cooling-general',
+        },
+      ],
+    }])))
+    legacy.schemaVersion = 23
+
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.assets[0]).toMatchObject({
+      key: 'cv',
+      coolingDeviceRole: 'check-valve',
+      anchors: [
+        { id: 'legacy-cv-top', flowRole: 'inlet' },
+        { id: 'legacy-cv-bottom', flowRole: 'outlet' },
+      ],
+    })
+
+    const currentButMisclassified = JSON.parse(JSON.stringify(migrated))
+    currentButMisclassified.assets[0].coolingDeviceRole = 'valve'
+    expect(parseProjectDocument(currentButMisclassified).assets[0].coolingDeviceRole)
+      .toBe('check-valve')
+  })
+
+  it('migrates schema v20 route waypoints into unified connection nodes', () => {
+    const connectedAsset = {
+      ...asset,
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 64,
+        y: 32,
+        direction: 'right' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('节点迁移', [connectedAsset])))
+    const diagramId = legacy.lineSystems.find((line: { type: string }) => (
+      line.type === 'power'
+    )).rootDiagramId
+    legacy.schemaVersion = 20
+    legacy.diagrams.find((diagram: { id: string }) => diagram.id === diagramId).routeWaypoints = [
+      { id: 'waypoint-a', x: 80, y: 96 },
+    ]
+    legacy.elements = ['left', 'right'].map((id, index) => ({
+      id,
+      diagramId,
+      assetKey: connectedAsset.key,
+      name: id,
+      x: index * 160,
+      y: 64,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+    legacy.connections = [{
+      id: 'route-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'electrical-anchor' },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'electrical-anchor' },
+      ],
+      edges: [{
+        id: 'route-edge',
+        sourceNodeId: 'left-node',
+        targetNodeId: 'right-node',
+        routeWaypointIds: ['waypoint-a'],
+      }],
+    }]
+
+    const migrated = parseProjectDocument(legacy, [connectedAsset])
+
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect('routeWaypoints' in migrated.diagrams.find((diagram) => diagram.id === diagramId)!).toBe(false)
+    expect(migrated.connections[0].nodes).toContainEqual({
+      id: 'waypoint-a',
+      kind: 'node',
+      x: 80,
+      y: 96,
+    })
+    expect(migrated.connections[0].edges[0].routeNodeIds).toEqual(['waypoint-a'])
+  })
+
+  it('round-trips topological junction nodes and enforces their 8px position', () => {
+    const connectedAsset = {
+      ...asset,
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 64,
+        y: 32,
+        direction: 'right' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const document = createDefaultProject('分流节点往返', [connectedAsset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.elements.push(...['left', 'right'].map((id, index) => ({
+      id,
+      diagramId,
+      assetKey: connectedAsset.key,
+      name: id,
+      x: index * 160,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    })))
+    document.connections.push({
+      id: 'junction-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'electrical-anchor' },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'electrical-anchor' },
+        { id: 'junction', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [
+        { id: 'left-edge', sourceNodeId: 'left-node', targetNodeId: 'junction' },
+        { id: 'right-edge', sourceNodeId: 'junction', targetNodeId: 'right-node' },
+      ],
+    })
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    expect(parsed.connections[0].nodes).toContainEqual({
+      id: 'junction',
+      kind: 'node',
+      x: 80,
+      y: 32,
+    })
+
+    const offGrid = JSON.parse(JSON.stringify(document))
+    offGrid.connections[0].nodes[2].x = 81
+    expect(() => parseProjectDocument(offGrid)).toThrow(/8px/)
+  })
+
+  it('migrates schema v16 without inventing manual route constraints', () => {
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('途径点迁移', [asset])))
+    legacy.schemaVersion = 16
+    legacy.diagrams.forEach((diagram: Record<string, unknown>) => delete diagram.routeWaypoints)
+
+    const migrated = parseProjectDocument(legacy, [asset])
+
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.diagrams.every((diagram) => !('routeWaypoints' in diagram))).toBe(true)
+    expect(migrated.connections.every((network) => (
+      network.edges.every((edge) => edge.routeNodeIds === undefined)
+    ))).toBe(true)
+  })
+
+  it('repairs degenerate and dangling edges in schema v19 cached projects', () => {
+    const connectedAsset = {
+      ...asset,
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 64,
+        y: 32,
+        direction: 'right' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('v19 缓存修复', [connectedAsset])))
+    const diagramId = legacy.lineSystems.find((line: { type: string }) => (
+      line.type === 'power'
+    )).rootDiagramId
+    legacy.schemaVersion = 19
+    legacy.elements = ['left', 'right'].map((id, index) => ({
+      id,
+      diagramId,
+      assetKey: connectedAsset.key,
+      name: id,
+      x: index * 160,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+    legacy.connections = [{
+      id: 'legacy-v19-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'electrical-anchor' },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'electrical-anchor' },
+        { id: 'merged-junction', kind: 'junction', x: 80, y: 32 },
+      ],
+      edges: [
+        { id: 'left-edge', sourceNodeId: 'left-node', targetNodeId: 'merged-junction' },
+        { id: 'degenerate-edge', sourceNodeId: 'merged-junction', targetNodeId: 'merged-junction' },
+        { id: 'dangling-edge', sourceNodeId: 'right-node', targetNodeId: 'missing-node' },
+        { id: 'right-edge', sourceNodeId: 'merged-junction', targetNodeId: 'right-node' },
+      ],
+    }]
+
+    const migrated = parseProjectDocument(legacy, [connectedAsset])
+
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.connections[0].edges.map((edge) => edge.id)).toEqual([
+      'left-edge',
+      'right-edge',
+    ])
+
+    const invalidCurrent = structuredClone(migrated)
+    invalidCurrent.connections[0].edges.push({
+      id: 'current-self-loop',
+      sourceNodeId: 'merged-junction',
+      targetNodeId: 'merged-junction',
+    })
+    expect(() => parseProjectDocument(invalidCurrent, [connectedAsset]))
+      .toThrow('线路边必须引用两个不同的有效节点')
   })
 
   it('migrates an older canvas grid to the active 8px grid', () => {
@@ -408,6 +737,38 @@ describe('project document', () => {
     expect(parsed.elements[0].properties.color).toBeUndefined()
   })
 
+  it.each(['2-wv', 'cv'])('migrates an existing %s color into independent off/on colors', (assetKey) => {
+    const statefulAsset = {
+      ...asset,
+      key: assetKey,
+      name: assetKey === '2-wv' ? '2WV' : 'CV',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+    }
+    const legacy = createDefaultProject('阀门颜色迁移', [statefulAsset])
+    legacy.elements = [{
+      id: `${assetKey}-colored`,
+      diagramId: legacy.diagrams[0].id,
+      assetKey,
+      name: statefulAsset.name,
+      x: 0,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: { color: '#556677', tag: `${statefulAsset.name}-01` },
+      extensions: {},
+    }]
+
+    const parsed = parseProjectDocument(legacy, [statefulAsset])
+
+    expect(parsed.elements[0].properties).toEqual({
+      switchOffColor: '#556677',
+      switchOnColor: '#556677',
+      tag: `${statefulAsset.name}-01`,
+    })
+  })
+
   it('refreshes installed asset categories while preserving existing anchors', () => {
     const document = createDefaultProject('分类同步', [{
       ...asset,
@@ -430,7 +791,7 @@ describe('project document', () => {
     expect(parsed.assets[0].anchors).toEqual(document.assets[0].anchors)
   })
 
-  it('refreshes installed asset metadata, appends new assets, and preserves Cabinet data', () => {
+  it('refreshes installed asset metadata, appends Cabinet B and generic, and preserves data', () => {
     const legacyCabinet = {
       ...asset,
       key: 'cabinet',
@@ -460,6 +821,15 @@ describe('project document', () => {
       key: 'cabinet-b',
       name: 'Cabinet B',
       source: 'src/assets/symbols/Cabinet B.svg',
+    }
+    const generic = {
+      ...cabinetA,
+      key: 'generic',
+      name: '通用图元',
+      category: '通用',
+      source: 'src/assets/symbols/Generic.svg',
+      intrinsicWidth: 96,
+      intrinsicHeight: 48,
     }
     const document = createDefaultProject('Cabinet 素材同步', [legacyCabinet])
     document.elements.push(
@@ -491,7 +861,7 @@ describe('project document', () => {
       },
     )
 
-    const parsed = parseProjectDocument(document, [cabinetA, cabinetB])
+    const parsed = parseProjectDocument(document, [cabinetA, cabinetB, generic])
 
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
       name: 'Cabinet A',
@@ -500,7 +870,73 @@ describe('project document', () => {
       anchors: legacyCabinet.anchors,
     })
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(cabinetB)
+    expect(parsed.assets.find((candidate) => candidate.key === 'generic')).toEqual(generic)
     expect(parsed.elements.map((element) => element.name)).toEqual(['Cabinet A', '东侧机柜'])
+  })
+
+  it('migrates legacy portrait PHE assets and instances to the PNG landscape layout', () => {
+    const legacyPhe = {
+      ...asset,
+      key: 'phe',
+      name: 'PHE',
+      category: '冷却',
+      source: 'src/assets/symbols/PHE.svg',
+      intrinsicWidth: 80,
+      intrinsicHeight: 160,
+      anchors: [
+        { id: 'primary-hot', name: '一次回路热 1', x: 0, y: 8, direction: 'left' as const, type: 'cooling-primary-hot' as const },
+        { id: 'primary-cold', name: '一次回路冷 1', x: 0, y: 152, direction: 'left' as const, type: 'cooling-primary-cold' as const },
+        { id: 'secondary-cold', name: '二次回路冷 1', x: 80, y: 8, direction: 'right' as const, type: 'cooling-secondary-cold' as const },
+        { id: 'secondary-hot', name: '二次回路热 1', x: 80, y: 152, direction: 'right' as const, type: 'cooling-secondary-hot' as const },
+      ],
+    }
+    const currentPhe = {
+      ...legacyPhe,
+      source: 'src/assets/symbols/PHE.png',
+      intrinsicWidth: 200,
+      intrinsicHeight: 80,
+      anchors: [],
+    }
+    const document = createDefaultProject('PHE 横版迁移', [legacyPhe])
+    document.elements = [{
+      id: 'legacy-phe-element',
+      diagramId: document.diagrams[0].id,
+      assetKey: 'phe',
+      name: 'PHE',
+      x: 712,
+      y: 904,
+      width: 80,
+      height: 160,
+      rotation: 90,
+      labelPlacement: 'left',
+      properties: { tag: 'HE1' },
+      extensions: {},
+    }]
+
+    const parsed = parseProjectDocument(document, [currentPhe])
+
+    expect(parsed.assets[0]).toMatchObject({
+      source: 'src/assets/symbols/PHE.png',
+      intrinsicWidth: 200,
+      intrinsicHeight: 80,
+      anchors: [
+        { id: 'primary-hot', x: 144, y: 0, direction: 'top', type: 'cooling-primary-hot' },
+        { id: 'primary-cold', x: 64, y: 0, direction: 'top', type: 'cooling-primary-cold' },
+        { id: 'secondary-cold', x: 144, y: 80, direction: 'bottom', type: 'cooling-secondary-cold' },
+        { id: 'secondary-hot', x: 64, y: 80, direction: 'bottom', type: 'cooling-secondary-hot' },
+      ],
+    })
+    expect(parsed.elements[0]).toMatchObject({
+      id: 'legacy-phe-element',
+      x: 672,
+      y: 944,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      labelPlacement: 'left',
+      properties: { tag: 'HE1' },
+    })
+    expect(parseProjectDocument(parsed, [currentPhe])).toEqual(parsed)
   })
 
   it('validates anchor grid, edge, corner, duplicate, and outward direction rules', () => {
@@ -583,6 +1019,38 @@ describe('project document', () => {
     document.elements[0].properties.color = '#77B4BF'
     document.elements[0].properties.switchOnColor = 'green'
     expect(() => parseProjectDocument(document)).toThrow('开状态颜色必须是六位十六进制值')
+  })
+
+  it('round-trips generic border visibility through the existing property container', () => {
+    const genericAsset = {
+      ...asset,
+      key: 'generic',
+      name: '通用图元',
+      category: '通用',
+      intrinsicWidth: 96,
+      intrinsicHeight: 48,
+    }
+    const document = createDefaultProject('通用图元虚线显隐', [genericAsset])
+    document.elements.push({
+      id: 'generic-hidden-border',
+      diagramId: document.diagrams[0].id,
+      assetKey: genericAsset.key,
+      name: genericAsset.name,
+      x: 0,
+      y: 0,
+      width: 96,
+      height: 48,
+      rotation: 0,
+      properties: { tag: 'GEN-01', genericBorderVisible: false },
+      extensions: {},
+    })
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)), [genericAsset])
+
+    expect(parsed.elements[0].properties).toMatchObject({
+      tag: 'GEN-01',
+      genericBorderVisible: false,
+    })
   })
 
   it('requires one cooling line and one power line', () => {
@@ -721,6 +1189,7 @@ describe('project document', () => {
         id: 'child-edge',
         sourceNodeId: 'child-tap-a',
         targetNodeId: 'child-tap-b',
+        flowDirection: 'forward',
         color: '#D5B96F',
         label: '联络线 01',
         labelVisible: false,
@@ -733,6 +1202,7 @@ describe('project document', () => {
     expect(parsed.busbars[0].color).toBe('#77B4BF')
     expect(parsed.connections[0].edges[0].color).toBe('#D5B96F')
     expect(parsed.connections[0].edges[0]).toMatchObject({
+      flowDirection: 'forward',
       label: '联络线 01',
       labelVisible: false,
       labelEndpoint: 'source',
@@ -745,12 +1215,23 @@ describe('project document', () => {
     delete legacy.connections[0].edges[0].labelVisible
     delete legacy.connections[0].edges[0].labelEndpoint
     delete legacy.connections[0].edges[0].labelSide
+    delete legacy.connections[0].edges[0].flowDirection
     expect(parseProjectDocument(legacy).connections[0].edges[0]).toEqual({
       id: 'child-edge',
       sourceNodeId: 'child-tap-a',
       targetNodeId: 'child-tap-b',
       color: '#D5B96F',
     })
+
+    const schemaV15 = JSON.parse(JSON.stringify(document))
+    schemaV15.schemaVersion = 15
+    delete schemaV15.connections[0].edges[0].flowDirection
+    expect(parseProjectDocument(schemaV15).connections[0].edges[0].flowDirection)
+      .toBeUndefined()
+
+    const invalidFlowDirection = structuredClone(document)
+    invalidFlowDirection.connections[0].edges[0].flowDirection = 'sideways' as 'forward'
+    expect(() => parseProjectDocument(invalidFlowDirection)).toThrow()
 
     const invalidBusbarColor = structuredClone(document)
     invalidBusbarColor.busbars[0].color = 'blue'
@@ -796,6 +1277,7 @@ describe('project document', () => {
       rotation: 0,
       labelVisible: false,
       monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
       monitorMetrics: [{
         id: 'temperature',
         name: '出水温度',
@@ -813,8 +1295,15 @@ describe('project document', () => {
     const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
     expect(parsed.elements[0]).toMatchObject({
       monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
       monitorMetrics: [{ name: '出水温度', valueType: 'number', precision: 1 }],
     })
+
+    const schemaV17 = JSON.parse(JSON.stringify(document))
+    schemaV17.schemaVersion = 17
+    delete schemaV17.elements[0].monitorMetricLabelsVisible
+    expect(parseProjectDocument(schemaV17).elements[0].monitorMetricLabelsVisible)
+      .toBeUndefined()
 
     const schemaV14 = JSON.parse(JSON.stringify(document))
     schemaV14.schemaVersion = 14

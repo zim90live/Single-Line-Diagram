@@ -24,8 +24,12 @@ const elements: DiagramElement[] = [
     x: 80, y: 0, width: 32, height: 32, rotation: 0, properties: {}, extensions: {},
   },
   {
+    id: 'mp-default', diagramId: 'diagram-1', assetKey: 'mp', name: 'MP',
+    x: 120, y: 0, width: 32, height: 32, rotation: 0, properties: {}, extensions: {},
+  },
+  {
     id: 'chwp', diagramId: 'diagram-1', assetKey: 'chwp', name: 'CHWP',
-    x: 120, y: 0, width: 200, height: 80, rotation: 0, properties: {}, extensions: {},
+    x: 160, y: 0, width: 200, height: 80, rotation: 0, properties: {}, extensions: {},
   },
 ]
 
@@ -65,6 +69,23 @@ describe('canvas color overview', () => {
           color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
           count: 1,
           elementColorSlot: 'switch-off',
+          elementAssetKey: '2-wv',
+          scopeLabel: '2WV 关',
+        },
+        {
+          category: 'element',
+          color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+          count: 1,
+          elementColorSlot: 'switch-on',
+          elementAssetKey: '2-wv',
+          scopeLabel: '2WV 开',
+        },
+        {
+          category: 'element',
+          color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+          count: 1,
+          elementColorSlot: 'switch-off',
+          elementAssetKey: 'switch',
           scopeLabel: 'Switch 关',
         },
         {
@@ -72,6 +93,7 @@ describe('canvas color overview', () => {
           color: '#77B4BF',
           count: 1,
           elementColorSlot: 'switch-off',
+          elementAssetKey: 'switch',
           scopeLabel: 'Switch 关',
         },
         {
@@ -79,6 +101,7 @@ describe('canvas color overview', () => {
           color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
           count: 1,
           elementColorSlot: 'switch-on',
+          elementAssetKey: 'switch',
           scopeLabel: 'Switch 开',
         },
         {
@@ -86,6 +109,7 @@ describe('canvas color overview', () => {
           color: defaultConnectionColor('cooling-primary-hot'),
           count: 1,
           elementColorSlot: 'switch-on',
+          elementAssetKey: 'switch',
           scopeLabel: 'Switch 开',
         },
       ],
@@ -129,8 +153,9 @@ describe('canvas color overview', () => {
     )
     expect(elementUpdate.elements[0].properties.color).toBeUndefined()
     expect(elementUpdate.elements[1].properties.color).toBeUndefined()
-    expect(elementUpdate.elements[2].properties.color).toBe(replacement)
-    expect(elementUpdate.elements[3].properties.color).toBeUndefined()
+    expect(elementUpdate.elements[2].properties.color).toBeUndefined()
+    expect(elementUpdate.elements[3].properties.color).toBe(replacement)
+    expect(elementUpdate.elements[4].properties.color).toBeUndefined()
     expect(elementUpdate.busbars).toBe(busbars)
     expect(elementUpdate.connections).toBe(connections)
 
@@ -140,6 +165,7 @@ describe('canvas color overview', () => {
         category: 'element',
         color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
         elementColorSlot: 'switch-off',
+        elementAssetKey: 'switch',
       },
       replacement,
     )
@@ -149,6 +175,7 @@ describe('canvas color overview', () => {
       switchOffColor: '#77B4BF',
       switchOnColor: defaultConnectionColor('cooling-primary-hot'),
     })
+    expect(switchOffUpdate.elements[2].properties.switchOffColor).toBeUndefined()
 
     const busbarUpdate = replaceCanvasColor(
       { elements, busbars, connections },

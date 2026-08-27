@@ -4,6 +4,7 @@ import type {
   ConnectionNode,
   DiagramElement,
   LineSystemType,
+  RouteWaypoint,
 } from '../domain/project'
 import { diagramObjectsBounds, snap, type Point } from './geometry'
 
@@ -16,6 +17,7 @@ export interface DiagramSelectionClipboard {
   elements: DiagramElement[]
   busbars: Busbar[]
   connections: ConnectionNetwork[]
+  routeWaypoints: RouteWaypoint[]
 }
 
 export function createEmptySelectionClipboard(): DiagramSelectionClipboard {
@@ -26,6 +28,7 @@ export function createEmptySelectionClipboard(): DiagramSelectionClipboard {
     elements: [],
     busbars: [],
     connections: [],
+    routeWaypoints: [],
   }
 }
 
@@ -74,7 +77,9 @@ function nodeBelongsToSelection(
 ) {
   return node.kind === 'element-anchor'
     ? selectedElementIds.has(node.elementId)
-    : selectedBusbarIds.has(node.busbarId)
+    : node.kind === 'busbar-tap'
+      ? selectedBusbarIds.has(node.busbarId)
+      : false
 }
 
 export function copyConnectionsWithinSelection(
@@ -83,17 +88,85 @@ export function copyConnectionsWithinSelection(
   selectedBusbarIds: Set<string>,
 ) {
   return networks.flatMap((network) => {
+    const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
     const selectedNodeIds = new Set(network.nodes.flatMap((node) => (
       nodeBelongsToSelection(node, selectedElementIds, selectedBusbarIds)
         ? [node.id]
         : []
     )))
-    const edges = network.edges.filter((edge) => (
-      selectedNodeIds.has(edge.sourceNodeId) && selectedNodeIds.has(edge.targetNodeId)
+    let edges = network.edges.filter((edge) => {
+      const source = nodesById.get(edge.sourceNodeId)
+      const target = nodesById.get(edge.targetNodeId)
+      return source && target &&
+        (source.kind === 'node' || selectedNodeIds.has(source.id)) &&
+        (target.kind === 'node' || selectedNodeIds.has(target.id))
+    })
+    let pruned = true
+    while (pruned) {
+      const degree = new Map<string, number>()
+      edges.forEach((edge) => {
+        const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+        for (let index = 1; index < chain.length; index += 1) {
+          degree.set(chain[index - 1], (degree.get(chain[index - 1]) ?? 0) + 1)
+          degree.set(chain[index], (degree.get(chain[index]) ?? 0) + 1)
+        }
+      })
+      const danglingJunctionIds = new Set(network.nodes.flatMap((node) => (
+        node.kind === 'node' && (degree.get(node.id) ?? 0) < 2 ? [node.id] : []
+      )))
+      const nextEdges = edges.filter((edge) => (
+        !danglingJunctionIds.has(edge.sourceNodeId) &&
+        !danglingJunctionIds.has(edge.targetNodeId) &&
+        !(edge.routeNodeIds ?? []).some((id) => danglingJunctionIds.has(id))
+      ))
+      pruned = nextEdges.length !== edges.length
+      edges = nextEdges
+    }
+    if (!edges.length) return []
+
+    const adjacency = new Map<string, Set<string>>()
+    edges.forEach((edge) => {
+      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+      for (let index = 1; index < chain.length; index += 1) {
+        const leftId = chain[index - 1]
+        const rightId = chain[index]
+        const left = adjacency.get(leftId) ?? new Set<string>()
+        const right = adjacency.get(rightId) ?? new Set<string>()
+        left.add(rightId)
+        right.add(leftId)
+        adjacency.set(leftId, left)
+        adjacency.set(rightId, right)
+      }
+    })
+    const componentByNodeId = new Map<string, number>()
+    let component = 0
+    adjacency.forEach((_neighbors, startId) => {
+      if (componentByNodeId.has(startId)) return
+      const pending = [startId]
+      while (pending.length) {
+        const nodeId = pending.pop()!
+        if (componentByNodeId.has(nodeId)) continue
+        componentByNodeId.set(nodeId, component)
+        adjacency.get(nodeId)?.forEach((neighborId) => pending.push(neighborId))
+      }
+      component += 1
+    })
+    const selectedTerminalCountByComponent = new Map<number, number>()
+    selectedNodeIds.forEach((nodeId) => {
+      const componentId = componentByNodeId.get(nodeId)
+      if (componentId === undefined) return
+      selectedTerminalCountByComponent.set(
+        componentId,
+        (selectedTerminalCountByComponent.get(componentId) ?? 0) + 1,
+      )
+    })
+    edges = edges.filter((edge) => (
+      (selectedTerminalCountByComponent.get(componentByNodeId.get(edge.sourceNodeId)!) ?? 0) >= 2
     ))
     if (!edges.length) return []
     const connectedNodeIds = new Set(edges.flatMap((edge) => [
       edge.sourceNodeId,
+      ...(edge.routeNodeIds ?? []),
       edge.targetNodeId,
     ]))
     return [{
@@ -118,10 +191,22 @@ export function instantiateCopiedConnections(
   elementIdMap: Map<string, string>,
   busbarIdMap: Map<string, string>,
   createId: ConnectionIdFactory = createConnectionId,
+  routeWaypointIdMap: Map<string, string> = new Map(),
+  junctionOffset: Point = { x: 0, y: 0 },
 ) {
   return networks.flatMap((network) => {
     const nodeIdMap = new Map<string, string>()
     const nodes = network.nodes.flatMap((node) => {
+      if (node.kind === 'node') {
+        const id = routeWaypointIdMap.get(node.id) ?? createId('connection-node')
+        nodeIdMap.set(node.id, id)
+        return [{
+          ...node,
+          id,
+          x: node.x + junctionOffset.x,
+          y: node.y + junctionOffset.y,
+        }]
+      }
       const ownerId = node.kind === 'element-anchor'
         ? elementIdMap.get(node.elementId)
         : busbarIdMap.get(node.busbarId)
@@ -141,18 +226,24 @@ export function instantiateCopiedConnections(
     const edges = network.edges.flatMap((edge) => {
       const sourceNodeId = nodeIdMap.get(edge.sourceNodeId)
       const targetNodeId = nodeIdMap.get(edge.targetNodeId)
-      return sourceNodeId && targetNodeId
-        ? [{
-            ...edge,
+      if (!sourceNodeId || !targetNodeId) return []
+      const routeNodeIds = (edge.routeNodeIds ?? []).flatMap((id) => {
+        const mapped = nodeIdMap.get(id)
+        return mapped ? [mapped] : []
+      })
+      const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteWaypoints } = edge
+      return [{
+            ...edgeWithoutRouteWaypoints,
             id: createId('connection-edge'),
             sourceNodeId,
             targetNodeId,
+            ...(routeNodeIds.length ? { routeNodeIds } : {}),
           }]
-        : []
     })
     if (!edges.length) return []
     const connectedNodeIds = new Set(edges.flatMap((edge) => [
       edge.sourceNodeId,
+      ...(edge.routeNodeIds ?? []),
       edge.targetNodeId,
     ]))
     return [{

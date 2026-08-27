@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { hexToHsv, hsvToHex, normalizeHexColor } from './objectColors'
+import { defaultConnectionColor, hexToHsv, hsvToHex, normalizeHexColor } from './objectColors'
 
 describe('object colors', () => {
+  it('uses the confirmed cooling circuit presets', () => {
+    expect(defaultConnectionColor('cooling-primary-cold')).toBe('#FFC800')
+    expect(defaultConnectionColor('cooling-primary-hot')).toBe('#FF6011')
+    expect(defaultConnectionColor('cooling-secondary-cold')).toBe('#0084FF')
+    expect(defaultConnectionColor('cooling-secondary-hot')).toBe('#00F074')
+  })
+
   it('normalizes editable HEX values', () => {
     expect(normalizeHexColor('77b4bf', '#D5B96F')).toBe('#77B4BF')
     expect(normalizeHexColor('invalid', '#D5B96F')).toBe('#D5B96F')

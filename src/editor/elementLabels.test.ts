@@ -124,6 +124,7 @@ describe('element label layout', () => {
       expect.objectContaining({
         label: '出水温度',
         labelText: '出水温度(°C)',
+        labelVisible: true,
         valueText: '82.3',
         unit: '°C',
         severity: 'major',
@@ -131,6 +132,7 @@ describe('element label layout', () => {
       expect.objectContaining({
         label: '运行状态',
         labelText: '运行状态',
+        labelVisible: true,
         valueText: '离线',
         unit: '',
         severity: 'critical',
@@ -139,6 +141,82 @@ describe('element label layout', () => {
     expect(layout.text).toContain('出水温度(°C)\t82.3')
     expect(layout.text).not.toContain('82.3°C')
     expect(layout.text).not.toContain('CHWP-01')
+
+    const [valuesOnlyLayout] = layoutElementLabels([{
+      ...current,
+      monitorMetricLabelsVisible: false,
+    }], new Map([[asset.key, asset]]), {
+      readings: {
+        [key]: {
+          elementId: current.id,
+          metricId: 'temperature',
+          value: 82.34,
+          severity: 'major',
+        },
+        [textKey]: {
+          elementId: current.id,
+          metricId: 'running-state',
+          value: '离线',
+          severity: 'critical',
+        },
+      },
+    })
+    expect(valuesOnlyLayout.metricRows).toEqual([
+      expect.objectContaining({ labelVisible: false, valueText: '82.3' }),
+      expect.objectContaining({ labelVisible: false, valueText: '离线' }),
+    ])
+    expect(valuesOnlyLayout.text).toBe('82.3\n离线')
+    expect(valuesOnlyLayout.bounds.width).toBeLessThan(layout.bounds.width)
+    expect(valuesOnlyLayout.metricRows[0].ariaLabel).toContain('出水温度(°C)')
+  })
+
+  it('keeps a generic symbol identifier inside the frame while laying metrics outside', () => {
+    const genericAsset: AssetDefinition = {
+      ...asset,
+      key: 'generic',
+      name: '通用图元',
+      category: '通用',
+      intrinsicWidth: 96,
+      intrinsicHeight: 48,
+      anchors: [],
+    }
+    const current = element({
+      assetKey: 'generic',
+      name: '通用图元',
+      width: 96,
+      height: 48,
+      properties: { tag: 'AHU-01' },
+      monitorDataVisible: true,
+      monitorMetrics: [{
+        id: 'power',
+        name: '有功功率',
+        valueType: 'number',
+        unit: 'kW',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 70, major: 85, critical: 95 },
+      }],
+    })
+    const key = monitorMetricReadingKey(current.id, 'power')
+    const [layout] = layoutElementLabels(
+      [current],
+      new Map([[genericAsset.key, genericAsset]]),
+      {
+        readings: {
+          [key]: {
+            elementId: current.id,
+            metricId: 'power',
+            value: 42.4,
+            severity: 'normal',
+          },
+        },
+      },
+    )
+
+    expect(layout.nameText).toBeNull()
+    expect(layout.text).toBe('有功功率(kW)\t42.4')
+    expect(layout.metricRows).toHaveLength(1)
   })
 
   it('keeps a manually selected side after element rotation and shifts along that side', () => {

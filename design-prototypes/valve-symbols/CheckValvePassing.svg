@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>单向阀正向通过状态</title>
+  <desc>只有存在阀位反馈或可由流量可靠推断时使用；阀瓣与阀座之间显示间隙，并保留正向箭头。</desc>
+  <g stroke="#8EAC94" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 32H17" />
+    <path d="M47 32H64" />
+    <path d="M16 18V46L38 32L16 18Z" fill="#8EAC94" fill-opacity="0.16" />
+    <path d="M46 16V48" />
+    <path d="M16 9H48" stroke-width="1.5" />
+    <path d="M42 4L48 9L42 14" stroke-width="1.5" />
+  </g>
+  <path d="M39.5 32H43.5" stroke="#F2F3EF" stroke-width="2" stroke-linecap="round" />
+</svg>

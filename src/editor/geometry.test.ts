@@ -76,6 +76,10 @@ describe('editor geometry', () => {
     )).toBe(false)
     expect(elementsEqual(
       [createElement()],
+      [createElement({ monitorMetricLabelsVisible: false })],
+    )).toBe(false)
+    expect(elementsEqual(
+      [createElement()],
       [createElement({
         monitorMetrics: [{
           id: 'load',

@@ -1,0 +1,137 @@
+<svg width="960" height="420" viewBox="0 0 960 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>组态图阀门 SVG 概念稿</title>
+  <desc>左侧为单向阀的工程图例、正向通过与反向截止；右侧为两通阀的工程图例、打开与关闭。状态同时使用几何和颜色表达。</desc>
+  <defs>
+    <style>
+      .title { font: 600 22px 'Google Sans Code', 'PingFang SC', sans-serif; fill: #F2F3EF; }
+      .section { font: 600 14px 'Google Sans Code', 'PingFang SC', sans-serif; fill: #F2F3EF; }
+      .label { font: 600 12px 'Google Sans Code', 'PingFang SC', sans-serif; fill: #F2F3EF; }
+      .meta { font: 400 10px 'Google Sans Code', 'PingFang SC', sans-serif; fill: #858784; }
+      .note { font: 400 11px 'Google Sans Code', 'PingFang SC', sans-serif; fill: #B6B8B4; }
+      .neutral { stroke: #777777; }
+      .open { stroke: #8EAC94; }
+      .closed { stroke: #B6B8B4; }
+      .symbol-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { stroke-width: 1.5; }
+    </style>
+    <symbol id="cv-neutral" viewBox="0 0 64 64">
+      <g class="symbol-line neutral">
+        <path d="M0 32H17M47 32H64M18 18V46L42 32L18 18ZM46 16V48" />
+        <path class="thin" d="M18 9H46M40 4L46 9L40 14" />
+      </g>
+    </symbol>
+    <symbol id="cv-open" viewBox="0 0 64 64">
+      <g class="symbol-line open">
+        <path d="M0 32H17M47 32H64" />
+        <path d="M16 18V46L38 32L16 18Z" fill="#8EAC94" fill-opacity="0.16" />
+        <path d="M46 16V48" />
+        <path class="thin" d="M16 9H48M42 4L48 9L42 14" />
+      </g>
+      <path d="M39.5 32H43.5" stroke="#F2F3EF" stroke-width="2" stroke-linecap="round" />
+    </symbol>
+    <symbol id="cv-closed" viewBox="0 0 64 64">
+      <g class="symbol-line closed">
+        <path d="M0 32H17M47 32H64" />
+        <path d="M18 18V46L46 32L18 18Z" fill="#B6B8B4" fill-opacity="0.2" />
+        <path d="M46 16V48" stroke-width="3.5" />
+        <path class="thin" d="M54 9H38M44 4L38 9L44 14" />
+      </g>
+      <g stroke="#B6B8B4" stroke-width="1.75" stroke-linecap="round">
+        <path d="M33 5L39 13M39 5L33 13" />
+      </g>
+    </symbol>
+    <symbol id="twv-neutral" viewBox="0 0 64 64">
+      <g class="symbol-line neutral">
+        <path d="M0 38H14M50 38H64M14 24V52L32 38L14 24ZM50 24V52L32 38L50 24ZM32 24V16" />
+        <rect x="21" y="2" width="22" height="14" rx="2" />
+        <path class="thin" d="M27 9H37" />
+      </g>
+    </symbol>
+    <symbol id="twv-open" viewBox="0 0 64 64">
+      <g class="symbol-line open">
+        <path d="M0 38H14M50 38H64" />
+        <path d="M14 24V52L32 38L14 24ZM50 24V52L32 38L50 24Z" fill="#8EAC94" fill-opacity="0.12" />
+        <path d="M32 24V16" />
+        <rect x="21" y="2" width="22" height="14" rx="2" />
+        <path d="M26 9H38" stroke-width="2" />
+        <path d="M17 38H47" stroke="#F2F3EF" stroke-width="2" />
+      </g>
+    </symbol>
+    <symbol id="twv-closed" viewBox="0 0 64 64">
+      <g class="symbol-line closed">
+        <path d="M0 38H14M50 38H64" />
+        <path d="M14 24V52L32 38L14 24ZM50 24V52L32 38L50 24Z" fill="#B6B8B4" fill-opacity="0.12" />
+        <path d="M32 24V16" />
+        <rect x="21" y="2" width="22" height="14" rx="2" />
+        <path d="M32 5V13" stroke-width="2" />
+        <path d="M32 29V47" stroke="#F2F3EF" stroke-width="3" />
+      </g>
+    </symbol>
+  </defs>
+
+  <rect width="960" height="420" rx="16" fill="#141518" />
+  <text x="28" y="38" class="title">阀门组态图符 · 工程轮廓与运行反馈分层</text>
+  <text x="28" y="62" class="note">轮廓用于识别设备类型；颜色、阀位线和流向用于反馈状态。红色保留给故障/报警。</text>
+
+  <text x="28" y="92" class="section">单向阀 / CHECK VALVE</text>
+  <text x="503" y="92" class="section">两通阀 / 2-WAY CONTROL VALVE</text>
+
+  <g>
+    <rect x="28" y="108" width="140" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#cv-neutral" x="58" y="138" width="80" height="80" />
+    <text x="98" y="242" text-anchor="middle" class="label">工程图例</text>
+    <text x="98" y="263" text-anchor="middle" class="meta">状态未知</text>
+    <rect x="54" y="282" width="88" height="22" rx="11" fill="#24262A" />
+    <text x="98" y="297" text-anchor="middle" class="meta">NO FEEDBACK</text>
+  </g>
+  <g>
+    <rect x="183" y="108" width="140" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#cv-open" x="213" y="138" width="80" height="80" />
+    <text x="253" y="242" text-anchor="middle" class="label">正向通过</text>
+    <text x="253" y="263" text-anchor="middle" class="meta">有反馈时显示</text>
+    <rect x="219" y="282" width="68" height="22" rx="11" fill="#263229" />
+    <text x="253" y="297" text-anchor="middle" class="meta" fill="#8EAC94">PASSING</text>
+  </g>
+  <g>
+    <rect x="338" y="108" width="140" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#cv-closed" x="368" y="138" width="80" height="80" />
+    <text x="408" y="242" text-anchor="middle" class="label">反向截止</text>
+    <text x="408" y="263" text-anchor="middle" class="meta">正常保护动作</text>
+    <rect x="373" y="282" width="70" height="22" rx="11" fill="#2A2B2D" />
+    <text x="408" y="297" text-anchor="middle" class="meta">BLOCKED</text>
+  </g>
+
+  <g>
+    <rect x="503" y="108" width="140" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#twv-neutral" x="533" y="138" width="80" height="80" />
+    <text x="573" y="242" text-anchor="middle" class="label">工程图例</text>
+    <text x="573" y="263" text-anchor="middle" class="meta">阀体 + 执行器</text>
+    <rect x="529" y="282" width="88" height="22" rx="11" fill="#24262A" />
+    <text x="573" y="297" text-anchor="middle" class="meta">NO FEEDBACK</text>
+  </g>
+  <g>
+    <rect x="658" y="108" width="140" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#twv-open" x="688" y="138" width="80" height="80" />
+    <text x="728" y="242" text-anchor="middle" class="label">打开</text>
+    <text x="728" y="263" text-anchor="middle" class="meta">水平阀位 + 贯通</text>
+    <rect x="697" y="282" width="62" height="22" rx="11" fill="#263229" />
+    <text x="728" y="297" text-anchor="middle" class="meta" fill="#8EAC94">OPEN</text>
+  </g>
+  <g>
+    <rect x="813" y="108" width="119" height="214" rx="10" fill="#1B1D20" stroke="#303238" />
+    <use href="#twv-closed" x="833" y="138" width="80" height="80" />
+    <text x="873" y="242" text-anchor="middle" class="label">关闭</text>
+    <text x="873" y="263" text-anchor="middle" class="meta">垂直阀位 + 阻断</text>
+    <rect x="839" y="282" width="68" height="22" rx="11" fill="#2A2B2D" />
+    <text x="873" y="297" text-anchor="middle" class="meta">CLOSED</text>
+  </g>
+
+  <path d="M28 350H932" stroke="#303238" />
+  <circle cx="35" cy="377" r="4" fill="#8EAC94" />
+  <text x="48" y="381" class="note">正常已确认状态</text>
+  <circle cx="190" cy="377" r="4" fill="#B6B8B4" />
+  <text x="203" y="381" class="note">关闭/被动截止</text>
+  <circle cx="361" cy="377" r="4" fill="#DF816F" />
+  <text x="374" y="381" class="note">红色仅用于故障、反馈矛盾或超时</text>
+  <text x="932" y="381" text-anchor="end" class="note">建议同时显示 OPEN / CLOSED / % / UNKNOWN 文本</text>
+</svg>

@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>单向阀反向截止状态</title>
+  <desc>只有存在反馈或可靠工况推断时使用；阀瓣贴合阀座，反向箭头在阀座前终止。</desc>
+  <g stroke="#B6B8B4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 32H17" />
+    <path d="M47 32H64" />
+    <path d="M18 18V46L46 32L18 18Z" fill="#B6B8B4" fill-opacity="0.2" />
+    <path d="M46 16V48" stroke-width="3.5" />
+    <path d="M54 9H38" stroke-width="1.5" />
+    <path d="M44 4L38 9L44 14" stroke-width="1.5" />
+  </g>
+  <g stroke="#B6B8B4" stroke-width="1.75" stroke-linecap="round">
+    <path d="M33 5L39 13" />
+    <path d="M39 5L33 13" />
+  </g>
+</svg>

@@ -1,5 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
+import { createDefaultProject, SCHEMA_VERSION } from '../src/domain/project'
 import { GRID_DOT_SCREEN_RADIUS } from '../src/editor/gridScale'
 import { defaultConnectionColor } from '../src/editor/objectColors'
 import realSceneArchive from '../scene-archives/WuHu AIDC 0814.json' with { type: 'json' }
@@ -25,12 +27,121 @@ test('registers Cabinet A and Cabinet B as separate insertable symbols', async (
   await expect(page.locator('.diagram-element[data-asset-key="cabinet-b"]')).toHaveCount(1)
 })
 
+test('renders a free-size generic frame with an upright clipped device identifier', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByTitle('拖动或双击插入通用图元').dblclick()
+  const element = page.locator('.diagram-element[data-asset-key="generic"]')
+  const frame = element.locator('.diagram-element__generic-frame')
+  const body = element.locator('.diagram-element__generic-body')
+  const tag = element.locator('.diagram-element__generic-tag')
+
+  await expect(element).toHaveCount(1)
+  await expect(frame).toHaveAttribute('width', '96')
+  await expect(frame).toHaveAttribute('height', '48')
+  await expect(frame).toHaveAttribute('fill', '#121316')
+  await expect(frame).toHaveAttribute('stroke', '#777777')
+  await expect(frame).toHaveAttribute('stroke-opacity', '1')
+  await expect(tag).toHaveText('通用图元-01')
+  await expect(page.locator('.element-label').filter({ hasText: '通用图元-01' })).toHaveCount(0)
+
+  const borderVisibility = page.getByRole('switch', { name: '显示虚线框' })
+  await expect(borderVisibility).toHaveAttribute('aria-checked', 'true')
+  await borderVisibility.click()
+  await expect(frame).toHaveAttribute('stroke-opacity', '0')
+  await expect(frame).toHaveAttribute('fill', '#121316')
+  await expect(tag).toHaveText('通用图元-01')
+  await borderVisibility.click()
+  await expect(frame).toHaveAttribute('stroke-opacity', '1')
+
+  await page.getByLabel('宽度').fill('160')
+  await page.getByLabel('宽度').press('Enter')
+  await page.getByLabel('高度').fill('64')
+  await page.getByLabel('高度').press('Enter')
+  await expect(frame).toHaveAttribute('width', '160')
+  await expect(frame).toHaveAttribute('height', '64')
+  await expect(page.getByLabel('缩放', { exact: true })).toHaveCount(0)
+
+  const resizeHandle = page.locator('.transform-handle--resize')
+  const resizeBox = await resizeHandle.boundingBox()
+  if (!resizeBox) throw new Error('无法读取通用图元缩放手柄位置')
+  await page.mouse.move(resizeBox.x + resizeBox.width / 2, resizeBox.y + resizeBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(
+    resizeBox.x + resizeBox.width / 2 + 48,
+    resizeBox.y + resizeBox.height / 2 + 16,
+  )
+  await page.mouse.up()
+  await expect(frame).toHaveAttribute('width', '208')
+  await expect(frame).toHaveAttribute('height', '80')
+
+  await page.getByLabel('虚线框颜色 HEX').fill('#77b4bf')
+  await page.getByLabel('虚线框颜色 HEX').blur()
+  await expect(frame).toHaveAttribute('stroke', '#77B4BF')
+
+  const longIdentifier = 'AHU-THIS-IS-A-VERY-LONG-DEVICE-IDENTIFIER-01'
+  await page.getByLabel('设备标识').fill(longIdentifier)
+  await page.getByLabel('设备标识').press('Enter')
+  await expect(tag).toHaveAttribute('data-full-text', longIdentifier)
+  await expect(tag).not.toHaveText(longIdentifier)
+  await expect(tag).toContainText('…')
+  await expect(tag).toHaveAttribute('clip-path', /generic-symbol-clip/)
+
+  await page.getByLabel('角度').fill('90')
+  await page.getByLabel('角度').press('Enter')
+  await expect(body).toHaveAttribute('transform', /rotate\(90 /)
+  await expect(tag).toHaveAttribute('data-upright', 'true')
+  await expect(tag).not.toHaveAttribute('transform')
+})
+
+test('creates a compatible generic anchor and connects resized rotated instances', async ({ page }) => {
+  await page.goto('/')
+
+  const genericMaterial = page.getByTitle('拖动或双击插入通用图元')
+  await genericMaterial.hover()
+  await page.getByRole('button', { name: '编辑 通用图元 锚点' }).click()
+
+  const anchorDialog = page.getByRole('dialog', { name: '接线锚点编辑器' })
+  await anchorDialog.getByRole('button', { name: '在 96, 24 添加锚点' }).click()
+  await expect(anchorDialog.getByLabel('锚点类型')).toHaveValue('cooling-general')
+  await anchorDialog.getByRole('button', { name: '关闭图元编辑器' }).click()
+
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  await genericMaterial.dragTo(canvas, { targetPosition: { x: 220, y: 220 } })
+  await genericMaterial.dragTo(canvas, { targetPosition: { x: 520, y: 260 } })
+
+  const elements = page.locator('.diagram-element[data-asset-key="generic"]')
+  await expect(elements).toHaveCount(2)
+  await elements.first().click()
+  await page.getByLabel('宽度').fill('160')
+  await page.getByLabel('宽度').press('Enter')
+  await page.getByLabel('高度').fill('64')
+  await page.getByLabel('高度').press('Enter')
+  await page.getByLabel('角度').fill('90')
+  await page.getByLabel('角度').press('Enter')
+
+  const sourceAnchor = elements.first().locator('.connection-anchor')
+  const targetAnchor = elements.last().locator('.connection-anchor')
+  await expect(sourceAnchor).toHaveAttribute('data-compatible', 'true')
+  await expect(sourceAnchor).toHaveAttribute('data-anchor-type', 'cooling-general')
+  await sourceAnchor.click({ force: true })
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+  await targetAnchor.click({ force: true })
+
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveAttribute(
+    'data-connection-type',
+    'cooling-general',
+  )
+})
+
 test('uses a flat four-region workspace with transparent canvas HUD', async ({ page }) => {
   await page.goto('/')
 
   const canvasFrame = page.locator('.canvas-frame')
   const canvasStage = canvasFrame.locator('.canvas-stage')
   await expect(page.locator('.context-toolbar')).toHaveCount(0)
+  await expect(page.locator('.ruler, .ruler-corner')).toHaveCount(0)
   await expect(canvasFrame.locator('.canvas-titlebar')).toHaveCount(1)
   await expect(canvasFrame.locator('.status-bar')).toHaveCount(1)
   await expect(canvasFrame.getByRole('button', { name: '返回上一级' })).toBeVisible()
@@ -39,6 +150,49 @@ test('uses a flat four-region workspace with transparent canvas HUD', async ({ p
   await expect(canvasStage).toHaveCSS('border-radius', '0px')
   await expect(canvasFrame.locator('.canvas-titlebar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(canvasFrame.locator('.status-bar')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(canvasFrame.locator('.status-bar')).not.toContainText(/^X\s/)
+})
+
+test('collapses and expands the left menu from its graphical edge control', async ({ page }) => {
+  await page.goto('/')
+
+  const workspace = page.locator('.workspace-main')
+  const leftSidebar = page.locator('.left-sidebar')
+  const canvasColumn = page.locator('.canvas-column')
+  const savedStatus = page.locator('.workspace-header').getByText('已保存', { exact: true })
+  const initialCanvasBox = await canvasColumn.boundingBox()
+  const initialSidebarBox = await leftSidebar.boundingBox()
+  if (!initialCanvasBox) throw new Error('无法读取初始画布区域尺寸')
+  if (!initialSidebarBox) throw new Error('无法读取初始左侧菜单尺寸')
+
+  const collapseButton = page.getByRole('button', { name: '收起左侧菜单' })
+  await expect(collapseButton).toHaveAttribute('aria-expanded', 'true')
+  await expect(collapseButton).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(collapseButton).toHaveCSS('border-top-width', '0px')
+  const collapseButtonBox = await collapseButton.boundingBox()
+  if (!collapseButtonBox) throw new Error('无法读取收起按钮位置')
+  expect(collapseButtonBox.x).toBeGreaterThanOrEqual(initialSidebarBox.x + initialSidebarBox.width)
+  await collapseButton.hover()
+  await expect(collapseButton).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await collapseButton.click()
+
+  await expect(workspace).toHaveAttribute('data-left-sidebar-collapsed', 'true')
+  await expect(leftSidebar).toHaveCSS('visibility', 'hidden')
+  await expect(page.getByRole('button', { name: '展开左侧菜单' })).toHaveAttribute('aria-expanded', 'false')
+  await expect(savedStatus).toBeVisible()
+  const expandedCanvasBox = await canvasColumn.boundingBox()
+  if (!expandedCanvasBox) throw new Error('无法读取收起菜单后的画布区域尺寸')
+  expect(expandedCanvasBox.width).toBeGreaterThan(initialCanvasBox.width + 200)
+
+  await page.getByRole('button', { name: '展开左侧菜单' }).click()
+
+  await expect(workspace).not.toHaveAttribute('data-left-sidebar-collapsed')
+  await expect(leftSidebar).toHaveCSS('visibility', 'visible')
+  await expect(page.getByRole('button', { name: '收起左侧菜单' })).toHaveAttribute('aria-expanded', 'true')
+  await expect(savedStatus).toBeVisible()
+  const restoredCanvasBox = await canvasColumn.boundingBox()
+  if (!restoredCanvasBox) throw new Error('无法读取展开菜单后的画布区域尺寸')
+  expect(restoredCanvasBox.width).toBeCloseTo(initialCanvasBox.width, 0)
 })
 
 test('keeps zoom and pan as unsaved session-only view state', async ({ page }) => {
@@ -73,6 +227,697 @@ test('keeps zoom and pan as unsaved session-only view state', async ({ page }) =
   await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-x')))
     .not.toBe(beforePanX)
   await expect(savedStatus).toBeVisible()
+})
+
+test('starts a new connection by double-clicking a node', async ({ page }) => {
+  const document = createDefaultProject('节点双击起线回归')
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.connections = [{
+    id: 'node-start-network',
+    diagramId,
+    type: 'cooling-primary-hot',
+    nodes: [
+      { id: 'node-start', kind: 'node', x: 240, y: 200 },
+      { id: 'node-right', kind: 'node', x: 480, y: 200 },
+      { id: 'node-bottom', kind: 'node', x: 360, y: 360 },
+    ],
+    edges: [
+      { id: 'node-start-edge-top', sourceNodeId: 'node-start', targetNodeId: 'node-right' },
+      { id: 'node-start-edge-right', sourceNodeId: 'node-right', targetNodeId: 'node-bottom' },
+      { id: 'node-start-edge-left', sourceNodeId: 'node-bottom', targetNodeId: 'node-start' },
+    ],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'node-double-click.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 node-double-click.json')).toBeVisible()
+
+  const sourceNode = page.locator('.connection-junction-handle[data-node-id="node-start"]')
+  await expect(sourceNode).toBeVisible()
+  await sourceNode.dblclick()
+
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+  await expect(page.getByText('正在接线 · 一次回路热')).toBeVisible()
+})
+
+test('derives an automatic corner node only when dragging or completing a branch', async ({ page }) => {
+  const document = createDefaultProject('自动拐角候选节点回归', [{
+    key: 'mp',
+    name: 'MP',
+    category: '冷却',
+    source: 'src/assets/symbols/MP.svg',
+    intrinsicWidth: 32,
+    intrinsicHeight: 32,
+    anchors: [
+      {
+        id: 'left',
+        name: '左侧',
+        x: 0,
+        y: 16,
+        direction: 'left',
+        type: 'cooling-primary-cold',
+      },
+      {
+        id: 'right',
+        name: '右侧',
+        x: 32,
+        y: 16,
+        direction: 'right',
+        type: 'cooling-primary-cold',
+      },
+    ],
+  }])
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.elements = [
+    {
+      id: 'corner-source',
+      diagramId,
+      assetKey: 'mp',
+      name: '源设备',
+      x: 160,
+      y: 160,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'corner-target',
+      diagramId,
+      assetKey: 'mp',
+      name: '目标设备',
+      x: 416,
+      y: 288,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'corner-branch-target',
+      diagramId,
+      assetKey: 'mp',
+      name: '支路目标',
+      x: 640,
+      y: 160,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'corner-network',
+    diagramId,
+    type: 'cooling-primary-cold',
+    nodes: [
+      {
+        id: 'corner-source-anchor',
+        kind: 'element-anchor',
+        elementId: 'corner-source',
+        anchorId: 'right',
+      },
+      {
+        id: 'corner-target-anchor',
+        kind: 'element-anchor',
+        elementId: 'corner-target',
+        anchorId: 'left',
+      },
+    ],
+    edges: [{
+      id: 'corner-edge',
+      sourceNodeId: 'corner-source-anchor',
+      targetNodeId: 'corner-target-anchor',
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'derived-corner-node.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 derived-corner-node.json')).toBeVisible()
+  const edge = page.locator('.connection-edge[data-edge-id="corner-edge"]')
+  await expect(edge).toHaveCount(1)
+
+  const firstCornerScreenPoint = async () => edge
+    .locator('.connection-edge__hit:not(.connection-edge__hit--world)')
+    .evaluate((path) => {
+      const matrix = (path as SVGPathElement).getScreenCTM()
+      const corner = { x: 304, y: 176 }
+      if (!matrix) throw new Error('无法读取自动线路拐角')
+      return {
+        world: corner,
+        screen: {
+          x: corner.x * matrix.a + matrix.e,
+          y: corner.y * matrix.d + matrix.f,
+        },
+      }
+    })
+
+  const initialCorner = await firstCornerScreenPoint()
+  await page.mouse.move(initialCorner.screen.x, initialCorner.screen.y)
+  const candidate = page.locator(
+    '.connection-junction-candidate[data-derived-corner="true"]',
+  )
+  await expect(candidate).toHaveCount(1)
+  await expect(candidate).toHaveAttribute('cx', String(initialCorner.world.x))
+  await expect(candidate).toHaveAttribute('cy', String(initialCorner.world.y))
+
+  await candidate.click()
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await page.waitForTimeout(550)
+
+  await page.mouse.move(initialCorner.screen.x, initialCorner.screen.y)
+  await expect(candidate).toHaveCount(1)
+  await candidate.dblclick()
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('connection-preview')).toHaveCount(0)
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
+  await page.mouse.move(initialCorner.screen.x, initialCorner.screen.y)
+  await expect(candidate).toHaveCount(1)
+  await candidate.dblclick()
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+
+  await page.locator(
+    '.diagram-element[data-element-id="corner-branch-target"] .connection-anchor[data-anchor-id="left"]',
+  ).click({ force: true })
+  await expect(page.getByTestId('connection-preview')).toHaveCount(0)
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.getByTestId('diagram-canvas')).not.toHaveAttribute(
+    'data-routing-pending',
+    'true',
+    { timeout: 15_000 },
+  )
+
+  const restoredCorner = await firstCornerScreenPoint()
+  await page.mouse.move(restoredCorner.screen.x + 24, restoredCorner.screen.y + 24)
+  await page.mouse.move(restoredCorner.screen.x, restoredCorner.screen.y)
+  await expect(candidate).toHaveCount(1)
+  const candidateDrag = await candidate.evaluate((circle) => {
+    const node = circle as SVGCircleElement
+    const matrix = node.getScreenCTM()
+    if (!matrix) throw new Error('无法读取候选节点屏幕坐标')
+    const x = node.cx.baseVal.value
+    const y = node.cy.baseVal.value
+    return {
+      world: { x: x + 32, y: y + 32 },
+      start: { x: x * matrix.a + matrix.e, y: y * matrix.d + matrix.f },
+      target: { x: (x + 32) * matrix.a + matrix.e, y: (y + 32) * matrix.d + matrix.f },
+    }
+  })
+  await page.mouse.move(candidateDrag.start.x, candidateDrag.start.y)
+  await page.mouse.down()
+  await page.mouse.move(candidateDrag.target.x, candidateDrag.target.y, { steps: 4 })
+  await page.mouse.up()
+
+  const materializedNode = page.locator('.connection-junction-handle')
+  await expect(materializedNode).toHaveCount(1)
+  await expect(materializedNode).toHaveAttribute('cx', String(candidateDrag.world.x))
+  await expect(materializedNode).toHaveAttribute('cy', String(candidateDrag.world.y))
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+})
+
+test('moves an unrelated element when a pre-existing manual route is already invalid', async ({ page }) => {
+  const document = createDefaultProject('既有无解线路不阻止无关图元移动', [{
+    key: 'mp',
+    name: 'MP',
+    category: '冷却',
+    source: 'src/assets/symbols/MP.svg',
+    intrinsicWidth: 32,
+    intrinsicHeight: 32,
+    anchors: [
+      {
+        id: 'left',
+        name: '左侧',
+        x: 0,
+        y: 16,
+        direction: 'left',
+        type: 'cooling-primary-cold',
+      },
+      {
+        id: 'right',
+        name: '右侧',
+        x: 32,
+        y: 16,
+        direction: 'right',
+        type: 'cooling-primary-cold',
+      },
+    ],
+  }])
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.elements = [
+    {
+      id: 'manual-source',
+      diagramId,
+      assetKey: 'mp',
+      name: '源',
+      x: 0,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'manual-target',
+      diagramId,
+      assetKey: 'mp',
+      name: '目标',
+      x: 192,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'unrelated-bug-element',
+      diagramId,
+      assetKey: 'mp',
+      name: 'Bug',
+      x: 176,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'invalid-manual-network',
+    diagramId,
+    type: 'cooling-primary-cold',
+    nodes: [
+      {
+        id: 'manual-source-anchor',
+        kind: 'element-anchor',
+        elementId: 'manual-source',
+        anchorId: 'right',
+      },
+      {
+        id: 'manual-blocked-node',
+        kind: 'node',
+        x: 112,
+        y: 80,
+      },
+      {
+        id: 'manual-target-anchor',
+        kind: 'element-anchor',
+        elementId: 'manual-target',
+        anchorId: 'left',
+      },
+    ],
+    edges: [{
+      id: 'invalid-manual-edge',
+      sourceNodeId: 'manual-source-anchor',
+      targetNodeId: 'manual-target-anchor',
+      routeNodeIds: ['manual-blocked-node'],
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'unrelated-invalid-manual-route.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 unrelated-invalid-manual-route.json')).toBeVisible()
+  await expect(page.getByTestId('diagram-canvas')).not.toHaveAttribute(
+    'data-routing-pending',
+    'true',
+    { timeout: 15_000 },
+  )
+  await expect(page.locator('.connection-edge')).toHaveCount(0)
+
+  await page.locator(
+    '.diagram-element[data-element-id="unrelated-bug-element"]',
+  ).click({ force: true })
+  const xField = page.getByLabel('X', { exact: true })
+  await expect(xField).toHaveValue('176')
+  await xField.fill('320')
+  await xField.press('Enter')
+
+  await expect(xField).toHaveValue('320')
+  await expect(page.locator(
+    '.diagram-element[data-element-id="unrelated-bug-element"] .diagram-element__image',
+  )).toHaveAttribute('x', '320')
+  await expect(page.getByText(/无法完成变换：/)).toHaveCount(0)
+  await expect(page.getByTestId('diagram-canvas')).not.toHaveAttribute(
+    'data-routing-pending',
+    'true',
+    { timeout: 15_000 },
+  )
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+})
+
+test('removes endpoint nodes when a dragged child line returns to its anchors', async ({ page }) => {
+  const document = createDefaultProject('子线拖回锚点回归', [{
+    key: 'chwp',
+    name: 'CHWP',
+    category: '冷却',
+    source: 'src/assets/symbols/CHWP.svg',
+    intrinsicWidth: 200,
+    intrinsicHeight: 80,
+    anchors: [
+      {
+        id: 'left-cold',
+        name: '左侧冷水',
+        x: 0,
+        y: 40,
+        direction: 'left',
+        type: 'cooling-primary-cold',
+      },
+      {
+        id: 'right-cold',
+        name: '右侧冷水',
+        x: 200,
+        y: 40,
+        direction: 'right',
+        type: 'cooling-primary-cold',
+      },
+    ],
+  }])
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.elements = [
+    {
+      id: 'source-element',
+      diagramId,
+      assetKey: 'chwp',
+      name: 'CHWP-01',
+      x: 160,
+      y: 200,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'target-element',
+      diagramId,
+      assetKey: 'chwp',
+      name: 'CHWP-02',
+      x: 560,
+      y: 200,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'anchor-merge-network',
+    diagramId,
+    type: 'cooling-primary-cold',
+    nodes: [
+      {
+        id: 'source-anchor-node',
+        kind: 'element-anchor',
+        elementId: 'source-element',
+        anchorId: 'right-cold',
+      },
+      {
+        id: 'target-anchor-node',
+        kind: 'element-anchor',
+        elementId: 'target-element',
+        anchorId: 'left-cold',
+      },
+    ],
+    edges: [{
+      id: 'anchor-merge-edge',
+      sourceNodeId: 'source-anchor-node',
+      targetNodeId: 'target-anchor-node',
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'child-line-anchor-merge.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 child-line-anchor-merge.json')).toBeVisible()
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
+  const horizontalSegment = page.locator(
+    '.route-segment-handle[data-orientation="horizontal"]',
+  )
+  await expect(horizontalSegment).toHaveCount(1)
+
+  const segmentCenter = async () => horizontalSegment.evaluate((line) => {
+    const segment = line as SVGLineElement
+    const matrix = segment.getScreenCTM()
+    if (!matrix) throw new Error('无法读取子线段屏幕坐标')
+    return {
+      x: ((segment.x1.baseVal.value + segment.x2.baseVal.value) / 2) * matrix.a + matrix.e,
+      y: ((segment.y1.baseVal.value + segment.y2.baseVal.value) / 2) * matrix.d + matrix.f,
+    }
+  })
+  const initialCenter = await segmentCenter()
+  await page.mouse.move(initialCenter.x, initialCenter.y)
+  await page.mouse.down()
+  await page.mouse.move(initialCenter.x, initialCenter.y + 64, { steps: 4 })
+  await page.mouse.up()
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(2)
+  await expect(page.getByTestId('diagram-canvas')).not.toHaveAttribute(
+    'data-routing-pending',
+    'true',
+    { timeout: 15_000 },
+  )
+  const edge = page.locator('.connection-edge[data-edge-id="anchor-merge-edge"]')
+  await expect(edge.locator('.connection-edge__line')).toHaveAttribute(
+    'd',
+    'M 360 240 L 364 240 A 4 4 0 0 1 368 244 L 368 296 A 8 8 0 0 0 376 304 L 544 304 A 8 8 0 0 0 552 296 L 552 244 A 4 4 0 0 1 556 240 L 560 240',
+  )
+
+  const movedEdgeClick = await edge
+    .locator('.connection-edge__hit:not(.connection-edge__hit--world)')
+    .evaluate((path) => {
+      const matrix = (path as SVGPathElement).getScreenCTM()
+      if (!matrix) throw new Error('无法读取拖出后线路的屏幕坐标')
+      return {
+        x: 460 * matrix.a + matrix.e,
+        y: 304 * matrix.d + matrix.f,
+      }
+    })
+  await page.mouse.click(movedEdgeClick.x, movedEdgeClick.y)
+  const movedHorizontalSegments = page.locator(
+    '.route-segment-handle[data-orientation="horizontal"]',
+  )
+  const movedSegmentIndex = await movedHorizontalSegments.evaluateAll((segments) => (
+    segments.findIndex((segment) => (
+      Number(segment.getAttribute('y1')) === 304 &&
+      Number(segment.getAttribute('y2')) === 304 &&
+      Math.min(
+        Number(segment.getAttribute('x1')),
+        Number(segment.getAttribute('x2')),
+      ) === 368 &&
+      Math.max(
+        Number(segment.getAttribute('x1')),
+        Number(segment.getAttribute('x2')),
+      ) === 552
+    ))
+  ))
+  expect(movedSegmentIndex).toBeGreaterThanOrEqual(0)
+  const movedSegmentDrag = await movedHorizontalSegments.nth(movedSegmentIndex).evaluate((line) => {
+    const segment = line as SVGLineElement
+    const matrix = segment.getScreenCTM()
+    if (!matrix) throw new Error('无法读取拖出后子线段的屏幕坐标')
+    const x = (segment.x1.baseVal.value + segment.x2.baseVal.value) / 2
+    const y = segment.y1.baseVal.value
+    return {
+      start: { x: x * matrix.a + matrix.e, y: y * matrix.d + matrix.f },
+      target: { x: x * matrix.a + matrix.e, y: 240 * matrix.d + matrix.f },
+    }
+  })
+  await page.mouse.move(movedSegmentDrag.start.x, movedSegmentDrag.start.y)
+  await page.mouse.down()
+  await page.mouse.move(movedSegmentDrag.target.x, movedSegmentDrag.target.y, { steps: 4 })
+  await page.mouse.up()
+
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+})
+
+test('removes a folded segment after it returns to an element anchor', async ({ page }) => {
+  const document = createDefaultProject('锚点吸附折返线头回归', [{
+    key: 'mp',
+    name: 'MP',
+    category: '冷却',
+    source: 'src/assets/symbols/MP.svg',
+    intrinsicWidth: 32,
+    intrinsicHeight: 32,
+    anchors: [{
+      id: 'bottom',
+      name: '下方',
+      x: 16,
+      y: 32,
+      direction: 'bottom',
+      type: 'cooling-general',
+    }],
+  }])
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.diagrams.find((diagram) => diagram.id === diagramId)!.canvas.gridSize = 16
+  document.elements = [
+    {
+      id: 'fold-source',
+      diagramId,
+      assetKey: 'mp',
+      name: '源设备',
+      x: 208,
+      y: 208,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'fold-target',
+      diagramId,
+      assetKey: 'mp',
+      name: '旁流旁滤设备',
+      x: 608,
+      y: 256,
+      width: 32,
+      height: 32,
+      rotation: 90,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'fold-network',
+    diagramId,
+    type: 'cooling-general',
+    nodes: [
+      {
+        id: 'fold-source-anchor',
+        kind: 'element-anchor',
+        elementId: 'fold-source',
+        anchorId: 'bottom',
+      },
+      {
+        id: 'fold-target-anchor',
+        kind: 'element-anchor',
+        elementId: 'fold-target',
+        anchorId: 'bottom',
+      },
+      { id: 'fold-left-node', kind: 'node', x: 224, y: 296 },
+      { id: 'fold-overshoot-node', kind: 'node', x: 608, y: 296 },
+      { id: 'fold-return-node', kind: 'node', x: 600, y: 296 },
+    ],
+    edges: [{
+      id: 'fold-edge',
+      sourceNodeId: 'fold-source-anchor',
+      targetNodeId: 'fold-target-anchor',
+      routeNodeIds: ['fold-left-node', 'fold-overshoot-node', 'fold-return-node'],
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'anchor-snap-fold.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 anchor-snap-fold.json')).toBeVisible()
+
+  const edge = page.locator('.connection-edge[data-edge-id="fold-edge"]')
+  await expect(edge.locator('.connection-edge__line')).toHaveAttribute(
+    'd',
+    /L 608 296 L 600 296 L 600 276 A 4 4 0 0 1 604 272 L 608 272$/,
+  )
+  const edgeClick = await edge
+    .locator('.connection-edge__hit:not(.connection-edge__hit--world)')
+    .evaluate((path) => {
+      const matrix = (path as SVGPathElement).getScreenCTM()
+      if (!matrix) throw new Error('无法读取折返线路屏幕坐标')
+      return {
+        x: 400 * matrix.a + matrix.e,
+        y: 296 * matrix.d + matrix.f,
+      }
+    })
+  await page.mouse.click(edgeClick.x, edgeClick.y)
+  const verticalSegments = page.locator(
+    '.route-segment-handle[data-orientation="vertical"]',
+  )
+  const foldedSegmentIndex = await verticalSegments.evaluateAll((segments) => (
+    segments.findIndex((segment) => (
+      Number(segment.getAttribute('x1')) === 600 &&
+      Number(segment.getAttribute('x2')) === 600 &&
+      Math.min(
+        Number(segment.getAttribute('y1')),
+        Number(segment.getAttribute('y2')),
+      ) === 272 &&
+      Math.max(
+        Number(segment.getAttribute('y1')),
+        Number(segment.getAttribute('y2')),
+      ) === 296
+    ))
+  ))
+  expect(foldedSegmentIndex).toBeGreaterThanOrEqual(0)
+  const foldedSegment = verticalSegments.nth(foldedSegmentIndex)
+  const drag = await foldedSegment.evaluate((segment) => {
+    const line = segment as SVGLineElement
+    const matrix = line.getScreenCTM()
+    if (!matrix) throw new Error('无法读取折返子线屏幕坐标')
+    const centerX = line.x1.baseVal.value
+    const centerY = (line.y1.baseVal.value + line.y2.baseVal.value) / 2
+    return {
+      start: {
+        x: centerX * matrix.a + matrix.e,
+        y: centerY * matrix.d + matrix.f,
+      },
+      end: {
+        x: (centerX + 8) * matrix.a + matrix.e,
+        y: centerY * matrix.d + matrix.f,
+      },
+    }
+  })
+  await page.mouse.move(drag.start.x, drag.start.y)
+  await page.mouse.down()
+  await page.mouse.move(drag.end.x, drag.end.y, { steps: 4 })
+  await page.mouse.up()
+
+  await expect(page.getByTestId('diagram-canvas')).not.toHaveAttribute(
+    'data-routing-pending',
+    'true',
+    { timeout: 15_000 },
+  )
+  await expect(edge.locator('.connection-edge__line')).toHaveAttribute('d', /L 608 272$/)
+  await expect(edge.locator('.connection-edge__line')).not.toHaveAttribute('d', /296/)
+  await expect(page.locator(
+    '.connection-junction-handle[cx="608"][cy="272"]',
+  )).toHaveCount(0)
+  await expect(page.locator(
+    '.connection-junction-handle[cx="608"][cy="296"]',
+  )).toHaveCount(0)
+  await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
 })
 
 test('copies and cuts selected objects across compatible diagrams', async ({ page }) => {
@@ -119,7 +964,7 @@ test('copies and cuts selected objects across compatible diagrams', async ({ pag
   await expect(page.getByText('只能粘贴到相同线路系统的图纸。')).toBeVisible()
 })
 
-test('switches to monitor mode, locks editing, and toggles Switch runtime state', async ({ page }) => {
+test('switches to monitor mode, locks editing, and exports the Switch state', async ({ page }) => {
   const offColor = defaultConnectionColor('cooling-secondary-cold')
   const onColor = defaultConnectionColor('cooling-primary-hot')
   const pageErrors: string[] = []
@@ -164,7 +1009,21 @@ test('switches to monitor mode, locks editing, and toggles Switch runtime state'
 
   await page.getByRole('button', { name: '播放流动' }).click()
   await expect(page.getByRole('button', { name: '暂停流动' })).toBeVisible()
-  await expect(page.getByText('正在显示电力起点 → 终点运行流向')).toBeVisible()
+  await expect(page.getByText('正在显示水泵闭合回路运行流向')).toBeVisible()
+
+  await image.click()
+  await expect(image).toHaveAttribute('data-symbol-state', 'on')
+  const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: '导出', exact: true }).click()
+  const download = await downloadPromise
+  const downloadPath = await download.path()
+  if (!downloadPath) throw new Error('无法读取导出的项目 JSON')
+  const exported = JSON.parse(await readFile(downloadPath, 'utf8'))
+  const elementId = await element.getAttribute('data-element-id')
+  expect(exported.schemaVersion).toBe(SCHEMA_VERSION)
+  expect(exported.elements.find((candidate: { id: string }) => (
+    candidate.id === elementId
+  ))?.onOffState).toBe('on')
   expect(pageErrors).toEqual([])
 })
 
@@ -192,9 +1051,16 @@ test('previews numeric and text metrics in edit mode and refreshes them in monit
   await expect(editPreviewLabel.locator('.element-metric-row__label').nth(1)).toHaveText('指标 2')
   await expect(editPreviewLabel.locator('.element-metric-row__value').nth(1)).toHaveText('运行')
 
+  await page.getByRole('switch', { name: '显示指标名称与单位' }).click()
+  await expect(editPreviewLabel.locator('.element-metric-row__label')).toHaveCount(0)
+  await expect(editPreviewLabel.locator('.element-metric-row__value')).toHaveCount(2)
+  await expect(editPreviewLabel.locator('.element-metric-row__value').nth(0)).toHaveText('50.0')
+  await expect(editPreviewLabel.locator('.element-metric-row__value').nth(1)).toHaveText('运行')
+
   await page.getByRole('tab', { name: '监控模式' }).click()
   const combinedLabel = page.locator('.element-label').filter({ hasText: 'CHWP-01' })
   await expect(combinedLabel).toHaveCount(1)
+  await expect(combinedLabel.locator('.element-metric-row__label')).toHaveCount(0)
   await expect(combinedLabel.locator('.element-metric-row__value').nth(0)).toHaveText(/^\d+\.\d$/)
   await expect(combinedLabel.locator('.element-metric-row__value').nth(0))
     .toHaveAttribute('data-severity', /^(normal|minor|major|critical)$/)
@@ -343,34 +1209,6 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
     return { zoom: latest('uZoom'), grid: latest('uGrid') }
   })).toEqual({ zoom: zoomedGrid.zoom, grid: zoomedGrid.visibleStep })
   await expect(page.getByText('网格 16 px')).toBeVisible()
-  const horizontalTicks = await page.getByLabel('水平标尺').locator(':scope > g').evaluateAll((ticks) =>
-    ticks.map((tick) => ({
-      world: Number((tick as SVGGElement).dataset.tickWorld),
-      position: Number((tick as SVGGElement).dataset.tickPosition),
-      major: (tick as SVGGElement).dataset.tickMajor === 'true',
-    })),
-  )
-  expect(horizontalTicks.length).toBeGreaterThan(0)
-  for (const tick of horizontalTicks) {
-    expect(Math.abs(tick.world % zoomedGrid.visibleStep)).toBe(0)
-    expect(tick.position).toBeCloseTo(tick.world * zoomedGrid.zoom + zoomedGrid.tx, 8)
-  }
-  const anchorWorld = 48
-  expect(horizontalTicks.some((tick) => tick.world === anchorWorld && tick.major)).toBe(true)
-  const horizontalAnchorTick = page.getByLabel('水平标尺').locator(`[data-tick-world="${anchorWorld}"]`)
-  const verticalAnchorTick = page.getByLabel('垂直标尺').locator(`[data-tick-world="${anchorWorld}"]`)
-  const anchorTickLayout = {
-    x: await horizontalAnchorTick.locator('line').evaluate((tick) => tick.getBoundingClientRect().x),
-    y: await verticalAnchorTick.locator('line').evaluate((tick) => tick.getBoundingClientRect().y),
-  }
-  expect(anchorTickLayout.x).toBeCloseTo(
-    canvasBox.x + anchorWorld * zoomedGrid.zoom + zoomedGrid.tx,
-    1,
-  )
-  expect(anchorTickLayout.y).toBeCloseTo(
-    canvasBox.y + anchorWorld * zoomedGrid.zoom + zoomedGrid.ty,
-    1,
-  )
   await zoomReadout.click()
   await expect(zoomReadout).toHaveText('100%')
   await expect(page.getByTestId('diagram-canvas')).toHaveAttribute('data-grid-screen-step', '8')
@@ -720,16 +1558,19 @@ test('loads the hybrid editor and completes the phase-one editing path', async (
   await expect(page.locator('.connection-junction')).toHaveCount(0)
   await expect(page.getByTestId('connection-branch-candidate')).toHaveCount(0)
 
-  const uniqueBranchPoint = await page.locator('.connection-edge__hit').last().evaluate((node) => {
-    const path = node as SVGPathElement
-    const point = path.getPointAtLength(Math.max(0, path.getTotalLength() - 20))
-    const matrix = path.getScreenCTM()
-    if (!matrix) throw new Error('无法读取独立支路屏幕坐标')
-    return {
-      x: point.x * matrix.a + point.y * matrix.c + matrix.e,
-      y: point.x * matrix.b + point.y * matrix.d + matrix.f,
-    }
-  })
+  const uniqueBranchPoint = await page
+    .locator('.connection-edge__hit:not(.connection-edge__hit--world)')
+    .last()
+    .evaluate((node) => {
+      const path = node as SVGPathElement
+      const point = path.getPointAtLength(Math.max(0, path.getTotalLength() - 20))
+      const matrix = path.getScreenCTM()
+      if (!matrix) throw new Error('无法读取独立支路屏幕坐标')
+      return {
+        x: point.x * matrix.a + point.y * matrix.c + matrix.e,
+        y: point.x * matrix.b + point.y * matrix.d + matrix.f,
+      }
+    })
   await page.mouse.click(uniqueBranchPoint.x, uniqueBranchPoint.y)
   await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(1)
   await page.keyboard.press('Delete')
@@ -777,7 +1618,9 @@ test('keeps real-scene connected moves clear of full-route main-thread blocking'
     { timeout: 15_000 },
   ).toBeGreaterThan(1)
 
-  const connectionHits = page.locator('.connection-edge__hit')
+  const connectionHits = page.locator(
+    '.connection-edge__hit:not(.connection-edge__hit--world)',
+  )
   const visibleConnections = await connectionHits.evaluateAll((nodes) => nodes.flatMap((node, index) => {
     const rect = node.getBoundingClientRect()
     const networkId = (node.parentElement as SVGGElement | null)?.dataset.networkId ?? ''
@@ -1242,7 +2085,7 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
   expect(tapCoordinates[0].x).toBe(tapCoordinates[1].x)
   expect(tapCoordinates[0].y).not.toBe(tapCoordinates[1].y)
 
-  await page.locator('.connection-edge__hit').click({ force: true })
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
   await expect(page.locator('.connection-edge')).toHaveAttribute('data-selected', 'true')
   const childLineLabelInput = page.getByLabel('子线标签', { exact: true })
   await expect(childLineLabelInput).toHaveValue('')
@@ -1316,7 +2159,7 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
   const childCanvasBox = await canvas.boundingBox()
   if (!childCanvasBox) throw new Error('无法读取子线测试画布尺寸')
   await canvas.click({ position: { x: childCanvasBox.width - 180, y: childCanvasBox.height - 24 } })
-  await page.locator('.connection-edge__hit').click({ force: true })
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
   await expect(page.getByLabel('子线颜色 HEX')).toHaveValue('#77B4BF')
   await canvas.click({ position: { x: childCanvasBox.width - 180, y: childCanvasBox.height - 24 } })
   const globalChildColor = page.getByRole('button', {
@@ -1335,7 +2178,7 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
     (node as SVGGElement).style.getPropertyValue('--connection-color')
   ))).toBe('#77B4BF')
 
-  await page.locator('.connection-edge__hit').click({ force: true })
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
   const firstQuarterPoint = await firstHit.evaluate((node) => {
     const path = node as SVGPathElement
     const point = path.getPointAtLength(path.getTotalLength() / 4)
@@ -1386,7 +2229,9 @@ test('connects two selected busbars with an ordinary child line', async ({ page 
   await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(1)
   await expect(selectedBusbar).toHaveCount(1)
 
-  await page.locator('.connection-edge__hit').click({ force: true })
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
+  await expect(page.locator('.busbar[data-selected="true"]')).toHaveCount(0)
+  await expect(page.locator('.connection-edge[data-selected="true"]')).toHaveCount(1)
   await page.getByRole('button', { name: '删除所选对象' }).click()
   await expect(page.locator('.connection-edge')).toHaveCount(0)
   await expect(page.locator('.connection-label')).toHaveCount(0)

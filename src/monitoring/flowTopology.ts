@@ -13,6 +13,10 @@ export const POWER_TARGET_ASSET_KEYS = new Set(['compute-pod', 'power-pod', 'fm'
 export interface DirectedFlowEdge {
   edgeId: string
   direction: 'forward' | 'reverse'
+  startNodeId?: string
+  endNodeId?: string
+  speedMultiplier?: number
+  flowRate?: number
 }
 
 type FlowDirection = DirectedFlowEdge['direction']
@@ -34,7 +38,13 @@ interface GraphLink {
   to: string
   kind: 'line' | 'internal' | 'busbar'
   edgeId?: string
+  lineLinkId?: string
   busbarLinkId?: string
+}
+
+interface FlowGraph {
+  outgoing: Map<string, GraphLink[]>
+  incoming: Map<string, GraphLink[]>
 }
 
 interface BusbarGraphLink {
@@ -44,29 +54,46 @@ interface BusbarGraphLink {
   rightNodeId: string
 }
 
+interface LineGraphLink {
+  id: string
+  edgeId: string
+  startNodeId: string
+  endNodeId: string
+}
+
 function connect(adjacency: Map<string, GraphLink[]>, from: string, link: GraphLink) {
   const links = adjacency.get(from)
   if (links) links.push(link)
   else adjacency.set(from, [link])
 }
 
+function connectDirected(
+  graph: FlowGraph,
+  from: string,
+  to: string,
+  link: Omit<GraphLink, 'to'>,
+) {
+  connect(graph.outgoing, from, { ...link, to })
+  connect(graph.incoming, to, { ...link, to: from })
+}
+
 function connectPair(
-  adjacency: Map<string, GraphLink[]>,
+  graph: FlowGraph,
   left: string,
   right: string,
   link: Omit<GraphLink, 'to'>,
 ) {
-  connect(adjacency, left, { ...link, to: right })
-  connect(adjacency, right, { ...link, to: left })
+  connectDirected(graph, left, right, link)
+  connectDirected(graph, right, left, link)
 }
 
 function connectNodeGroup(
-  adjacency: Map<string, GraphLink[]>,
+  graph: FlowGraph,
   nodeIds: string[],
   kind: GraphLink['kind'],
 ) {
   for (let index = 1; index < nodeIds.length; index += 1) {
-    connectPair(adjacency, nodeIds[index - 1], nodeIds[index], { kind })
+    connectPair(graph, nodeIds[index - 1], nodeIds[index], { kind })
   }
 }
 
@@ -126,15 +153,36 @@ export function derivePowerFlowTopology({
   const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
   const nodes = networks.flatMap((network) => network.nodes)
   const nodesById = new Map(nodes.map((node) => [node.id, node]))
-  const adjacency = new Map<string, GraphLink[]>()
+  const graph: FlowGraph = {
+    outgoing: new Map<string, GraphLink[]>(),
+    incoming: new Map<string, GraphLink[]>(),
+  }
 
+  const lineLinks: LineGraphLink[] = []
+  const lineLinksByEdgeId = new Map<string, LineGraphLink[]>()
   for (const network of networks) {
     for (const edge of network.edges) {
       if (!nodesById.has(edge.sourceNodeId) || !nodesById.has(edge.targetNodeId)) continue
-      connectPair(adjacency, edge.sourceNodeId, edge.targetNodeId, {
-        kind: 'line',
-        edgeId: edge.id,
-      })
+      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+        .filter((nodeId) => nodesById.has(nodeId))
+      for (let index = 1; index < chain.length; index += 1) {
+        const startNodeId = chain[index - 1]
+        const endNodeId = chain[index]
+        const id = `line-flow:${edge.id}:${startNodeId}:${endNodeId}`
+        const link = { kind: 'line' as const, edgeId: edge.id, lineLinkId: id }
+        const lineGraphLink = { id, edgeId: edge.id, startNodeId, endNodeId }
+        lineLinks.push(lineGraphLink)
+        const edgeLinks = lineLinksByEdgeId.get(edge.id) ?? []
+        edgeLinks.push(lineGraphLink)
+        lineLinksByEdgeId.set(edge.id, edgeLinks)
+        if (edge.flowDirection === 'forward') {
+          connectDirected(graph, startNodeId, endNodeId, link)
+        } else if (edge.flowDirection === 'reverse') {
+          connectDirected(graph, endNodeId, startNodeId, link)
+        } else {
+          connectPair(graph, startNodeId, endNodeId, link)
+        }
+      }
     }
   }
 
@@ -145,7 +193,7 @@ export function derivePowerFlowTopology({
       const group = elementNodeGroups.get(node.elementId)
       if (group) group.push(node.id)
       else elementNodeGroups.set(node.elementId, [node.id])
-    } else {
+    } else if (node.kind === 'busbar-tap') {
       const group = busbarNodeGroups.get(node.busbarId)
       if (group) group.push(node)
       else busbarNodeGroups.set(node.busbarId, [node])
@@ -156,7 +204,7 @@ export function derivePowerFlowTopology({
     const element = elementsById.get(elementId)
     if (!element || POWER_TARGET_ASSET_KEYS.has(element.assetKey)) continue
     if (element.assetKey === 'switch' && switchStates[element.id] !== true) continue
-    connectNodeGroup(adjacency, nodeIds, 'internal')
+    connectNodeGroup(graph, nodeIds, 'internal')
   }
 
   const openSwitchNodeIds = new Set(
@@ -179,7 +227,7 @@ export function derivePowerFlowTopology({
       const left = ordered[index - 1]
       const right = ordered[index]
       const id = `busbar-flow:${busbarId}:${left.id}:${right.id}`
-      connectPair(adjacency, left.id, right.id, { kind: 'busbar', busbarLinkId: id })
+      connectPair(graph, left.id, right.id, { kind: 'busbar', busbarLinkId: id })
       busbarLinks.push({ id, busbarId, leftNodeId: left.id, rightNodeId: right.id })
     }
   }
@@ -201,16 +249,16 @@ export function derivePowerFlowTopology({
         : []
     ))
   )))
-  const energizedDistance = graphDistances(adjacency, sourceNodeIds)
-  const edgeDirections = new Map<string, Set<FlowDirection>>()
+  const energizedDistance = graphDistances(graph.outgoing, sourceNodeIds)
+  const lineLinkDirections = new Map<string, Set<FlowDirection>>()
   const busbarLinkDirections = new Map<string, Set<FlowDirection>>()
 
   // Trace independently from every source element so a nearby Battery or
   // Generator cannot suppress a longer but still valid Grid-to-target path.
   // The rendered result is the union of each source's shortest-path DAG.
   for (const sourceNodeGroup of sourceNodeGroups) {
-    const distance = graphDistances(adjacency, sourceNodeGroup, blockedLineEdgeIds)
-    const flowingEdgeIds = new Set<string>()
+    const distance = graphDistances(graph.outgoing, sourceNodeGroup, blockedLineEdgeIds)
+    const flowingLineLinkIds = new Set<string>()
     const flowingBusbarLinkIds = new Set<string>()
     const tracedNodeIds = new Set<string>()
     const traceQueue = targetNodeIds.filter((nodeId) => {
@@ -222,10 +270,10 @@ export function derivePowerFlowTopology({
       const nodeId = traceQueue[cursor]
       const nodeDistance = distance.get(nodeId)
       if (nodeDistance === undefined || nodeDistance === 0) continue
-      for (const link of adjacency.get(nodeId) ?? []) {
+      for (const link of graph.incoming.get(nodeId) ?? []) {
         if (link.edgeId && blockedLineEdgeIds.has(link.edgeId)) continue
         if (distance.get(link.to) !== nodeDistance - 1) continue
-        if (link.edgeId) flowingEdgeIds.add(link.edgeId)
+        if (link.lineLinkId) flowingLineLinkIds.add(link.lineLinkId)
         if (link.busbarLinkId) flowingBusbarLinkIds.add(link.busbarLinkId)
         if (tracedNodeIds.has(link.to)) continue
         tracedNodeIds.add(link.to)
@@ -233,22 +281,20 @@ export function derivePowerFlowTopology({
       }
     }
 
-    for (const network of networks) {
-      for (const edge of network.edges) {
-        if (!flowingEdgeIds.has(edge.id)) continue
-        const sourceDistance = distance.get(edge.sourceNodeId)
-        const targetDistance = distance.get(edge.targetNodeId)
-        if (
-          sourceDistance === undefined ||
-          targetDistance === undefined ||
-          sourceDistance === targetDistance
-        ) continue
-        addFlowDirection(
-          edgeDirections,
-          edge.id,
-          sourceDistance < targetDistance ? 'forward' : 'reverse',
-        )
-      }
+    for (const link of lineLinks) {
+      if (!flowingLineLinkIds.has(link.id)) continue
+      const startDistance = distance.get(link.startNodeId)
+      const endDistance = distance.get(link.endNodeId)
+      if (
+        startDistance === undefined ||
+        endDistance === undefined ||
+        startDistance === endDistance
+      ) continue
+      addFlowDirection(
+        lineLinkDirections,
+        link.id,
+        startDistance < endDistance ? 'forward' : 'reverse',
+      )
     }
 
     for (const link of busbarLinks) {
@@ -271,12 +317,26 @@ export function derivePowerFlowTopology({
   const directedEdges: DirectedFlowEdge[] = []
   for (const network of networks) {
     for (const edge of network.edges) {
-      const direction = uniqueFlowDirection(edgeDirections.get(edge.id))
-      if (!direction) continue
-      directedEdges.push({
-        edgeId: edge.id,
-        direction,
+      const edgeLinks = lineLinksByEdgeId.get(edge.id) ?? []
+      const directedLinks = edgeLinks.flatMap((link) => {
+        const direction = uniqueFlowDirection(lineLinkDirections.get(link.id))
+        return direction ? [{ ...link, direction }] : []
       })
+      const fullDirection = directedLinks.length === edgeLinks.length &&
+        directedLinks.length > 0 &&
+        directedLinks.every((link) => link.direction === directedLinks[0].direction)
+          ? directedLinks[0].direction
+          : null
+      if (fullDirection) {
+        directedEdges.push({ edgeId: edge.id, direction: fullDirection })
+      } else {
+        directedEdges.push(...directedLinks.map((link) => ({
+          edgeId: edge.id,
+          direction: link.direction,
+          startNodeId: link.startNodeId,
+          endNodeId: link.endNodeId,
+        })))
+      }
     }
   }
 

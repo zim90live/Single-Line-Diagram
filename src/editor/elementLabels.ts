@@ -11,6 +11,7 @@ import {
   type MonitorMetricReadings,
 } from '../monitoring/elementMetrics'
 import { resolveElementAnchor } from './connections'
+import { isGenericSymbolKey } from './genericSymbol'
 import { elementsBounds, type Point, type Rect } from './geometry'
 
 export const ELEMENT_LABEL_FONT_SIZE = 10
@@ -33,6 +34,7 @@ export interface ElementMetricLabelRow {
   metricId: string
   label: string
   labelText: string
+  labelVisible: boolean
   valueText: string
   unit: string
   severity: MonitorAlarmSeverity
@@ -227,7 +229,10 @@ export function layoutElementLabels(
   const placedRectIndex = new RectSpatialIndex<number>()
   let placedCount = 0
   return elements.flatMap((element) => {
-    const nameText = element.labelVisible === false ? null : elementDeviceIdentifier(element)
+    const nameText = element.labelVisible === false || isGenericSymbolKey(element.assetKey)
+      ? null
+      : elementDeviceIdentifier(element)
+    const metricLabelsVisible = element.monitorMetricLabelsVisible !== false
     const metricLines = element.monitorDataVisible === true
       ? (element.monitorMetrics ?? []).flatMap((metric) => {
           const reading = readings[monitorMetricReadingKey(element.id, metric.id)]
@@ -239,6 +244,7 @@ export function layoutElementLabels(
             metricId: metric.id,
             label: metric.name,
             labelText,
+            labelVisible: metricLabelsVisible,
             valueText,
             unit,
             severity: reading.severity,
@@ -251,12 +257,16 @@ export function layoutElementLabels(
     if (!elementBounds) return []
     const text = [
       ...(nameText ? [nameText] : []),
-      ...metricLines.map((line) => `${line.labelText}\t${line.valueText}`),
+      ...metricLines.map((line) => line.labelVisible
+        ? `${line.labelText}\t${line.valueText}`
+        : line.valueText),
     ].join('\n')
     const nameWidth = nameText ? estimateLabelTextWidth(nameText) : 0
     const metricWidth = metricLines.reduce((width, line) => Math.max(
       width,
-      estimateLabelTextWidth(line.labelText) + 8 + estimateLabelTextWidth(line.valueText),
+      estimateLabelTextWidth(line.valueText) + (line.labelVisible
+        ? estimateLabelTextWidth(line.labelText) + 8
+        : 0),
     ), 0)
     const labelWidth = Math.max(nameWidth, metricWidth)
     const labelHeight = (Number(Boolean(nameText)) + metricLines.length) * ELEMENT_LABEL_LINE_HEIGHT

@@ -11,6 +11,7 @@ import {
 } from './objectColors'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+  elementSupportsOnOffState,
   resolvedSymbolColorForSlot,
   symbolColorPropertyKey,
   symbolsByKey,
@@ -23,6 +24,7 @@ export interface CanvasColorTarget {
   category: CanvasColorCategory
   color: string
   elementColorSlot?: SymbolColorSlot
+  elementAssetKey?: string
 }
 
 export interface CanvasColorGroup extends CanvasColorTarget {
@@ -61,8 +63,9 @@ export function resolvedElementColor(
 ) {
   const symbol = symbolsByKey.get(element.assetKey)
   if (!symbol?.configurableColor) return null
-  if (element.assetKey === 'switch' && slot === 'default') return null
-  if (element.assetKey !== 'switch' && slot !== 'default') return null
+  const stateful = elementSupportsOnOffState(element)
+  if (stateful && slot === 'default') return null
+  if (!stateful && slot !== 'default') return null
   return resolvedSymbolColorForSlot(element, slot)
 }
 
@@ -88,16 +91,18 @@ export function collectCanvasColorGroups(
   const connectionColors = new Map<string, number>()
 
   for (const element of elements) {
-    const slots: Array<{ slot: SymbolColorSlot; scopeLabel?: string }> = element.assetKey === 'switch'
+    const symbolName = symbolsByKey.get(element.assetKey)?.name ?? element.name
+    const slots: Array<{ slot: SymbolColorSlot; scopeLabel?: string }> = elementSupportsOnOffState(element)
       ? [
-          { slot: 'switch-off', scopeLabel: 'Switch 关' },
-          { slot: 'switch-on', scopeLabel: 'Switch 开' },
+          { slot: 'switch-off', scopeLabel: `${symbolName} 关` },
+          { slot: 'switch-on', scopeLabel: `${symbolName} 开` },
         ]
       : [{ slot: 'default' }]
     for (const { slot, scopeLabel } of slots) {
       const color = resolvedElementColor(element, slot)
       if (!color) continue
-      const key = `${slot}:${color}`
+      const stateful = slot !== 'default'
+      const key = `${stateful ? element.assetKey : ''}:${slot}:${color}`
       const group = elementGroups.get(key)
       if (group) group.count += 1
       else elementGroups.set(key, {
@@ -105,6 +110,7 @@ export function collectCanvasColorGroups(
         color,
         count: 1,
         ...(slot === 'default' ? {} : { elementColorSlot: slot }),
+        ...(stateful ? { elementAssetKey: element.assetKey } : {}),
         ...(scopeLabel ? { scopeLabel } : {}),
       })
     }
@@ -138,9 +144,18 @@ export function replaceCanvasColor(
     return {
       ...snapshot,
       elements: snapshot.elements.map((element) => {
+        if (target.elementAssetKey && element.assetKey !== target.elementAssetKey) return element
         if (resolvedElementColor(element, slot) !== target.color) return element
-        const properties = { ...element.properties, [property]: normalized }
-        if (element.assetKey === 'switch') delete properties.color
+        const properties = { ...element.properties }
+        if (elementSupportsOnOffState(element)) {
+          const legacyColor = properties.color
+          if (typeof legacyColor === 'string') {
+            properties.switchOffColor ??= legacyColor
+            properties.switchOnColor ??= legacyColor
+          }
+          delete properties.color
+        }
+        properties[property] = normalized
         return {
           ...element,
           properties,

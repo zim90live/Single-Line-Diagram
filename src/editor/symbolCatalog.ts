@@ -1,6 +1,19 @@
-import type { AssetDefinition, DiagramElement } from '../domain/project'
+import type {
+  AssetDefinition,
+  CoolingDeviceRole,
+  DiagramElement,
+  SymbolAnchor,
+} from '../domain/project'
+import {
+  GENERIC_SYMBOL_DEFAULT_HEIGHT,
+  GENERIC_SYMBOL_DEFAULT_WIDTH,
+  GENERIC_SYMBOL_KEY,
+} from './genericSymbol'
 
-const symbolUrls = import.meta.glob<string>('../assets/symbols/*.svg', {
+const symbolUrls = import.meta.glob<string>([
+  '../assets/symbols/*.svg',
+  '../assets/symbols/*.png',
+], {
   eager: true,
   query: '?url',
   import: 'default',
@@ -14,6 +27,7 @@ export interface SymbolDefinition extends AssetDefinition {
   defaultColor?: string
   defaultState?: SymbolVisualState
   stateUrls?: Partial<Record<SymbolVisualState, string>>
+  renderMode: 'image' | 'generic-frame'
 }
 
 export type SymbolVisualState = 'off' | 'on'
@@ -27,24 +41,68 @@ interface SymbolMetadata {
   file: string
   key?: string
   name: string
-  category: '冷却' | '电力'
+  category: '冷却' | '电力' | '通用'
   width: number
   height: number
   configurableColor?: boolean
   defaultState?: SymbolVisualState
   stateFiles?: Partial<Record<SymbolVisualState, string>>
+  renderMode?: SymbolDefinition['renderMode']
+  coolingDeviceRole?: CoolingDeviceRole
+  anchors?: SymbolAnchor[]
 }
 
 const metadata: SymbolMetadata[] = [
-  { file: '2WV.svg', name: '2WV', category: '冷却', width: 32, height: 32, configurableColor: true },
+  {
+    file: '2WV_Off.svg',
+    key: '2-wv',
+    name: '2WV',
+    category: '冷却',
+    width: 32,
+    height: 32,
+    configurableColor: true,
+    defaultState: 'off',
+    stateFiles: { off: '2WV_Off.svg', on: '2WV_On.svg' },
+  },
   { file: 'CDU.svg', name: 'CDU', category: '冷却', width: 96, height: 96 },
-  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 200, height: 80 },
-  { file: 'CT.svg', name: 'CT', category: '冷却', width: 160, height: 160 },
-  { file: 'CV.svg', name: 'CV', category: '冷却', width: 32, height: 32, configurableColor: true },
-  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 200, height: 80 },
+  { file: 'CHWP.png', name: 'CHWP', category: '冷却', width: 200, height: 80 },
+  { file: 'CT.png', name: 'CT', category: '冷却', width: 160, height: 160 },
+  {
+    file: 'CV_Off.svg',
+    key: 'cv',
+    name: 'CV',
+    category: '冷却',
+    width: 32,
+    height: 32,
+    configurableColor: true,
+    defaultState: 'off',
+    stateFiles: { off: 'CV_Off.svg', on: 'CV_On.svg' },
+    coolingDeviceRole: 'check-valve',
+    anchors: [
+      {
+        id: 'cv-inlet',
+        name: '入口',
+        x: 16,
+        y: 0,
+        direction: 'top',
+        type: 'cooling-general',
+        flowRole: 'inlet',
+      },
+      {
+        id: 'cv-outlet',
+        name: '出口',
+        x: 16,
+        y: 32,
+        direction: 'bottom',
+        type: 'cooling-general',
+        flowRole: 'outlet',
+      },
+    ],
+  },
+  { file: 'CWP.png', name: 'CWP', category: '冷却', width: 200, height: 80 },
   { file: 'FM.svg', name: 'FM', category: '电力', width: 64, height: 64 },
   { file: 'MP.svg', name: 'MP', category: '冷却', width: 32, height: 32, configurableColor: true },
-  { file: 'PHE.svg', name: 'PHE', category: '冷却', width: 80, height: 160 },
+  { file: 'PHE.png', name: 'PHE', category: '冷却', width: 200, height: 80 },
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
   { file: 'Generator.svg', name: 'Generator', category: '电力', width: 48, height: 48, configurableColor: true },
@@ -62,11 +120,21 @@ const metadata: SymbolMetadata[] = [
   },
   { file: 'Transformer.svg', name: 'Transformer', category: '电力', width: 64, height: 64, configurableColor: true },
   { file: 'UPS.svg', name: 'UPS', category: '电力', width: 48, height: 48 },
-  { file: 'CPD.svg', name: 'CPD', category: '冷却', width: 80, height: 80 },
+  { file: 'CPD.png', name: 'CPD', category: '冷却', width: 80, height: 80 },
   { file: 'Cabinet A.svg', key: 'cabinet', name: 'Cabinet A', category: '电力', width: 48, height: 48 },
   { file: 'Cabinet B.svg', key: 'cabinet-b', name: 'Cabinet B', category: '电力', width: 48, height: 48 },
   { file: 'ComputePOD.svg', name: '算力 POD', category: '电力', width: 64, height: 64 },
   { file: 'PowerPOD.svg', name: '动力 POD', category: '电力', width: 64, height: 64 },
+  {
+    file: 'Generic.svg',
+    key: GENERIC_SYMBOL_KEY,
+    name: '通用图元',
+    category: '通用',
+    width: GENERIC_SYMBOL_DEFAULT_WIDTH,
+    height: GENERIC_SYMBOL_DEFAULT_HEIGHT,
+    configurableColor: true,
+    renderMode: 'generic-frame',
+  },
 ]
 
 const registeredFiles = new Set(metadata.flatMap((symbol) => [
@@ -81,7 +149,7 @@ if (unregisteredFiles.length) {
 }
 
 function symbolKey(file: string) {
-  return file.replace(/\.svg$/i, '').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+  return file.replace(/\.(?:svg|png)$/i, '').replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
 }
 
 function getSymbolUrl(file: string) {
@@ -98,7 +166,8 @@ export const symbolCatalog: SymbolDefinition[] = metadata.map((symbol) => ({
   url: getSymbolUrl(symbol.file),
   intrinsicWidth: symbol.width,
   intrinsicHeight: symbol.height,
-  anchors: [],
+  coolingDeviceRole: symbol.coolingDeviceRole,
+  anchors: symbol.anchors?.map((anchor) => ({ ...anchor })) ?? [],
   configurableColor: symbol.configurableColor ?? false,
   defaultColor: symbol.configurableColor ? DEFAULT_CONFIGURABLE_SYMBOL_COLOR : undefined,
   defaultState: symbol.defaultState,
@@ -109,6 +178,7 @@ export const symbolCatalog: SymbolDefinition[] = metadata.map((symbol) => ({
           .map(([state, file]) => [state, getSymbolUrl(file)]),
       )
     : undefined,
+  renderMode: symbol.renderMode ?? 'image',
 }))
 
 export function normalizeSymbolColor(value: unknown) {
@@ -117,11 +187,23 @@ export function normalizeSymbolColor(value: unknown) {
     : DEFAULT_CONFIGURABLE_SYMBOL_COLOR
 }
 
+export function symbolSupportsOnOffState(
+  symbol: SymbolDefinition | undefined,
+): symbol is SymbolDefinition & {
+  stateUrls: Record<SymbolVisualState, string>
+} {
+  return Boolean(symbol?.stateUrls?.off && symbol.stateUrls.on)
+}
+
+export function elementSupportsOnOffState(element: DiagramElement) {
+  return symbolSupportsOnOffState(symbolsByKey.get(element.assetKey))
+}
+
 export function symbolColorSlotForElement(
   element: DiagramElement,
   state: SymbolVisualState,
 ): SymbolColorSlot {
-  if (element.assetKey !== 'switch') return 'default'
+  if (!elementSupportsOnOffState(element)) return 'default'
   return state === 'on' ? 'switch-on' : 'switch-off'
 }
 
@@ -136,8 +218,10 @@ export function resolvedSymbolColorForSlot(
   slot: SymbolColorSlot,
 ) {
   const value = element.properties[symbolColorPropertyKey(slot)]
-  const legacySwitchColor = element.assetKey === 'switch' ? element.properties.color : undefined
-  return normalizeSymbolColor(value ?? legacySwitchColor)
+  const legacyStateColor = elementSupportsOnOffState(element)
+    ? element.properties.color
+    : undefined
+  return normalizeSymbolColor(value ?? legacyStateColor)
 }
 
 export function resolvedSymbolColor(
@@ -193,13 +277,14 @@ export function getScaledSymbolSize(
 }
 
 export const symbolAssets: AssetDefinition[] = symbolCatalog.map(
-  ({ key, name, category, source, intrinsicWidth, intrinsicHeight, anchors }) => ({
+  ({ key, name, category, source, intrinsicWidth, intrinsicHeight, coolingDeviceRole, anchors }) => ({
     key,
     name,
     category,
     source,
     intrinsicWidth,
     intrinsicHeight,
+    coolingDeviceRole,
     anchors: [...anchors],
   }),
 )

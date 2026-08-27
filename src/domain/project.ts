@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 15 as const
+export const SCHEMA_VERSION = 24 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -17,7 +17,18 @@ export const anchorTypeSchema = z.enum([
 ])
 
 export const anchorDirectionSchema = z.enum(['top', 'right', 'bottom', 'left'])
+export const coolingDeviceRoleSchema = z.enum(['pump', 'valve', 'check-valve'])
+export const coolingFlowRoleSchema = z.enum(['inlet', 'outlet'])
 export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
+export const elementOnOffStateSchema = z.enum(['off', 'on'])
+export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
+export const connectionPointSchema = z.object({
+  id: z.string().min(1),
+  x: z.number().finite(),
+  y: z.number().finite(),
+})
+// 仅供编辑器内部的点坐标快照使用；Schema v21 不再单独持久化途径点。
+export const routeWaypointSchema = connectionPointSchema
 export const monitorMetricPrecisionSchema = z.union([z.literal(0), z.literal(1), z.literal(2)])
 export const monitorAlarmSeveritySchema = z.enum(['normal', 'minor', 'major', 'critical'])
 
@@ -135,6 +146,7 @@ export const symbolAnchorSchema = z.object({
   y: z.number().finite(),
   direction: anchorDirectionSchema,
   type: anchorTypeSchema,
+  flowRole: coolingFlowRoleSchema.optional(),
 })
 
 export const assetDefinitionSchema = z.object({
@@ -144,6 +156,7 @@ export const assetDefinitionSchema = z.object({
   source: z.string().min(1),
   intrinsicWidth: z.number().positive(),
   intrinsicHeight: z.number().positive(),
+  coolingDeviceRole: coolingDeviceRoleSchema.optional(),
   anchors: z.array(symbolAnchorSchema),
 })
 
@@ -160,7 +173,9 @@ export const diagramElementSchema = z.object({
   labelVisible: z.boolean().optional(),
   labelPlacement: elementLabelPlacementSchema.optional(),
   monitorDataVisible: z.boolean().optional(),
+  monitorMetricLabelsVisible: z.boolean().optional(),
   monitorMetrics: z.array(monitorMetricSchema).max(5, '每个图元最多配置 5 项运行指标').optional(),
+  onOffState: elementOnOffStateSchema.optional(),
   properties: z.record(
     z.string(),
     z.union([z.string(), z.number(), z.boolean(), z.null()]),
@@ -198,17 +213,25 @@ export const connectionNodeSchema = z.discriminatedUnion('kind', [
     busbarId: z.string().min(1),
     offset: z.number().finite(),
   }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal('node'),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
 ])
 
 export const connectionEdgeSchema = z.object({
   id: z.string().min(1),
   sourceNodeId: z.string().min(1),
   targetNodeId: z.string().min(1),
+  flowDirection: connectionFlowDirectionSchema.optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
   label: z.string().trim().min(1).optional(),
   labelVisible: z.boolean().optional(),
   labelEndpoint: z.enum(['source', 'target']).optional(),
   labelSide: z.enum(['negative', 'positive']).optional(),
+  routeNodeIds: z.array(z.string().min(1)).optional(),
 })
 
 export const connectionNetworkSchema = z.object({
@@ -438,6 +461,7 @@ export const projectDocumentSchema = z
           ancestor = ancestor.parentId ? diagramsById.get(ancestor.parentId) : undefined
         }
       }
+
     }
 
     for (const element of document.elements) {
@@ -565,7 +589,6 @@ export const projectDocumentSchema = z
 
       const degree = new Map(network.nodes.map((node) => [node.id, 0]))
       const adjacency = new Map(network.nodes.map((node) => [node.id, new Set<string>()]))
-      const edgePairs = new Set<string>()
       for (const edge of network.edges) {
         if (
           edge.sourceNodeId === edge.targetNodeId ||
@@ -592,19 +615,40 @@ export const projectDocumentSchema = z
             message: '同一母线不能通过普通子线连接自身',
           })
         }
-        const pair = [edge.sourceNodeId, edge.targetNodeId].sort().join('::')
-        if (edgePairs.has(pair)) {
+        const routeNodeIds = edge.routeNodeIds ?? []
+        if (new Set(routeNodeIds).size !== routeNodeIds.length) {
           context.addIssue({
             code: 'custom',
-            path: [...networkPath, 'edges', edge.id],
-            message: '同一对拓扑节点之间只能有一条线路边',
+            path: [...networkPath, 'edges', edge.id, 'routeNodeIds'],
+            message: '同一逻辑边不能重复引用同一个节点',
           })
         }
-        edgePairs.add(pair)
-        degree.set(edge.sourceNodeId, (degree.get(edge.sourceNodeId) ?? 0) + 1)
-        degree.set(edge.targetNodeId, (degree.get(edge.targetNodeId) ?? 0) + 1)
-        adjacency.get(edge.sourceNodeId)?.add(edge.targetNodeId)
-        adjacency.get(edge.targetNodeId)?.add(edge.sourceNodeId)
+        for (const routeNodeId of routeNodeIds) {
+          const routeNode = nodesById.get(routeNodeId)
+          if (routeNode?.kind === 'node') continue
+          context.addIssue({
+            code: 'custom',
+            path: [...networkPath, 'edges', edge.id, 'routeNodeIds'],
+            message: '逻辑边必须引用当前网络中的自由节点',
+          })
+        }
+        const physicalNodeIds = [edge.sourceNodeId, ...routeNodeIds, edge.targetNodeId]
+        for (let index = 1; index < physicalNodeIds.length; index += 1) {
+          const sourceId = physicalNodeIds[index - 1]
+          const targetId = physicalNodeIds[index]
+          if (sourceId === targetId || !nodeIds.has(sourceId) || !nodeIds.has(targetId)) {
+            context.addIssue({
+              code: 'custom',
+              path: [...networkPath, 'edges', edge.id, 'routeNodeIds'],
+              message: '逻辑边的相邻物理节点必须有效且彼此不同',
+            })
+            continue
+          }
+          degree.set(sourceId, (degree.get(sourceId) ?? 0) + 1)
+          degree.set(targetId, (degree.get(targetId) ?? 0) + 1)
+          adjacency.get(sourceId)?.add(targetId)
+          adjacency.get(targetId)?.add(sourceId)
+        }
       }
 
       const anchorTypes: AnchorType[] = []
@@ -612,6 +656,27 @@ export const projectDocumentSchema = z
       const busbarTapOffsets = new Set<string>()
       for (const node of network.nodes) {
         const path = [...networkPath, 'nodes', node.id]
+        if (node.kind === 'node') {
+          if (
+            node.x % EDITOR_GRID_SIZE !== 0 ||
+            node.y % EDITOR_GRID_SIZE !== 0
+          ) {
+            context.addIssue({
+              code: 'custom',
+              path,
+              message: '节点必须位于 8px 网格点',
+            })
+          }
+          if ((degree.get(node.id) ?? 0) < 2) {
+            context.addIssue({
+              code: 'custom',
+              path,
+              message: '自由节点必须至少连接两个物理子线段',
+            })
+          }
+          anchorTypes.push(network.type)
+          continue
+        }
         if (node.kind === 'busbar-tap') {
           const busbar = busbarsById.get(node.busbarId)
           if (!busbar || busbar.diagramId !== network.diagramId) {
@@ -753,7 +818,10 @@ export type LineSystemType = z.infer<typeof lineSystemTypeSchema>
 export type DiagramLevel = z.infer<typeof diagramLevelSchema>
 export type AnchorType = z.infer<typeof anchorTypeSchema>
 export type AnchorDirection = z.infer<typeof anchorDirectionSchema>
+export type CoolingDeviceRole = z.infer<typeof coolingDeviceRoleSchema>
+export type CoolingFlowRole = z.infer<typeof coolingFlowRoleSchema>
 export type ElementLabelPlacement = z.infer<typeof elementLabelPlacementSchema>
+export type ElementOnOffState = z.infer<typeof elementOnOffStateSchema>
 export type MonitorMetricPrecision = z.infer<typeof monitorMetricPrecisionSchema>
 export type MonitorAlarmSeverity = z.infer<typeof monitorAlarmSeveritySchema>
 export type MonitorMetricAlarm = z.infer<typeof monitorMetricAlarmSchema>
@@ -767,13 +835,47 @@ export type BusbarLabelEndpoint = z.infer<typeof busbarLabelEndpointSchema>
 export type Busbar = z.infer<typeof busbarSchema>
 export type ConnectionNode = z.infer<typeof connectionNodeSchema>
 export type ConnectionEdge = z.infer<typeof connectionEdgeSchema>
+export type ConnectionFlowDirection = NonNullable<ConnectionEdge['flowDirection']>
 export type ConnectionLabelEndpoint = NonNullable<ConnectionEdge['labelEndpoint']>
 export type ConnectionLabelSide = NonNullable<ConnectionEdge['labelSide']>
 export type ConnectionNetwork = z.infer<typeof connectionNetworkSchema>
+export type RouteWaypoint = z.infer<typeof connectionPointSchema>
 export type Diagram = z.infer<typeof diagramSchema>
 export type DiagramViewport = Diagram['canvas']['viewport']
 export type LineSystem = z.infer<typeof lineSystemSchema>
 export type ProjectDocument = z.infer<typeof projectDocumentSchema>
+
+export const ON_OFF_STATE_ASSET_KEYS = new Set(['switch', '2-wv', 'cv'])
+
+export function elementUsesOnOffState(element: Pick<DiagramElement, 'assetKey'>) {
+  return ON_OFF_STATE_ASSET_KEYS.has(element.assetKey)
+}
+
+export function projectOnOffStates(document: ProjectDocument) {
+  return Object.fromEntries(document.elements.flatMap((element) => (
+    elementUsesOnOffState(element)
+      ? [[element.id, element.onOffState === 'on'] as const]
+      : []
+  )))
+}
+
+export function withOnOffStateSnapshot(
+  document: ProjectDocument,
+  states: Record<string, boolean> = {},
+): ProjectDocument {
+  let changed = false
+  const elements = document.elements.map((element) => {
+    if (!elementUsesOnOffState(element)) return element
+    const on = Object.prototype.hasOwnProperty.call(states, element.id)
+      ? states[element.id]
+      : element.onOffState === 'on'
+    const onOffState: ElementOnOffState = on ? 'on' : 'off'
+    if (element.onOffState === onOffState) return element
+    changed = true
+    return { ...element, onOffState }
+  })
+  return changed ? { ...document, elements } : document
+}
 
 const LEVELS: Array<{ level: DiagramLevel; name: string }> = [
   { level: 'campus', name: '园区总图' },
@@ -970,14 +1072,15 @@ function migrateLegacySwitch(
   }
 }
 
-function migrateSwitchStateColors(input: Record<string, unknown>) {
+function migrateOnOffStateColors(input: Record<string, unknown>) {
   if (!Array.isArray(input.elements)) return input
   return {
     ...input,
     elements: input.elements.map((element) => {
       if (
         !isRecord(element) ||
-        element.assetKey !== 'switch' ||
+        typeof element.assetKey !== 'string' ||
+        !ON_OFF_STATE_ASSET_KEYS.has(element.assetKey) ||
         !isRecord(element.properties)
       ) return element
       const legacyColor = element.properties.color
@@ -1076,11 +1179,150 @@ function migrateLegacyConnectionJunctions(connections: unknown[]) {
   })
 }
 
+function repairLegacyConnectionReferences(connections: unknown[]) {
+  return connections.flatMap((value) => {
+    if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) {
+      return [value]
+    }
+    const nodes = value.nodes.filter((node): node is Record<string, unknown> => (
+      isRecord(node) && typeof node.id === 'string'
+    ))
+    const nodeIds = new Set(nodes.map((node) => node.id as string))
+    const edges = value.edges.filter((edge): edge is Record<string, unknown> => (
+      isRecord(edge) &&
+      typeof edge.sourceNodeId === 'string' &&
+      typeof edge.targetNodeId === 'string' &&
+      edge.sourceNodeId !== edge.targetNodeId &&
+      nodeIds.has(edge.sourceNodeId) &&
+      nodeIds.has(edge.targetNodeId)
+    ))
+    const referencedNodeIds = new Set(edges.flatMap((edge) => [
+      edge.sourceNodeId as string,
+      edge.targetNodeId as string,
+    ]))
+    const retainedNodes = nodes.filter((node) => referencedNodeIds.has(node.id as string))
+    return retainedNodes.length >= 2 && edges.length >= 1
+      ? [{ ...value, nodes: retainedNodes, edges }]
+      : []
+  })
+}
+
+function migrateUnifiedConnectionNodes(input: Record<string, unknown>) {
+  if (!Array.isArray(input.diagrams) || !Array.isArray(input.connections)) return input
+  const routePointsByDiagram = new Map<string, Map<string, Record<string, unknown>>>()
+  const diagrams = input.diagrams.map((value) => {
+    if (!isRecord(value)) return value
+    const routePoints = new Map<string, Record<string, unknown>>()
+    if (Array.isArray(value.routeWaypoints)) {
+      value.routeWaypoints.forEach((point) => {
+        if (isRecord(point) && typeof point.id === 'string') routePoints.set(point.id, point)
+      })
+    }
+    if (typeof value.id === 'string') routePointsByDiagram.set(value.id, routePoints)
+    const { routeWaypoints: _routeWaypoints, ...diagram } = value
+    return diagram
+  })
+
+  const connections = input.connections.flatMap((value) => {
+    if (
+      !isRecord(value) ||
+      typeof value.diagramId !== 'string' ||
+      !Array.isArray(value.nodes) ||
+      !Array.isArray(value.edges)
+    ) return [value]
+    const routePoints = routePointsByDiagram.get(value.diagramId) ?? new Map()
+    const nodes: Record<string, unknown>[] = value.nodes.flatMap((node) => {
+      if (!isRecord(node)) return []
+      return [{ ...node, ...(node.kind === 'junction' ? { kind: 'node' } : {}) }]
+    })
+    const nodeIds = new Set(nodes.flatMap((node) => (
+      typeof node.id === 'string' ? [node.id] : []
+    )))
+    const edges: Record<string, unknown>[] = value.edges.flatMap((edge) => {
+      if (!isRecord(edge)) return []
+      const legacyIds = Array.isArray(edge.routeWaypointIds)
+        ? edge.routeWaypointIds.filter((id): id is string => typeof id === 'string')
+        : []
+      const currentIds = Array.isArray(edge.routeNodeIds)
+        ? edge.routeNodeIds.filter((id): id is string => typeof id === 'string')
+        : []
+      const routeNodeIds = [...new Set([...currentIds, ...legacyIds])]
+      routeNodeIds.forEach((id) => {
+        if (nodeIds.has(id)) return
+        const point = routePoints.get(id)
+        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') return
+        nodes.push({ id, kind: 'node', x: point.x, y: point.y })
+        nodeIds.add(id)
+      })
+      const validRouteNodeIds = routeNodeIds.filter((id) => nodeIds.has(id))
+      const { routeWaypointIds: _legacy, routeNodeIds: _current, ...rest } = edge
+      return [{
+        ...rest,
+        ...(validRouteNodeIds.length ? { routeNodeIds: validRouteNodeIds } : {}),
+      }]
+    })
+
+    let retainedNodes = nodes
+    let retainedEdges = edges
+    let changed = true
+    while (changed) {
+      changed = false
+      const degree = new Map<string, number>()
+      retainedEdges.forEach((edge) => {
+        if (!isRecord(edge)) return
+        const routeNodeIds = Array.isArray(edge.routeNodeIds)
+          ? edge.routeNodeIds.filter((id): id is string => typeof id === 'string')
+          : []
+        const chain = [edge.sourceNodeId, ...routeNodeIds, edge.targetNodeId]
+          .filter((id): id is string => typeof id === 'string')
+        for (let index = 1; index < chain.length; index += 1) {
+          degree.set(chain[index - 1], (degree.get(chain[index - 1]) ?? 0) + 1)
+          degree.set(chain[index], (degree.get(chain[index]) ?? 0) + 1)
+        }
+      })
+      const danglingIds = new Set(retainedNodes.flatMap((node) => (
+        node.kind === 'node' && typeof node.id === 'string' && (degree.get(node.id) ?? 0) < 2
+          ? [node.id]
+          : []
+      )))
+      if (!danglingIds.size) break
+      retainedNodes = retainedNodes.filter((node) => (
+        typeof node.id !== 'string' || !danglingIds.has(node.id)
+      ))
+      retainedEdges = retainedEdges.filter((edge) => {
+        if (!isRecord(edge)) return false
+        if (
+          typeof edge.sourceNodeId === 'string' && danglingIds.has(edge.sourceNodeId) ||
+          typeof edge.targetNodeId === 'string' && danglingIds.has(edge.targetNodeId)
+        ) return false
+        return !Array.isArray(edge.routeNodeIds) ||
+          !edge.routeNodeIds.some((id) => typeof id === 'string' && danglingIds.has(id))
+      })
+      changed = true
+    }
+    const referencedIds = new Set(retainedEdges.flatMap((edge) => (
+      isRecord(edge)
+        ? [edge.sourceNodeId, edge.targetNodeId, ...(Array.isArray(edge.routeNodeIds) ? edge.routeNodeIds : [])]
+            .filter((id): id is string => typeof id === 'string')
+        : []
+    )))
+    retainedNodes = retainedNodes.filter((node) => (
+      typeof node.id === 'string' && referencedIds.has(node.id)
+    ))
+    return retainedNodes.length >= 2 && retainedEdges.length >= 1
+      ? [{ ...value, nodes: retainedNodes, edges: retainedEdges }]
+      : []
+  })
+  return { ...input, diagrams, connections }
+}
+
 function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+
+  const sourceSchemaVersion = Number(input.schemaVersion)
 
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const withCurrentAssetShape = input.schemaVersion === 1 && Array.isArray(input.assets) ? {
@@ -1097,16 +1339,68 @@ function migrateProjectDocument(
     }),
   } : input
 
-  const migrated = migrateSwitchStateColors(migrateLegacySwitch({
-    ...withCurrentAssetShape,
+  const withCvCheckValve = sourceSchemaVersion < 24 && Array.isArray(withCurrentAssetShape.assets)
+    ? {
+        ...withCurrentAssetShape,
+        assets: withCurrentAssetShape.assets.map((value) => {
+          if (!isRecord(value) || value.key !== 'cv' || !Array.isArray(value.anchors)) return value
+          const width = typeof value.intrinsicWidth === 'number' ? value.intrinsicWidth : 32
+          const height = typeof value.intrinsicHeight === 'number' ? value.intrinsicHeight : 32
+          const configuredInlet = value.anchors.find((anchor) => (
+            isRecord(anchor) && anchor.flowRole === 'inlet'
+          ))
+          const configuredOutlet = value.anchors.find((anchor) => (
+            isRecord(anchor) && anchor.flowRole === 'outlet'
+          ))
+          const canonicalInlet = configuredInlet ?? value.anchors.find((anchor) => (
+            isRecord(anchor) &&
+            anchor.type !== 'electrical' &&
+            anchor.x === width / 2 &&
+            anchor.y === 0 &&
+            anchor.direction === 'top'
+          ))
+          const canonicalOutlet = configuredOutlet ?? value.anchors.find((anchor) => (
+            isRecord(anchor) &&
+            anchor.type !== 'electrical' &&
+            anchor.x === width / 2 &&
+            anchor.y === height &&
+            anchor.direction === 'bottom'
+          ))
+          return {
+            ...value,
+            coolingDeviceRole: 'check-valve',
+            anchors: value.anchors.map((anchor) => {
+              if (!isRecord(anchor)) return anchor
+              const { flowRole: _legacyFlowRole, ...withoutFlowRole } = anchor
+              if (anchor === canonicalInlet) return { ...withoutFlowRole, flowRole: 'inlet' }
+              if (anchor === canonicalOutlet) return { ...withoutFlowRole, flowRole: 'outlet' }
+              return withoutFlowRole
+            }),
+          }
+        }),
+      }
+    : withCurrentAssetShape
+
+  const withUnifiedConnections = migrateUnifiedConnectionNodes({
+    ...withCvCheckValve,
     schemaVersion: SCHEMA_VERSION,
-    busbars: Array.isArray(withCurrentAssetShape.busbars)
-      ? withCurrentAssetShape.busbars
+    busbars: Array.isArray(withCvCheckValve.busbars)
+      ? withCvCheckValve.busbars
       : [],
-    connections: Array.isArray(withCurrentAssetShape.connections)
-      ? migrateLegacyConnectionJunctions(withCurrentAssetShape.connections)
+    connections: Array.isArray(withCvCheckValve.connections)
+      ? sourceSchemaVersion < SCHEMA_VERSION
+        ? repairLegacyConnectionReferences(
+            sourceSchemaVersion <= 5
+              ? migrateLegacyConnectionJunctions(withCvCheckValve.connections)
+              : withCvCheckValve.connections,
+          )
+        : withCvCheckValve.connections
       : [],
-  }, installedAssets))
+  })
+  const migrated = migrateOnOffStateColors(migrateLegacySwitch(
+    withUnifiedConnections,
+    installedAssets,
+  ))
 
   if (!isRecord(migrated) || !Array.isArray(migrated.elements)) return migrated
   const usedTagsByDiagram = new Map<string, Set<string>>()
@@ -1156,6 +1450,78 @@ function migrateProjectDocument(
   }
 }
 
+const LEGACY_PHE_WIDTH = 80
+const LEGACY_PHE_HEIGHT = 160
+const CURRENT_PHE_WIDTH = 200
+const CURRENT_PHE_HEIGHT = 80
+const CURRENT_PHE_SCALE_STEP = 0.2
+
+function normalizeRotation(value: number) {
+  return ((value % 360) + 360) % 360
+}
+
+function snapToGrid(value: number) {
+  return Math.round(value / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
+}
+
+function rotateLegacyPheDirection(direction: SymbolAnchor['direction']): SymbolAnchor['direction'] {
+  return {
+    top: 'right',
+    right: 'bottom',
+    bottom: 'left',
+    left: 'top',
+  }[direction] as SymbolAnchor['direction']
+}
+
+function migrateLegacyPheAnchor(anchor: SymbolAnchor): SymbolAnchor {
+  const isStandardSidePort =
+    (anchor.x === 0 || anchor.x === LEGACY_PHE_WIDTH) &&
+    (anchor.y === 8 || anchor.y === LEGACY_PHE_HEIGHT - 8)
+  const x = isStandardSidePort
+    ? anchor.y === 8 ? 144 : 64
+    : snapToGrid(CURRENT_PHE_WIDTH * (1 - anchor.y / LEGACY_PHE_HEIGHT))
+  const y = isStandardSidePort
+    ? anchor.x === 0 ? 0 : CURRENT_PHE_HEIGHT
+    : snapToGrid(CURRENT_PHE_HEIGHT * anchor.x / LEGACY_PHE_WIDTH)
+  return {
+    ...anchor,
+    x: Math.min(CURRENT_PHE_WIDTH, Math.max(0, x)),
+    y: Math.min(CURRENT_PHE_HEIGHT, Math.max(0, y)),
+    direction: rotateLegacyPheDirection(anchor.direction),
+  }
+}
+
+function rotatedBoundsOffset(width: number, height: number, rotation: number) {
+  const radians = normalizeRotation(rotation) * Math.PI / 180
+  const boundsWidth = Math.abs(width * Math.cos(radians)) + Math.abs(height * Math.sin(radians))
+  const boundsHeight = Math.abs(width * Math.sin(radians)) + Math.abs(height * Math.cos(radians))
+  return {
+    x: (width - boundsWidth) / 2,
+    y: (height - boundsHeight) / 2,
+  }
+}
+
+function migrateLegacyPheElement(element: DiagramElement): DiagramElement {
+  const legacyScale = element.width / LEGACY_PHE_WIDTH
+  const scale = Math.max(
+    CURRENT_PHE_SCALE_STEP,
+    Math.round(legacyScale / CURRENT_PHE_SCALE_STEP) * CURRENT_PHE_SCALE_STEP,
+  )
+  const width = CURRENT_PHE_WIDTH * scale
+  const height = CURRENT_PHE_HEIGHT * scale
+  const rotation = normalizeRotation(element.rotation - 90)
+  const oldOffset = rotatedBoundsOffset(element.width, element.height, element.rotation)
+  const newOffset = rotatedBoundsOffset(width, height, rotation)
+  return {
+    ...element,
+    x: Number((element.x + oldOffset.x - newOffset.x).toFixed(8)),
+    y: Number((element.y + oldOffset.y - newOffset.y).toFixed(8)),
+    width,
+    height,
+    rotation,
+  }
+}
+
 export function parseProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[] = [],
@@ -1163,6 +1529,17 @@ export function parseProjectDocument(
   const document = projectDocumentSchema.parse(migrateProjectDocument(input, installedAssets))
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const documentAssetKeys = new Set(document.assets.map((asset) => asset.key))
+  const legacyPheAssetKeys = new Set(document.assets.flatMap((asset) => {
+    const installed = installedByKey.get(asset.key)
+    return asset.key === 'phe' &&
+      asset.intrinsicWidth === 80 &&
+      asset.intrinsicHeight === 160 &&
+      installed?.source.endsWith('/PHE.png') &&
+      installed.intrinsicWidth === 200 &&
+      installed.intrinsicHeight === 80
+      ? [asset.key]
+      : []
+  }))
   const synchronized = {
     ...document,
     lineSystems: document.lineSystems.map((lineSystem) => (
@@ -1170,16 +1547,23 @@ export function parseProjectDocument(
         ? { ...lineSystem, name: '电力线路' }
         : lineSystem
     )),
-    assets: document.assets.map((asset) => ({
-      ...asset,
-      ...(installedByKey.has(asset.key) ? {
-        name: installedByKey.get(asset.key)!.name,
-        category: installedByKey.get(asset.key)!.category,
-        source: installedByKey.get(asset.key)!.source,
-        intrinsicWidth: installedByKey.get(asset.key)!.intrinsicWidth,
-        intrinsicHeight: installedByKey.get(asset.key)!.intrinsicHeight,
-      } : {}),
-    })).concat(
+    assets: document.assets.map((asset) => {
+      const installed = installedByKey.get(asset.key)
+      return {
+        ...asset,
+        ...(installed ? {
+          name: installed.name,
+          category: installed.category,
+          source: installed.source,
+          intrinsicWidth: installed.intrinsicWidth,
+          intrinsicHeight: installed.intrinsicHeight,
+        } : {}),
+        ...(legacyPheAssetKeys.has(asset.key) ? {
+          anchors: asset.anchors.map(migrateLegacyPheAnchor),
+        } : {}),
+        ...(asset.key === 'cv' ? { coolingDeviceRole: 'check-valve' as const } : {}),
+      }
+    }).concat(
       installedAssets
         .filter((asset) => !documentAssetKeys.has(asset.key))
         .map((asset) => ({
@@ -1187,11 +1571,14 @@ export function parseProjectDocument(
           anchors: asset.anchors.map((anchor) => ({ ...anchor })),
         })),
     ),
-    elements: document.elements.map((element) => (
-      element.assetKey === 'cabinet' && element.name === 'Cabinet'
-        ? { ...element, name: 'Cabinet A' }
+    elements: document.elements.map((element) => {
+      const withCurrentPheLayout = legacyPheAssetKeys.has(element.assetKey)
+        ? migrateLegacyPheElement(element)
         : element
-    )),
+      return withCurrentPheLayout.assetKey === 'cabinet' && withCurrentPheLayout.name === 'Cabinet'
+        ? { ...withCurrentPheLayout, name: 'Cabinet A' }
+        : withCurrentPheLayout
+    }),
     diagrams: document.diagrams.map((diagram) => ({
       ...diagram,
       canvas: { ...diagram.canvas, gridSize: EDITOR_GRID_SIZE },
@@ -1222,6 +1609,7 @@ export function getFirstDiagramId(document: ProjectDocument) {
 export function touchDocument(document: ProjectDocument): ProjectDocument {
   return {
     ...document,
+    schemaVersion: SCHEMA_VERSION,
     project: {
       ...document.project,
       updatedAt: new Date().toISOString(),

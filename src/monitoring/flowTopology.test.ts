@@ -126,6 +126,87 @@ describe('monitor power flow topology', () => {
     expect(flow.energizedElementIds).toEqual(new Set(['generator', 'battery', 'fm']))
   })
 
+  it('traces every physical edge through a topological junction', () => {
+    const junctionElements: DiagramElement[] = [
+      elements[0],
+      elements[2],
+      { id: 'fm', diagramId: 'd', assetKey: 'fm', name: 'FM', x: 160, y: 80, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const junctionNetwork: ConnectionNetwork = {
+      id: 'junction-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+        { id: 'fm-node', kind: 'element-anchor', elementId: 'fm', anchorId: 'in' },
+        { id: 'node', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [
+        { id: 'grid-junction', sourceNodeId: 'grid-node', targetNodeId: 'node' },
+        { id: 'junction-pod', sourceNodeId: 'node', targetNodeId: 'pod-node' },
+        { id: 'junction-fm', sourceNodeId: 'node', targetNodeId: 'fm-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: junctionElements,
+      busbars: [],
+      networks: [junctionNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'grid-junction', direction: 'forward' },
+      { edgeId: 'junction-pod', direction: 'forward' },
+      { edgeId: 'junction-fm', direction: 'forward' },
+    ])
+  })
+
+  it('animates only the physical span of a logical line that reaches a branch node', () => {
+    const cabinet: DiagramElement = {
+      id: 'cabinet', diagramId: 'd', assetKey: 'cabinet', name: 'Cabinet',
+      x: 160, y: 80, width: 64, height: 64, rotation: 0, properties: {}, extensions: {},
+    }
+    const routedBranch: ConnectionNetwork = {
+      id: 'routed-branch',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'cabinet-node', kind: 'element-anchor', elementId: 'cabinet', anchorId: 'in' },
+        { id: 'pod-node', kind: 'element-anchor', elementId: 'pod', anchorId: 'in' },
+        { id: 'branch-node', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [
+        {
+          id: 'logical-trunk',
+          sourceNodeId: 'grid-node',
+          targetNodeId: 'cabinet-node',
+          routeNodeIds: ['branch-node'],
+        },
+        { id: 'target-branch', sourceNodeId: 'branch-node', targetNodeId: 'pod-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [elements[0], elements[2], cabinet],
+      busbars: [],
+      networks: [routedBranch],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      {
+        edgeId: 'logical-trunk',
+        direction: 'forward',
+        startNodeId: 'grid-node',
+        endNodeId: 'branch-node',
+      },
+      { edgeId: 'target-branch', direction: 'forward' },
+    ])
+  })
+
   it('keeps each source shortest path when a nearby Battery is closer than Grid', () => {
     const sourceElements: DiagramElement[] = [
       { id: 'grid', diagramId: 'd', assetKey: 'grid', name: 'Grid', x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
@@ -196,6 +277,65 @@ describe('monitor power flow topology', () => {
       { edgeId: 'left-target', direction: 'forward' },
       { edgeId: 'right-target', direction: 'forward' },
     ])
+  })
+
+  it('uses a configured child-line direction to resolve opposite source paths', () => {
+    const conflictElements: DiagramElement[] = [
+      { id: 'fm-left', diagramId: 'd', assetKey: 'fm', name: 'FM Left', x: 0, y: 0, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+      { id: 'grid', diagramId: 'd', assetKey: 'grid', name: 'Grid', x: 80, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'battery', diagramId: 'd', assetKey: 'battery', name: 'Battery', x: 160, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+      { id: 'fm-right', diagramId: 'd', assetKey: 'fm', name: 'FM Right', x: 240, y: 0, width: 64, height: 64, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const directedNetwork: ConnectionNetwork = {
+      id: 'directed-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'fm-left-node', kind: 'element-anchor', elementId: 'fm-left', anchorId: 'in' },
+        { id: 'grid-node', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'battery-node', kind: 'element-anchor', elementId: 'battery', anchorId: 'out' },
+        { id: 'fm-right-node', kind: 'element-anchor', elementId: 'fm-right', anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'left-target', sourceNodeId: 'grid-node', targetNodeId: 'fm-left-node' },
+        {
+          id: 'directed-link',
+          sourceNodeId: 'grid-node',
+          targetNodeId: 'battery-node',
+          flowDirection: 'forward',
+        },
+        { id: 'right-target', sourceNodeId: 'battery-node', targetNodeId: 'fm-right-node' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: conflictElements,
+      busbars: [],
+      networks: [directedNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'left-target', direction: 'forward' },
+      { edgeId: 'directed-link', direction: 'forward' },
+      { edgeId: 'right-target', direction: 'forward' },
+    ])
+  })
+
+  it('blocks a Source-to-Target path that approaches a child line against its arrow', () => {
+    const directedNetwork: ConnectionNetwork = {
+      ...network,
+      edges: network.edges.map((edge) => edge.id === 'upstream'
+        ? { ...edge, flowDirection: 'forward' as const }
+        : edge),
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements,
+      busbars: [],
+      networks: [directedNetwork],
+      switchStates: { switch: true },
+    })
+
+    expect(flow.edges).toEqual([])
   })
 
   it('keeps a valid target path but removes a dead-end branch', () => {

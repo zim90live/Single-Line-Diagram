@@ -5,6 +5,7 @@ import {
   constrainAnchorDrag,
   createSymbolAnchor,
   deriveAnchorDirection,
+  getDefaultAnchorType,
   getLegalAnchorPoints,
   getNextAnchorName,
   isAutomaticAnchorName,
@@ -49,6 +50,22 @@ describe('symbol anchor geometry', () => {
       direction: 'top',
     })
     expect(anchor.id).toMatch(/^anchor-/)
+  })
+
+  it('defaults a generic symbol anchor to the active diagram system', () => {
+    expect(getDefaultAnchorType('通用', 'cooling')).toBe('cooling-general')
+    expect(getDefaultAnchorType('通用', 'power')).toBe('electrical')
+    expect(getDefaultAnchorType('通用')).toBe('cooling-general')
+
+    const genericAsset = { ...asset, key: 'generic', category: '通用' }
+    expect(createSymbolAnchor(genericAsset, { x: 24, y: 0 }, 'cooling')).toMatchObject({
+      name: '通用 1',
+      type: 'cooling-general',
+    })
+    expect(createSymbolAnchor(genericAsset, { x: 24, y: 0 }, 'power')).toMatchObject({
+      name: '电路 1',
+      type: 'electrical',
+    })
   })
 
   it('numbers automatic names by type and preserves the ability to detect custom names', () => {

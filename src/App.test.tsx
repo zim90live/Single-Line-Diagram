@@ -39,6 +39,7 @@ vi.mock('./editor/DiagramCanvas', () => ({
       updateElement: vi.fn(),
       updateBusbar: vi.fn(),
       updateConnectionEdge: vi.fn(),
+      updateConnectionEdges: vi.fn(),
     }))
     return (
       <div
@@ -48,15 +49,26 @@ vi.mock('./editor/DiagramCanvas', () => ({
       >
         画布
         {props.mode === 'monitor' ? (
-          <button
-            type="button"
-            onClick={() => (props.onSwitchStateChange as (id: string, on: boolean) => void)(
-              'switch-test',
-              !(props.switchStates as Record<string, boolean>)['switch-test'],
-            )}
-          >
-            切换测试 Switch
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['switch-test'])}
+            >
+              选择测试 Switch
+            </button>
+            <button
+              type="button"
+              onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['2-wv-test'])}
+            >
+              选择测试 2WV
+            </button>
+            <button
+              type="button"
+              onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['pump-test'])}
+            >
+              选择测试水泵
+            </button>
+          </>
         ) : null}
       </div>
     )
@@ -101,6 +113,42 @@ describe('AIDC editor workspace', () => {
     expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '缩小画布' })).toBeEnabled()
     expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '重置画布缩放' })).toBeEnabled()
     expect(within(canvasFrame as HTMLElement).getByRole('button', { name: '放大画布' })).toBeEnabled()
+  })
+
+  it('collapses and expands the left menu as session-only workspace state', async () => {
+    const user = userEvent.setup()
+    const beforeDocument = structuredClone(useAppStore.getState().document)
+    const { container } = renderApp()
+    const workspace = container.querySelector('.workspace-main')
+    const leftSidebar = container.querySelector('.left-sidebar')
+
+    const collapseButton = screen.getByRole('button', { name: '收起左侧菜单' })
+    expect(collapseButton).toHaveAttribute('aria-expanded', 'true')
+    expect(collapseButton.querySelector('svg')).toHaveClass('lucide-chevron-left')
+    expect(leftSidebar).toHaveAttribute('aria-hidden', 'false')
+
+    await user.click(collapseButton)
+
+    expect(workspace).toHaveAttribute('data-left-sidebar-collapsed', 'true')
+    expect(leftSidebar).toHaveAttribute('data-collapsed', 'true')
+    expect(leftSidebar).toHaveAttribute('aria-hidden', 'true')
+    const expandButton = screen.getByRole('button', { name: '展开左侧菜单' })
+    expect(expandButton).toHaveAttribute('aria-expanded', 'false')
+    expect(expandButton.querySelector('svg')).toHaveClass('lucide-chevron-right')
+    expect(useAppStore.getState().document).toEqual(beforeDocument)
+    expect(useAppStore.getState().dirty).toBe(false)
+
+    await user.click(screen.getByRole('tab', { name: '监控模式' }))
+    expect(workspace).toHaveAttribute('data-left-sidebar-collapsed', 'true')
+
+    await user.click(screen.getByRole('button', { name: '展开左侧菜单' }))
+
+    expect(workspace).not.toHaveAttribute('data-left-sidebar-collapsed')
+    expect(leftSidebar).toHaveAttribute('data-collapsed', 'false')
+    expect(leftSidebar).toHaveAttribute('aria-hidden', 'false')
+    expect(screen.getByRole('button', { name: '收起左侧菜单' })).toHaveAttribute('aria-expanded', 'true')
+    expect(useAppStore.getState().document).toEqual(beforeDocument)
+    expect(useAppStore.getState().dirty).toBe(false)
   })
 
   it('enables the busbar tool only on power diagrams', async () => {
@@ -160,10 +208,62 @@ describe('AIDC editor workspace', () => {
     save.mockRestore()
   })
 
-  it('switches to a read-only monitor workspace and auto-saves Switch state', async () => {
+  it('switches to a read-only monitor workspace and snapshots On/Off states into the project', async () => {
     const user = userEvent.setup()
-    const loadRuntime = vi.spyOn(monitorStateRepository, 'getSwitchStates').mockResolvedValue({})
-    const saveRuntime = vi.spyOn(monitorStateRepository, 'setSwitchState').mockResolvedValue()
+    const loadRuntime = vi.spyOn(monitorStateRepository, 'getOnOffStates').mockResolvedValue({})
+    const saveRuntime = vi.spyOn(monitorStateRepository, 'setOnOffState').mockResolvedValue()
+    const before = useAppStore.getState()
+    useAppStore.setState({
+      document: {
+        ...before.document,
+        assets: before.document.assets.map((asset) => asset.key === 'chwp'
+          ? { ...asset, coolingDeviceRole: 'pump' as const }
+          : asset),
+        elements: [
+          {
+            id: 'switch-test',
+            diagramId: before.currentDiagramId,
+            assetKey: 'switch',
+            name: 'Switch',
+            x: 0,
+            y: 0,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            onOffState: 'off',
+            properties: { tag: 'SW-01' },
+            extensions: {},
+          },
+          {
+            id: '2-wv-test',
+            diagramId: before.currentDiagramId,
+            assetKey: '2-wv',
+            name: '2WV',
+            x: 40,
+            y: 0,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            onOffState: 'off',
+            properties: { tag: '2WV-01' },
+            extensions: {},
+          },
+          {
+            id: 'pump-test',
+            diagramId: before.currentDiagramId,
+            assetKey: 'chwp',
+            name: 'CHWP',
+            x: 80,
+            y: 0,
+            width: 40,
+            height: 16,
+            rotation: 0,
+            properties: { tag: 'CHWP-01' },
+            extensions: {},
+          },
+        ],
+      },
+    })
     const beforeDocument = structuredClone(useAppStore.getState().document)
     renderApp()
 
@@ -177,17 +277,102 @@ describe('AIDC editor workspace', () => {
     await user.click(screen.getByRole('button', { name: '播放流动' }))
     expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-animation-playing', 'true')
 
-    await user.click(screen.getByRole('button', { name: '切换测试 Switch' }))
+    await user.click(screen.getByRole('button', { name: '选择测试 Switch' }))
+    await user.click(screen.getByRole('switch', { name: '开关状态' }))
     await waitFor(() => expect(saveRuntime).toHaveBeenCalledWith(
       beforeDocument.project.id,
       'switch-test',
       true,
     ))
-    expect(useAppStore.getState().document).toEqual(beforeDocument)
+    await user.click(screen.getByRole('button', { name: '选择测试 2WV' }))
+    await user.click(screen.getByRole('switch', { name: '阀门状态' }))
+    await waitFor(() => expect(saveRuntime).toHaveBeenCalledWith(
+      beforeDocument.project.id,
+      '2-wv-test',
+      true,
+    ))
+    await user.click(screen.getByRole('button', { name: '选择测试水泵' }))
+    expect(screen.getByRole('switch', { name: '水泵运行状态' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByLabelText('水泵输出功率滑块')).toHaveValue('100')
+    fireEvent.change(screen.getByLabelText('水泵输出功率滑块'), { target: { value: '50' } })
+    expect(screen.getByLabelText('水泵输出功率滑块')).toHaveValue('50')
+    await user.click(screen.getByRole('switch', { name: '水泵运行状态' }))
+    expect(screen.getByRole('switch', { name: '水泵运行状态' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    expect(await screen.findByText('水泵已停止')).toBeInTheDocument()
+    expect(useAppStore.getState().document.elements).toMatchObject([
+      { id: 'switch-test', onOffState: 'on' },
+      { id: '2-wv-test', onOffState: 'on' },
+      { id: 'pump-test' },
+    ])
+    expect(useAppStore.getState().document.project.updatedAt)
+      .toBe(beforeDocument.project.updatedAt)
     expect(useAppStore.getState().dirty).toBe(false)
 
     loadRuntime.mockRestore()
     saveRuntime.mockRestore()
+  })
+
+  it('hydrates only legacy missing On/Off fields from the compatibility state table', async () => {
+    const before = useAppStore.getState()
+    useAppStore.setState({
+      document: {
+        ...before.document,
+        elements: [
+          {
+            id: 'legacy-switch',
+            diagramId: before.currentDiagramId,
+            assetKey: 'switch',
+            name: 'Legacy Switch',
+            x: 0,
+            y: 0,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            properties: { tag: 'SW-LEGACY' },
+            extensions: {},
+          },
+          {
+            id: 'exported-switch',
+            diagramId: before.currentDiagramId,
+            assetKey: 'switch',
+            name: 'Exported Switch',
+            x: 40,
+            y: 0,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            onOffState: 'off',
+            properties: { tag: 'SW-EXPORTED' },
+            extensions: {},
+          },
+        ],
+      },
+    })
+    const loadRuntime = vi.spyOn(monitorStateRepository, 'getOnOffStates').mockResolvedValue({
+      'legacy-switch': true,
+      'exported-switch': true,
+    })
+
+    renderApp()
+
+    await waitFor(() => expect(
+      useAppStore.getState().document.elements.map((element) => ({
+        id: element.id,
+        onOffState: element.onOffState,
+      })),
+    ).toEqual([
+      { id: 'legacy-switch', onOffState: 'on' },
+      { id: 'exported-switch', onOffState: 'off' },
+    ]))
+    expect(useAppStore.getState().dirty).toBe(false)
+
+    loadRuntime.mockRestore()
   })
 
   it('opens the symbol anchor editor and applies anchor changes immediately', async () => {
@@ -229,5 +414,54 @@ describe('AIDC editor workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '关闭图元编辑器' }))
     expect(screen.queryByRole('dialog', { name: '接线锚点编辑器' })).not.toBeInTheDocument()
+  })
+
+  it('configures a cooling asset as a pump with unique inlet and outlet roles', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    await user.click(screen.getByRole('button', { name: '编辑 CHWP 锚点' }))
+    await user.selectOptions(screen.getByLabelText('冷却设备角色'), 'pump')
+    expect(screen.getByText('水泵需要配置一个入口和一个出口；配置完成前不会驱动监控动画。'))
+      .toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '在 8, 0 添加锚点' }))
+    await user.selectOptions(screen.getByLabelText('水流端口角色'), 'inlet')
+    await user.click(screen.getByRole('button', { name: '在 16, 0 添加锚点' }))
+    await user.selectOptions(screen.getByLabelText('水流端口角色'), 'outlet')
+
+    const pump = useAppStore.getState().document.assets.find((asset) => asset.key === 'chwp')
+    expect(pump?.coolingDeviceRole).toBe('pump')
+    expect(pump?.anchors.map((anchor) => anchor.flowRole)).toEqual(['inlet', 'outlet'])
+    expect(screen.queryByText('水泵需要配置一个入口和一个出口；配置完成前不会驱动监控动画。'))
+      .not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('水流端口角色'), 'inlet')
+    expect(
+      useAppStore.getState().document.assets.find((asset) => asset.key === 'chwp')
+        ?.anchors.map((anchor) => anchor.flowRole),
+    ).toEqual([undefined, 'inlet'])
+
+    await user.selectOptions(screen.getByLabelText('冷却设备角色'), 'valve')
+    const valve = useAppStore.getState().document.assets.find((asset) => asset.key === 'chwp')
+    expect(valve?.coolingDeviceRole).toBe('valve')
+    expect(valve?.anchors.every((anchor) => anchor.flowRole === undefined)).toBe(true)
+  })
+
+  it('keeps CV fixed as a top-to-bottom check valve', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    await user.click(screen.getByRole('button', { name: '编辑 CV 锚点' }))
+    expect(screen.getByLabelText('冷却设备角色')).toHaveValue('check-valve')
+    expect(screen.getByLabelText('冷却设备角色')).toBeDisabled()
+    expect(useAppStore.getState().document.assets.find((asset) => asset.key === 'cv'))
+      .toMatchObject({
+        coolingDeviceRole: 'check-valve',
+        anchors: [
+          { id: 'cv-inlet', flowRole: 'inlet' },
+          { id: 'cv-outlet', flowRole: 'outlet' },
+        ],
+      })
   })
 })

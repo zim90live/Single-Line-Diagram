@@ -4,10 +4,10 @@ export const DEFAULT_BUSBAR_COLOR = '#D5B96F'
 
 const DEFAULT_CONNECTION_COLORS: Record<AnchorType, string> = {
   electrical: '#D5B96F',
-  'cooling-primary-cold': '#77B4BF',
-  'cooling-primary-hot': '#C28F85',
-  'cooling-secondary-cold': '#8EB5BB',
-  'cooling-secondary-hot': '#BEA87D',
+  'cooling-primary-cold': '#FFC800',
+  'cooling-primary-hot': '#FF6011',
+  'cooling-secondary-cold': '#0084FF',
+  'cooling-secondary-hot': '#00F074',
   'cooling-general': '#B6B8B4',
 }
 

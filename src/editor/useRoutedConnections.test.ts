@@ -55,6 +55,34 @@ describe('routed connection snapshots', () => {
     expect(routedConnectionsForInput(snapshot, pendingInput).edges).toEqual([])
   })
 
+  it('removes an old route when its edge moves to another network', () => {
+    const completedInput = input()
+    const snapshot: RouteSnapshot = { input: completedInput, routed }
+    const pendingInput = input([{
+      ...network,
+      id: 'migrated-network',
+    }])
+
+    expect(routedConnectionsForInput(snapshot, pendingInput).edges).toEqual([])
+  })
+
+  it('keeps only the latest route for a duplicated network and edge identity', () => {
+    const completedInput = input()
+    const latestRoute = {
+      ...routed.edges[0],
+      points: [{ x: 0, y: 8 }, { x: 8, y: 8 }],
+    }
+    const snapshot: RouteSnapshot = {
+      input: completedInput,
+      routed: {
+        ...routed,
+        edges: [routed.edges[0], latestRoute],
+      },
+    }
+
+    expect(routedConnectionsForInput(snapshot, completedInput).edges).toEqual([latestRoute])
+  })
+
   it('does not show a snapshot from another document or diagram scope', () => {
     const completedInput = input()
     const snapshot: RouteSnapshot = { input: completedInput, routed }

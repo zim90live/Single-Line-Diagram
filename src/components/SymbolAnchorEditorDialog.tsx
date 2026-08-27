@@ -13,6 +13,9 @@ import {
   EDITOR_GRID_SIZE,
   type AnchorType,
   type AssetDefinition,
+  type CoolingDeviceRole,
+  type CoolingFlowRole,
+  type LineSystemType,
   type SymbolAnchor,
 } from '../domain/project'
 import {
@@ -32,7 +35,11 @@ import { IconButton, SelectField, TextField } from './ui'
 interface SymbolAnchorEditorDialogProps {
   initialAssetKey: string
   assets: AssetDefinition[]
-  onChangeAnchors: (assetKey: string, anchors: SymbolAnchor[]) => void
+  lineSystemType: LineSystemType
+  onChangeAsset: (
+    assetKey: string,
+    configuration: Pick<AssetDefinition, 'anchors' | 'coolingDeviceRole'>,
+  ) => void
   onClose: () => void
 }
 
@@ -40,6 +47,8 @@ interface AnchorHistoryEntry {
   assetKey: string
   before: SymbolAnchor[]
   after: SymbolAnchor[]
+  roleBefore?: CoolingDeviceRole
+  roleAfter?: CoolingDeviceRole
   selectedBefore: string | null
   selectedAfter: string | null
   coalesceKey?: string
@@ -71,7 +80,8 @@ function anchorsEqual(left: SymbolAnchor[], right: SymbolAnchor[]) {
       anchor.x === candidate.x &&
       anchor.y === candidate.y &&
       anchor.direction === candidate.direction &&
-      anchor.type === candidate.type
+      anchor.type === candidate.type &&
+      anchor.flowRole === candidate.flowRole
   })
 }
 
@@ -81,6 +91,14 @@ function createAnchorMap(assets: AssetDefinition[]) {
     symbol.key,
     cloneAnchors(documentAssets.get(symbol.key)?.anchors ?? []),
   ])) as Record<string, SymbolAnchor[]>
+}
+
+function createCoolingRoleMap(assets: AssetDefinition[]) {
+  const documentAssets = new Map(assets.map((asset) => [asset.key, asset]))
+  return Object.fromEntries(symbolCatalog.map((symbol) => [
+    symbol.key,
+    documentAssets.get(symbol.key)?.coolingDeviceRole,
+  ])) as Record<string, CoolingDeviceRole | undefined>
 }
 
 function clientToWorld(clientX: number, clientY: number, svg: SVGSVGElement) {
@@ -103,7 +121,8 @@ function directionVector(direction: SymbolAnchor['direction']) {
 export function SymbolAnchorEditorDialog({
   initialAssetKey,
   assets,
-  onChangeAnchors,
+  lineSystemType,
+  onChangeAsset,
   onClose,
 }: SymbolAnchorEditorDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -111,9 +130,12 @@ export function SymbolAnchorEditorDialog({
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const patternId = `anchor-grid-${useId().replace(/:/g, '')}`
   const initialAnchorMap = useMemo(() => createAnchorMap(assets), [])
+  const initialCoolingRoleMap = useMemo(() => createCoolingRoleMap(assets), [])
   const anchorsByAssetRef = useRef(initialAnchorMap)
+  const coolingRolesByAssetRef = useRef(initialCoolingRoleMap)
   const historyRef = useRef<AnchorHistory>({ past: [], future: [] })
   const [anchorsByAsset, setAnchorsByAsset] = useState(initialAnchorMap)
+  const [coolingRolesByAsset, setCoolingRolesByAsset] = useState(initialCoolingRoleMap)
   const [selectedAssetKey, setSelectedAssetKey] = useState(initialAssetKey)
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null)
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -146,30 +168,46 @@ export function SymbolAnchorEditorDialog({
     [selectedAnchors],
   )
 
-  const publishAnchors = (assetKey: string, anchors: SymbolAnchor[]) => {
+  const publishAsset = (
+    assetKey: string,
+    anchors: SymbolAnchor[],
+    coolingDeviceRole?: CoolingDeviceRole,
+  ) => {
     const nextAnchors = cloneAnchors(anchors)
     anchorsByAssetRef.current = { ...anchorsByAssetRef.current, [assetKey]: nextAnchors }
+    coolingRolesByAssetRef.current = {
+      ...coolingRolesByAssetRef.current,
+      [assetKey]: coolingDeviceRole,
+    }
     setAnchorsByAsset(anchorsByAssetRef.current)
-    onChangeAnchors(assetKey, nextAnchors)
+    setCoolingRolesByAsset(coolingRolesByAssetRef.current)
+    onChangeAsset(assetKey, { anchors: nextAnchors, coolingDeviceRole })
   }
 
   const refreshHistory = () => setHistoryVersion((version) => version + 1)
 
-  const commitAnchors = (
+  const commitAsset = (
     assetKey: string,
     nextAnchors: SymbolAnchor[],
+    nextRole: CoolingDeviceRole | undefined,
     nextSelectedAnchorId: string | null,
     coalesceKey?: string,
   ) => {
     const before = anchorsByAssetRef.current[assetKey] ?? []
-    if (anchorsEqual(before, nextAnchors)) return
+    const roleBefore = coolingRolesByAssetRef.current[assetKey]
+    if (anchorsEqual(before, nextAnchors) && roleBefore === nextRole) return
 
     const history = historyRef.current
     const last = history.past.at(-1)
     if (coalesceKey && last?.coalesceKey === coalesceKey && last.assetKey === assetKey) {
       history.past = [
         ...history.past.slice(0, -1),
-        { ...last, after: cloneAnchors(nextAnchors), selectedAfter: nextSelectedAnchorId },
+        {
+          ...last,
+          after: cloneAnchors(nextAnchors),
+          roleAfter: nextRole,
+          selectedAfter: nextSelectedAnchorId,
+        },
       ]
     } else {
       history.past = [
@@ -178,6 +216,8 @@ export function SymbolAnchorEditorDialog({
           assetKey,
           before: cloneAnchors(before),
           after: cloneAnchors(nextAnchors),
+          roleBefore,
+          roleAfter: nextRole,
           selectedBefore: selectedAnchorId,
           selectedAfter: nextSelectedAnchorId,
           coalesceKey,
@@ -185,17 +225,30 @@ export function SymbolAnchorEditorDialog({
       ]
     }
     history.future = []
-    publishAnchors(assetKey, nextAnchors)
+    publishAsset(assetKey, nextAnchors, nextRole)
     setSelectedAnchorId(nextSelectedAnchorId)
     refreshHistory()
   }
+
+  const commitAnchors = (
+    assetKey: string,
+    nextAnchors: SymbolAnchor[],
+    nextSelectedAnchorId: string | null,
+    coalesceKey?: string,
+  ) => commitAsset(
+    assetKey,
+    nextAnchors,
+    coolingRolesByAssetRef.current[assetKey],
+    nextSelectedAnchorId,
+    coalesceKey,
+  )
 
   const undo = () => {
     const entry = historyRef.current.past.at(-1)
     if (!entry) return
     historyRef.current.past = historyRef.current.past.slice(0, -1)
     historyRef.current.future = [entry, ...historyRef.current.future].slice(0, HISTORY_LIMIT)
-    publishAnchors(entry.assetKey, entry.before)
+    publishAsset(entry.assetKey, entry.before, entry.roleBefore)
     setSelectedAssetKey(entry.assetKey)
     setSelectedAnchorId(entry.selectedBefore)
     setMessage('已撤销锚点修改')
@@ -207,7 +260,7 @@ export function SymbolAnchorEditorDialog({
     if (!entry) return
     historyRef.current.future = historyRef.current.future.slice(1)
     historyRef.current.past = [...historyRef.current.past, entry].slice(-HISTORY_LIMIT)
-    publishAnchors(entry.assetKey, entry.after)
+    publishAsset(entry.assetKey, entry.after, entry.roleAfter)
     setSelectedAssetKey(entry.assetKey)
     setSelectedAnchorId(entry.selectedAfter)
     setMessage('已重做锚点修改')
@@ -227,6 +280,7 @@ export function SymbolAnchorEditorDialog({
       const anchor = createSymbolAnchor(
         { ...selectedSymbol, anchors: selectedAnchors },
         point,
+        lineSystemType,
       )
       commitAnchors(selectedSymbol.key, [...selectedAnchors, anchor], anchor.id)
       setMessage(`已添加“${anchor.name}”`)
@@ -274,12 +328,49 @@ export function SymbolAnchorEditorDialog({
     if (!selectedAnchor) return
     const peers = selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id)
     const shouldRename = isAutomaticAnchorName(selectedAnchor.name, selectedAnchor.type)
-    updateSelectedAnchor((anchor) => ({
-      ...anchor,
-      type,
-      name: shouldRename ? getNextAnchorName(peers, type) : anchor.name,
-    }))
+    updateSelectedAnchor((anchor) => {
+      const { flowRole: _flowRole, ...withoutFlowRole } = anchor
+      return {
+        ...withoutFlowRole,
+        type,
+        ...(type !== 'electrical' && anchor.flowRole ? { flowRole: anchor.flowRole } : {}),
+        name: shouldRename ? getNextAnchorName(peers, type) : anchor.name,
+      }
+    })
     setMessage(`锚点类型已改为${ANCHOR_TYPE_OPTIONS.find((option) => option.value === type)?.label}`)
+  }
+
+  const changeCoolingDeviceRole = (role?: CoolingDeviceRole) => {
+    if (!selectedSymbol) return
+    const nextAnchors = role === 'pump' || role === 'check-valve'
+      ? selectedAnchors
+      : selectedAnchors.map((anchor) => {
+          const { flowRole: _flowRole, ...withoutFlowRole } = anchor
+          return withoutFlowRole
+        })
+    commitAsset(selectedSymbol.key, nextAnchors, role, selectedAnchorId)
+    setMessage(role === 'pump'
+      ? '已设为水泵，请配置唯一入口和出口'
+      : role === 'check-valve'
+        ? '已设为止回阀，请配置唯一入口和出口；开启后仅允许入口流向出口'
+      : role === 'valve'
+        ? '已设为阀门，监控模式可切换开关状态'
+        : '已设为普通设备')
+  }
+
+  const changeSelectedFlowRole = (flowRole?: CoolingFlowRole) => {
+    if (!selectedSymbol || !selectedAnchor || selectedAnchor.type === 'electrical') return
+    const nextAnchors = selectedAnchors.map((anchor) => {
+      const { flowRole: _previousFlowRole, ...withoutFlowRole } = anchor
+      if (anchor.id === selectedAnchor.id) {
+        return { ...withoutFlowRole, ...(flowRole ? { flowRole } : {}) }
+      }
+      return anchor.flowRole === flowRole
+        ? withoutFlowRole
+        : anchor
+    })
+    commitAnchors(selectedSymbol.key, nextAnchors, selectedAnchor.id)
+    setMessage(flowRole ? `已设为${flowRole === 'inlet' ? '入口' : '出口'}` : '已清除端口角色')
   }
 
   const deleteSelectedAnchor = () => {
@@ -382,6 +473,11 @@ export function SymbolAnchorEditorDialog({
     return { ...anchor, ...dragState.preview }
   })
   const history = historyRef.current
+  const coolingDeviceRole = coolingRolesByAsset[selectedSymbol.key]
+  const canConfigureCoolingRole = selectedSymbol.category === '冷却' && selectedSymbol.key !== 'cv'
+  const requiresDirectedPorts = coolingDeviceRole === 'pump' || coolingDeviceRole === 'check-valve'
+  const inletCount = selectedAnchors.filter((anchor) => anchor.flowRole === 'inlet').length
+  const outletCount = selectedAnchors.filter((anchor) => anchor.flowRole === 'outlet').length
 
   return (
     <dialog
@@ -425,6 +521,21 @@ export function SymbolAnchorEditorDialog({
               <span>{selectedSymbol.intrinsicWidth} × {selectedSymbol.intrinsicHeight} · {selectedAnchors.length} 个锚点</span>
             </div>
             <div className="anchor-editor__fields">
+              <SelectField
+                label="冷却设备角色"
+                hideLabel
+                containerClassName="anchor-editor__role-field"
+                value={coolingDeviceRole ?? ''}
+                disabled={!canConfigureCoolingRole}
+                onChange={(event) => changeCoolingDeviceRole(
+                  event.target.value ? event.target.value as CoolingDeviceRole : undefined,
+                )}
+              >
+                <option value="">普通设备</option>
+                <option value="pump">水泵</option>
+                <option value="valve">阀门</option>
+                <option value="check-valve">止回阀（单向）</option>
+              </SelectField>
               <TextField
                 label="锚点名称"
                 hideLabel
@@ -454,6 +565,24 @@ export function SymbolAnchorEditorDialog({
                   <option value={option.value} key={option.value}>{option.label}</option>
                 ))}
               </SelectField>
+              <SelectField
+                label="水流端口角色"
+                hideLabel
+                containerClassName="anchor-editor__flow-role-field"
+                value={selectedAnchor?.flowRole ?? ''}
+                disabled={
+                  !requiresDirectedPorts ||
+                  !selectedAnchor ||
+                  selectedAnchor.type === 'electrical'
+                }
+                onChange={(event) => changeSelectedFlowRole(
+                  event.target.value ? event.target.value as CoolingFlowRole : undefined,
+                )}
+              >
+                <option value="">未指定端口</option>
+                <option value="inlet">入口</option>
+                <option value="outlet">出口</option>
+              </SelectField>
             </div>
             <div className="anchor-editor__commands" aria-label="锚点编辑命令">
               <IconButton
@@ -480,6 +609,13 @@ export function SymbolAnchorEditorDialog({
           </div>
 
           <div className="anchor-editor__canvas-frame">
+            {requiresDirectedPorts && (inletCount !== 1 || outletCount !== 1) ? (
+              <div className="anchor-editor__role-diagnostic" role="status">
+                {coolingDeviceRole === 'pump'
+                  ? '水泵需要配置一个入口和一个出口；配置完成前不会驱动监控动画。'
+                  : '止回阀需要配置一个入口和一个出口；配置完成前不会允许水流通过。'}
+              </div>
+            ) : null}
             <svg
               ref={svgRef}
               className="anchor-editor__canvas"
@@ -557,6 +693,7 @@ export function SymbolAnchorEditorDialog({
                   <g
                     className="anchor-node"
                     data-anchor-type={anchor.type}
+                    data-flow-role={anchor.flowRole}
                     data-selected={anchor.id === selectedAnchorId || undefined}
                     key={anchor.id}
                   >
@@ -587,7 +724,22 @@ export function SymbolAnchorEditorDialog({
                         }
                       }}
                       onPointerDown={(event) => startAnchorDrag(event, anchor)}
-                    />
+                    >
+                    {anchor.flowRole ? (
+                      <title>{anchor.flowRole === 'inlet' ? '入口' : '出口'}</title>
+                    ) : null}
+                    </circle>
+                    {anchor.flowRole ? (
+                      <text
+                        className="anchor-node__flow-role"
+                        x={anchor.x - vector.x * 12}
+                        y={anchor.y - vector.y * 12}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        {anchor.flowRole === 'inlet' ? '入口' : '出口'}
+                      </text>
+                    ) : null}
                   </g>
                 )
               })}

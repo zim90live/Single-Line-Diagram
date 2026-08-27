@@ -1,5 +1,7 @@
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   ClipboardPaste,
   Copy,
   Download,
@@ -22,27 +24,39 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { HierarchyPanel } from './components/HierarchyPanel'
+import { MonitorPropertiesPanel } from './components/MonitorPropertiesPanel'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
 import { SymbolLibrary } from './components/SymbolLibrary'
 import { Button, IconButton, StatusTag, TextField } from './components/ui'
 import {
+  elementUsesOnOffState,
   getDiagramPath,
   parseProjectDocument,
+  projectOnOffStates,
+  withOnOffStateSnapshot,
   type Busbar,
   type ConnectionNetwork,
+  type CoolingDeviceRole,
   type DiagramElement,
+  type RouteWaypoint,
 } from './domain/project'
 import {
   DiagramCanvas,
   type DiagramCanvasHandle,
   type EditorCommandState,
-  type PointerPosition,
   type CanvasMode,
 } from './editor/DiagramCanvas'
 import { getAnchorTypeLabel } from './editor/anchors'
 import { getAdaptiveGridScale } from './editor/gridScale'
+import { routeWaypointsForNetworks } from './editor/routeWaypoints'
 import { symbolAssets } from './editor/symbolCatalog'
+import { deriveCoolingFlowTopology } from './monitoring/coolingFlowTopology'
+import {
+  DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT,
+  MockCoolingRuntimeProvider,
+  clampCoolingPumpOutputPower,
+} from './monitoring/coolingRuntime'
 import {
   monitorStateRepository,
   projectRepository,
@@ -62,6 +76,9 @@ const initialCommandState: EditorCommandState = {
   selectedConnectionId: null,
   selectedConnectionEdgeIds: [],
   selectedBusbarIds: [],
+  selectedRouteWaypointCount: 0,
+  selectedRouteWaypointMaxReferenceCount: 0,
+  selectedJunctionCount: 0,
   wiringType: null,
 }
 
@@ -137,17 +154,21 @@ export default function App() {
   const editorRef = useRef<DiagramCanvasHandle>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const monitorStateRevisionRef = useRef(0)
+  const coolingRuntimeProviderRef = useRef(new MockCoolingRuntimeProvider())
   const [openPanel, setOpenPanel] = useState(false)
   const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
   const [commandState, setCommandState] = useState(initialCommandState)
-  const [pointerPosition, setPointerPosition] = useState<PointerPosition | null>(null)
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [animationPlaying, setAnimationPlaying] = useState(false)
-  const [switchStates, setSwitchStates] = useState<Record<string, boolean>>({})
+  const [onOffStates, setOnOffStates] = useState<Record<string, boolean>>({})
+  const [coolingPumpRunningStates, setCoolingPumpRunningStates] = useState<Record<string, boolean>>({})
+  const [coolingPumpOutputPowerStates, setCoolingPumpOutputPowerStates] = useState<Record<string, number>>({})
+  const [coolingValveOpenStates, setCoolingValveOpenStates] = useState<Record<string, boolean>>({})
 
   const {
     document,
@@ -160,7 +181,8 @@ export default function App() {
     setCurrentDiagram,
     setSelectedElementIds,
     replaceDiagramContent,
-    replaceAssetAnchors,
+    syncElementOnOffStates,
+    replaceAssetDefinition,
     renameProject,
     markSaved,
   } = useAppStore()
@@ -186,6 +208,10 @@ export default function App() {
     () => document.connections.filter((network) => network.diagramId === currentDiagramId),
     [currentDiagramId, document.connections],
   )
+  const currentRouteWaypoints = useMemo(
+    () => routeWaypointsForNetworks(currentConnections),
+    [currentConnections],
+  )
   const currentBusbars = useMemo(
     () => document.busbars.filter((busbar) => busbar.diagramId === currentDiagramId),
     [currentDiagramId, document.busbars],
@@ -194,6 +220,63 @@ export default function App() {
     () => document.elements.filter((element) => selectedElementIds.includes(element.id)),
     [document.elements, selectedElementIds],
   )
+  const currentAssetsByKey = useMemo(
+    () => new Map(document.assets.map((asset) => [asset.key, asset])),
+    [document.assets],
+  )
+  const selectedMonitorElement = selectedElements.length === 1 ? selectedElements[0] : undefined
+  const selectedMonitorAsset = selectedMonitorElement
+    ? currentAssetsByKey.get(selectedMonitorElement.assetKey)
+    : undefined
+  const coolingRuntimeSnapshot = useMemo(() => {
+    const persistentValveOpenStates = Object.fromEntries(currentElements.flatMap((element) => (
+      ['valve', 'check-valve'].includes(
+        currentAssetsByKey.get(element.assetKey)?.coolingDeviceRole ?? '',
+      ) && elementUsesOnOffState(element)
+        ? [[element.id, onOffStates[element.id] ?? false] as const]
+        : []
+    )))
+    return coolingRuntimeProviderRef.current.getSnapshot({
+      elements: currentElements,
+      assets: document.assets,
+      pumpRunningOverrides: coolingPumpRunningStates,
+      pumpOutputPowerOverrides: coolingPumpOutputPowerStates,
+      valveOpenOverrides: {
+        ...coolingValveOpenStates,
+        ...persistentValveOpenStates,
+      },
+    })
+  }, [
+    coolingPumpOutputPowerStates,
+    coolingPumpRunningStates,
+    coolingValveOpenStates,
+    currentAssetsByKey,
+    currentElements,
+    document.assets,
+    onOffStates,
+  ])
+  const coolingFlowTopology = useMemo(() => (
+    workspaceMode === 'monitor' && currentLine?.type === 'cooling'
+  )
+    ? deriveCoolingFlowTopology({
+        elements: currentElements,
+        assets: document.assets,
+        networks: currentConnections,
+        runtime: coolingRuntimeSnapshot,
+      })
+    : {
+        edges: [],
+        diagnostics: [],
+        activePumpElementIds: new Set<string>(),
+        pumpFlowRates: {},
+      }, [
+        coolingRuntimeSnapshot,
+        currentConnections,
+        currentElements,
+        currentLine?.type,
+        document.assets,
+        workspaceMode,
+      ])
   const duplicateDeviceIdentifier = useMemo(() => {
     if (selectedElements.length !== 1) return false
     const tag = selectedElements[0].properties.tag
@@ -239,17 +322,40 @@ export default function App() {
     nextElements: DiagramElement[],
     nextBusbars: Busbar[],
     nextConnections: ConnectionNetwork[],
+    nextRouteWaypoints: RouteWaypoint[],
   ) => {
-    replaceDiagramContent(currentDiagramId, nextElements, nextBusbars, nextConnections)
+    replaceDiagramContent(
+      currentDiagramId,
+      nextElements,
+      nextBusbars,
+      nextConnections,
+      nextRouteWaypoints,
+    )
   }, [currentDiagramId, replaceDiagramContent])
   useEffect(() => {
     let cancelled = false
     const revision = monitorStateRevisionRef.current + 1
     monitorStateRevisionRef.current = revision
-    setSwitchStates({})
-    void monitorStateRepository.getSwitchStates(document.project.id)
+    const documentStates = projectOnOffStates(document)
+    const legacyStateElementIds = new Set(document.elements.flatMap((element) => (
+      elementUsesOnOffState(element) && element.onOffState === undefined
+        ? [element.id]
+        : []
+    )))
+    setOnOffStates(documentStates)
+    syncElementOnOffStates(documentStates)
+    setCoolingPumpRunningStates({})
+    setCoolingPumpOutputPowerStates({})
+    setCoolingValveOpenStates({})
+    void monitorStateRepository.getOnOffStates(document.project.id)
       .then((states) => {
-        if (!cancelled && monitorStateRevisionRef.current === revision) setSwitchStates(states)
+        if (cancelled || monitorStateRevisionRef.current !== revision) return
+        const legacyStates = Object.fromEntries(Object.entries(states).filter(([elementId]) => (
+          legacyStateElementIds.has(elementId)
+        )))
+        const mergedStates = { ...documentStates, ...legacyStates }
+        setOnOffStates(mergedStates)
+        syncElementOnOffStates(mergedStates)
       })
       .catch((error) => {
         if (!cancelled) showToast(
@@ -258,7 +364,7 @@ export default function App() {
         )
       })
     return () => { cancelled = true }
-  }, [document.project.id])
+  }, [document.project.id, documentEpoch, syncElementOnOffStates])
 
   const setMode = (mode: CanvasMode) => {
     setWorkspaceMode(mode)
@@ -267,22 +373,46 @@ export default function App() {
     setAnchorEditorAssetKey(null)
   }
 
-  const handleSwitchStateChange = (elementId: string, on: boolean) => {
+  const handleOnOffStateChange = (elementId: string, on: boolean) => {
+    const previous = onOffStates[elementId] ?? false
     monitorStateRevisionRef.current += 1
-    setSwitchStates((current) => ({ ...current, [elementId]: on }))
+    setOnOffStates((current) => ({ ...current, [elementId]: on }))
+    syncElementOnOffStates({ [elementId]: on })
     void monitorStateRepository
-      .setSwitchState(document.project.id, elementId, on)
+      .setOnOffState(document.project.id, elementId, on)
       .catch((error) => {
-        setSwitchStates((current) => (
-          current[elementId] === on ? { ...current, [elementId]: !on } : current
+        setOnOffStates((current) => (
+          current[elementId] === on ? { ...current, [elementId]: previous } : current
         ))
-        showToast(error instanceof Error ? error.message : 'Switch 状态保存失败。', 'danger')
+        syncElementOnOffStates({ [elementId]: previous })
+        showToast(error instanceof Error ? error.message : 'On/Off 状态保存失败。', 'danger')
       })
+  }
+
+  const handleCoolingRuntimeStateChange = (
+    elementId: string,
+    role: CoolingDeviceRole,
+    active: boolean,
+  ) => {
+    if (role === 'pump') {
+      setCoolingPumpRunningStates((current) => ({ ...current, [elementId]: active }))
+      showToast(active ? '水泵已运行' : '水泵已停止')
+    } else {
+      setCoolingValveOpenStates((current) => ({ ...current, [elementId]: active }))
+      showToast(active ? '阀门已打开' : '阀门已关闭')
+    }
+  }
+
+  const handleCoolingPumpOutputPowerChange = (elementId: string, outputPower: number) => {
+    setCoolingPumpOutputPowerStates((current) => ({
+      ...current,
+      [elementId]: clampCoolingPumpOutputPower(outputPower),
+    }))
   }
 
   const saveProject = async () => {
     try {
-      await projectRepository.save(useAppStore.getState().document)
+      await projectRepository.save(withOnOffStateSnapshot(useAppStore.getState().document))
       markSaved()
       showToast('项目已保存到当前浏览器')
     } catch (error) {
@@ -421,7 +551,7 @@ export default function App() {
   }
 
   const exportProject = () => {
-    downloadProject(useAppStore.getState().document)
+    downloadProject(withOnOffStateSnapshot(useAppStore.getState().document))
     showToast('项目 JSON 已导出')
   }
 
@@ -499,8 +629,18 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="workspace-main" data-mode={workspaceMode}>
-        <aside className="left-sidebar" data-mode={workspaceMode}>
+      <main
+        className="workspace-main"
+        data-mode={workspaceMode}
+        data-left-sidebar-collapsed={leftSidebarCollapsed || undefined}
+      >
+        <aside
+          id="left-sidebar"
+          className="left-sidebar"
+          data-mode={workspaceMode}
+          data-collapsed={leftSidebarCollapsed}
+          aria-hidden={leftSidebarCollapsed}
+        >
           <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
           {workspaceMode === 'edit' ? (
             <SymbolLibrary
@@ -512,6 +652,15 @@ export default function App() {
           ) : null}
         </aside>
 
+        <IconButton
+          className="left-sidebar-toggle"
+          label={leftSidebarCollapsed ? '展开左侧菜单' : '收起左侧菜单'}
+          icon={leftSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+          aria-controls="left-sidebar"
+          aria-expanded={!leftSidebarCollapsed}
+          onClick={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
+        />
+
         <section
           className="canvas-column"
           data-mode={workspaceMode}
@@ -522,7 +671,10 @@ export default function App() {
               ref={editorRef}
               mode={workspaceMode}
               animationPlaying={animationPlaying}
-              switchStates={switchStates}
+              onOffStates={onOffStates}
+              coolingPumpRunningStates={coolingPumpRunningStates}
+              coolingPumpOutputPowerStates={coolingPumpOutputPowerStates}
+              coolingValveOpenStates={coolingValveOpenStates}
               diagramId={currentDiagramId}
               lineSystemType={currentLine?.type ?? 'cooling'}
               documentEpoch={documentEpoch}
@@ -532,11 +684,10 @@ export default function App() {
               elements={currentElements}
               busbars={currentBusbars}
               connections={currentConnections}
+              routeWaypoints={currentRouteWaypoints}
               onDiagramChange={handleDiagramChange}
               onSelectionChange={setSelectedElementIds}
               onCommandStateChange={setCommandState}
-              onPointerChange={setPointerPosition}
-              onSwitchStateChange={handleSwitchStateChange}
               onActionMessage={showToast}
             />
             <div className="canvas-titlebar" aria-label="画布信息与导航">
@@ -603,13 +754,18 @@ export default function App() {
               </div>
             ) : null}
             <footer className="status-bar">
-              <span>X {pointerPosition?.x ?? '—'}&nbsp;&nbsp;Y {pointerPosition?.y ?? '—'}</span>
               <span>
                 网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
               </span>
               <span>
                 {workspaceMode === 'monitor'
-                  ? animationPlaying ? '正在显示电力起点 → 终点运行流向' : '监控模式 · 点击 Switch 切换状态'
+                  ? animationPlaying
+                    ? currentLine?.type === 'cooling'
+                      ? '正在显示水泵闭合回路运行流向'
+                      : '正在显示电力起点 → 终点运行流向'
+                    : currentLine?.type === 'cooling'
+                      ? '监控模式 · 选择水泵或阀门后在右侧控制运行状态'
+                      : '监控模式 · 选择 Switch 后在右侧控制状态'
                   : commandState.wiringType
                   ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
                   : commandState.selectedConnection && commandState.selectedBusbar
@@ -618,6 +774,8 @@ export default function App() {
                       ? '已选择子线'
                     : commandState.selectedBusbar
                       ? '已选择母线'
+                    : commandState.selectedJunctionCount
+                      ? `已选择 ${commandState.selectedJunctionCount} 个节点`
                     : selectedElements.length
                       ? `已选择 ${selectedElements.length}`
                       : '未选择图元'}
@@ -629,20 +787,29 @@ export default function App() {
         </section>
 
         {workspaceMode === 'edit' ? <PropertiesPanel
-          selectedElements={selectedElements}
           duplicateDeviceIdentifier={duplicateDeviceIdentifier}
+          selectedElements={selectedElements}
           selectedBusbars={selectedBusbars}
           selectedConnection={selectedConnection}
+          selectedRouteWaypointCount={commandState.selectedRouteWaypointCount}
+          selectedRouteWaypointMaxReferenceCount={
+            commandState.selectedRouteWaypointMaxReferenceCount
+          }
+          selectedJunctionCount={commandState.selectedJunctionCount}
           canvasElements={currentElements}
           canvasBusbars={currentBusbars}
           canvasConnections={currentConnections}
-          switchStates={switchStates}
-          onSwitchStateChange={handleSwitchStateChange}
+          onOffStates={onOffStates}
+          onOnOffStateChange={handleOnOffStateChange}
           onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
           onPatchBusbar={(busbarId, patch) => editorRef.current?.updateBusbar(busbarId, patch)}
           onPatchConnectionEdge={(edgeId, patch) => (
             editorRef.current?.updateConnectionEdge(edgeId, patch)
           )}
+          onPatchConnectionEdges={(edgeIds, patch) => (
+            editorRef.current?.updateConnectionEdges(edgeIds, patch)
+          )}
+          onResetConnectionRouting={() => editorRef.current?.resetSelectedConnectionRouting()}
           onColorPreview={(elementId, color, slot) => (
             editorRef.current?.previewElementColor(elementId, color, slot)
           )}
@@ -655,7 +822,48 @@ export default function App() {
             editorRef.current?.updateCanvasColor(target, color)
           )}
           onDelete={() => editorRef.current?.deleteSelected()}
-        /> : null}
+        /> : <MonitorPropertiesPanel
+          selectedElement={selectedMonitorElement}
+          asset={selectedMonitorAsset}
+          onOff={selectedMonitorElement
+            ? onOffStates[selectedMonitorElement.id] ?? false
+            : false}
+          pumpRunning={selectedMonitorElement
+            ? coolingPumpRunningStates[selectedMonitorElement.id] ?? true
+            : true}
+          pumpOutputPower={selectedMonitorElement
+            ? coolingPumpOutputPowerStates[selectedMonitorElement.id] ??
+              DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT
+            : DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT}
+          pumpFlowRate={selectedMonitorElement
+            ? coolingFlowTopology.pumpFlowRates[selectedMonitorElement.id] ?? 0
+            : 0}
+          valveOpen={selectedMonitorElement
+            ? coolingValveOpenStates[selectedMonitorElement.id] ?? true
+            : true}
+          onOnOffChange={(on) => {
+            if (selectedMonitorElement) handleOnOffStateChange(selectedMonitorElement.id, on)
+          }}
+          onPumpRunningChange={(running) => {
+            if (selectedMonitorElement) {
+              handleCoolingRuntimeStateChange(selectedMonitorElement.id, 'pump', running)
+            }
+          }}
+          onPumpOutputPowerChange={(outputPower) => {
+            if (selectedMonitorElement) {
+              handleCoolingPumpOutputPowerChange(selectedMonitorElement.id, outputPower)
+            }
+          }}
+          onValveOpenChange={(open) => {
+            if (selectedMonitorElement && selectedMonitorAsset?.coolingDeviceRole) {
+              handleCoolingRuntimeStateChange(
+                selectedMonitorElement.id,
+                selectedMonitorAsset.coolingDeviceRole,
+                open,
+              )
+            }
+          }}
+        />}
       </main>
 
       {openPanel ? (
@@ -688,7 +896,8 @@ export default function App() {
         <SymbolAnchorEditorDialog
           initialAssetKey={anchorEditorAssetKey}
           assets={document.assets}
-          onChangeAnchors={replaceAssetAnchors}
+          lineSystemType={currentLine?.type ?? 'cooling'}
+          onChangeAsset={replaceAssetDefinition}
           onClose={() => setAnchorEditorAssetKey(null)}
         />
       ) : null}

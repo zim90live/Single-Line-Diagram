@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import {
   createDefaultProject,
+  elementUsesOnOffState,
   getFirstDiagramId,
   touchDocument,
   type AssetDefinition,
@@ -9,6 +10,7 @@ import {
   type ConnectionNetwork,
   type DiagramElement,
   type ProjectDocument,
+  type RouteWaypoint,
   type SymbolAnchor,
 } from '../domain/project'
 import { symbolAssets } from '../editor/symbolCatalog'
@@ -25,13 +27,19 @@ interface AppState {
   setCurrentDiagram: (diagramId: string) => void
   setSelectedElementIds: (ids: string[]) => void
   replaceDiagramElements: (diagramId: string, elements: DiagramElement[]) => void
+  syncElementOnOffStates: (states: Record<string, boolean>) => void
   replaceDiagramContent: (
     diagramId: string,
     elements: DiagramElement[],
     busbars: Busbar[],
     connections: ConnectionNetwork[],
+    routeWaypoints: RouteWaypoint[],
   ) => void
   replaceAssetAnchors: (assetKey: string, anchors: SymbolAnchor[]) => void
+  replaceAssetDefinition: (
+    assetKey: string,
+    configuration: Pick<AssetDefinition, 'anchors' | 'coolingDeviceRole'>,
+  ) => void
   renameProject: (name: string) => void
   markSaved: () => void
 }
@@ -94,7 +102,25 @@ export const useAppStore = create<AppState>((set) => ({
       dirty: true,
     })),
 
-  replaceDiagramContent: (diagramId, elements, busbars, connections) =>
+  syncElementOnOffStates: (states) =>
+    set((state) => {
+      let changed = false
+      const elements = state.document.elements.map((element) => {
+        if (
+          !elementUsesOnOffState(element) ||
+          !Object.prototype.hasOwnProperty.call(states, element.id)
+        ) return element
+        const onOffState = states[element.id] ? 'on' as const : 'off' as const
+        if (element.onOffState === onOffState) return element
+        changed = true
+        return { ...element, onOffState }
+      })
+      return changed
+        ? { document: { ...state.document, elements } }
+        : state
+    }),
+
+  replaceDiagramContent: (diagramId, elements, busbars, connections, _routeWaypoints) =>
     set((state) => ({
       document: updateDocument(state.document, (document) => ({
         ...document,
@@ -134,6 +160,57 @@ export const useAppStore = create<AppState>((set) => ({
       const nextAsset: AssetDefinition = {
         ...asset,
         anchors: anchors.map((anchor) => ({ ...anchor })),
+      }
+      const nextAssets = currentAsset
+        ? state.document.assets.map((candidate) => candidate.key === assetKey ? nextAsset : candidate)
+        : [...state.document.assets, nextAsset]
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          assets: nextAssets,
+          connections: normalizeConnectionNetworks(
+            document.connections,
+            document.elements,
+            nextAssets,
+            document.busbars,
+          ),
+        })),
+        dirty: true,
+      }
+    }),
+
+  replaceAssetDefinition: (assetKey, configuration) =>
+    set((state) => {
+      const currentAsset = state.document.assets.find((asset) => asset.key === assetKey)
+      const installedAsset = symbolAssets.find((asset) => asset.key === assetKey)
+      const asset = currentAsset ?? installedAsset
+      if (!asset) return state
+      const coolingDeviceRole = assetKey === 'cv'
+        ? 'check-valve' as const
+        : configuration.coolingDeviceRole
+
+      const anchorsUnchanged =
+        currentAsset?.anchors.length === configuration.anchors.length &&
+        currentAsset.anchors.every((anchor, index) => {
+          const candidate = configuration.anchors[index]
+          return candidate && Object.keys(anchor).every(
+            (key) => anchor[key as keyof SymbolAnchor] === candidate[key as keyof SymbolAnchor],
+          ) && Object.keys(candidate).every(
+            (key) => candidate[key as keyof SymbolAnchor] === anchor[key as keyof SymbolAnchor],
+          )
+        })
+      if (
+        anchorsUnchanged &&
+        currentAsset?.coolingDeviceRole === coolingDeviceRole
+      ) return state
+
+      const { coolingDeviceRole: _previousRole, ...assetWithoutRole } = asset
+      const nextAsset: AssetDefinition = {
+        ...assetWithoutRole,
+        ...(coolingDeviceRole
+          ? { coolingDeviceRole }
+          : {}),
+        anchors: configuration.anchors.map((anchor) => ({ ...anchor })),
       }
       const nextAssets = currentAsset
         ? state.document.assets.map((candidate) => candidate.key === assetKey ? nextAsset : candidate)

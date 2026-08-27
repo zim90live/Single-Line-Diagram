@@ -1,0 +1,14 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>两通电动阀关闭状态</title>
+  <desc>基本阀体不变；执行机构中的垂直阀位标记与阀喉阻断线共同表达已关闭，不使用红色以免与故障混淆。</desc>
+  <g stroke="#B6B8B4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 38H14" />
+    <path d="M50 38H64" />
+    <path d="M14 24V52L32 38L14 24Z" fill="#B6B8B4" fill-opacity="0.12" />
+    <path d="M50 24V52L32 38L50 24Z" fill="#B6B8B4" fill-opacity="0.12" />
+    <path d="M32 24V16" />
+    <rect x="21" y="2" width="22" height="14" rx="2" />
+    <path d="M32 5V13" stroke-width="2" />
+    <path d="M32 29V47" stroke="#F2F3EF" stroke-width="3" />
+  </g>
+</svg>

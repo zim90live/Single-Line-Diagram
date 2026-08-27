@@ -31,6 +31,75 @@ const emptySelectionProps = {
 }
 
 describe('PropertiesPanel color property', () => {
+  it('offers restoring selected manually routed child lines to automatic routing', async () => {
+    const user = userEvent.setup()
+    const onResetConnectionRouting = vi.fn()
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edge-1',
+          type: 'electrical',
+          edges: [{
+            id: 'edge-1',
+            sourceNodeId: 'node-a',
+            targetNodeId: 'node-b',
+            routeNodeIds: ['waypoint-a', 'waypoint-b'],
+          }],
+        }}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onResetConnectionRouting={onResetConnectionRouting}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '恢复自动布线' }))
+    expect(onResetConnectionRouting).toHaveBeenCalledOnce()
+  })
+
+  it('describes mixed waypoint selections without exposing element scaling controls', () => {
+    render(
+      <PropertiesPanel
+        selectedElements={[element('ups')]}
+        selectedBusbars={[]}
+        selectedConnection={null}
+        selectedRouteWaypointCount={2}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/包含节点的混合选区不能缩放/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('缩放')).not.toBeInTheDocument()
+  })
+
+  it('explains the degree-aware behavior for deleting a selected node', () => {
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={null}
+        selectedJunctionCount={1}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('线路节点')).toBeInTheDocument()
+    expect(screen.getByText(/删除二连节点会恢复局部自动布线/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除节点' })).toBeInTheDocument()
+  })
+
   it('groups current canvas colors by object type and globally replaces a clicked color', async () => {
     const user = userEvent.setup()
     const onCanvasColorPreview = vi.fn()
@@ -49,7 +118,7 @@ describe('PropertiesPanel color property', () => {
       diagramId: 'diagram-1',
       type: 'electrical',
       nodes: [
-        { id: 'node-1', kind: 'element-anchor', elementId: '2-wv-element', anchorId: 'a' },
+        { id: 'node-1', kind: 'element-anchor', elementId: 'mp-element', anchorId: 'a' },
         { id: 'node-2', kind: 'busbar-tap', busbarId: 'busbar-1', offset: 16 },
       ],
       edges: [{ id: 'edge-1', sourceNodeId: 'node-1', targetNodeId: 'node-2' }],
@@ -59,7 +128,7 @@ describe('PropertiesPanel color property', () => {
         selectedElements={[]}
         selectedBusbars={[]}
         selectedConnection={null}
-        canvasElements={[element('2-wv')]}
+        canvasElements={[element('mp')]}
         canvasBusbars={canvasBusbars}
         canvasConnections={canvasConnections}
         onPatch={vi.fn()}
@@ -154,6 +223,47 @@ describe('PropertiesPanel color property', () => {
     expect(onPatch).toHaveBeenLastCalledWith(current.id, { labelVisible: true })
   })
 
+  it('edits a generic frame visibility, width, height, and border color independently', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const onColorPreview = vi.fn()
+    const current = {
+      ...element('generic', { tag: 'GEN-01' }),
+      name: '通用图元',
+      width: 96,
+      height: 48,
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onPatch={onPatch}
+        onColorPreview={onColorPreview}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('switch', { name: '显示图元标签' })).not.toBeInTheDocument()
+    const borderSwitch = screen.getByRole('switch', { name: '显示虚线框' })
+    expect(borderSwitch).toHaveAttribute('aria-checked', 'true')
+    await user.click(borderSwitch)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: { tag: 'GEN-01', genericBorderVisible: false },
+    })
+    expect(screen.queryByLabelText('缩放')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('虚线框颜色 HEX')).toHaveValue(
+      DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+    )
+
+    fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '160' } })
+    fireEvent.blur(screen.getByLabelText('宽度'))
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, { width: 160 })
+
+    fireEvent.change(screen.getByLabelText('高度'), { target: { value: '64' } })
+    fireEvent.blur(screen.getByLabelText('高度'))
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, { height: 64 })
+  })
+
   it('configures runtime-data visibility and metrics on the selected element instance', async () => {
     const user = userEvent.setup()
     const onPatch = vi.fn()
@@ -172,6 +282,13 @@ describe('PropertiesPanel color property', () => {
     expect(dataSwitch).toHaveAttribute('aria-checked', 'false')
     await user.click(dataSwitch)
     expect(onPatch).toHaveBeenLastCalledWith(current.id, { monitorDataVisible: true })
+
+    const metricLabelsSwitch = screen.getByRole('switch', { name: '显示指标名称与单位' })
+    expect(metricLabelsSwitch).toHaveAttribute('aria-checked', 'true')
+    await user.click(metricLabelsSwitch)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      monitorMetricLabelsVisible: false,
+    })
 
     await user.click(screen.getByRole('button', { name: '添加' }))
     const metricPatch = onPatch.mock.calls.find(([, patch]) => 'monitorMetrics' in patch)?.[1]
@@ -234,7 +351,7 @@ describe('PropertiesPanel color property', () => {
     const onColorPreview = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('2-wv')]}
+        selectedElements={[element('mp')]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={onColorPreview}
@@ -254,7 +371,7 @@ describe('PropertiesPanel color property', () => {
     fireEvent.blur(input)
 
     expect(onPatch).toHaveBeenCalledOnce()
-    expect(onPatch).toHaveBeenLastCalledWith('2-wv-element', {
+    expect(onPatch).toHaveBeenLastCalledWith('mp-element', {
       properties: { color: '#77B4BF' },
     })
   })
@@ -263,7 +380,7 @@ describe('PropertiesPanel color property', () => {
     const user = userEvent.setup()
     const onPatch = vi.fn()
     const onColorPreview = vi.fn()
-    const onSwitchStateChange = vi.fn()
+    const onOnOffStateChange = vi.fn()
     const offReplacement = defaultConnectionColor('cooling-primary-hot')
     const current = element('switch', {
       tag: 'SW-01',
@@ -274,8 +391,8 @@ describe('PropertiesPanel color property', () => {
       <PropertiesPanel
         selectedElements={[current]}
         {...emptySelectionProps}
-        switchStates={{ [current.id]: false }}
-        onSwitchStateChange={onSwitchStateChange}
+        onOffStates={{ [current.id]: false }}
+        onOnOffStateChange={onOnOffStateChange}
         onPatch={onPatch}
         onColorPreview={onColorPreview}
         onDelete={vi.fn()}
@@ -286,7 +403,7 @@ describe('PropertiesPanel color property', () => {
     expect(stateToggle).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByText('当前断开 · Off')).toBeInTheDocument()
     await user.click(stateToggle)
-    expect(onSwitchStateChange).toHaveBeenCalledWith(current.id, true)
+    expect(onOnOffStateChange).toHaveBeenCalledWith(current.id, true)
 
     const offColor = screen.getByLabelText('Switch 关状态颜色 HEX')
     const onColor = screen.getByLabelText('Switch 开状态颜色 HEX')
@@ -311,8 +428,8 @@ describe('PropertiesPanel color property', () => {
       <PropertiesPanel
         selectedElements={[updated]}
         {...emptySelectionProps}
-        switchStates={{ [current.id]: true }}
-        onSwitchStateChange={onSwitchStateChange}
+        onOffStates={{ [current.id]: true }}
+        onOnOffStateChange={onOnOffStateChange}
         onPatch={onPatch}
         onColorPreview={onColorPreview}
         onDelete={vi.fn()}
@@ -334,12 +451,56 @@ describe('PropertiesPanel color property', () => {
     })
   })
 
+  it.each([
+    { assetKey: '2-wv', symbolName: '2WV' },
+    { assetKey: 'cv', symbolName: 'CV' },
+  ])('controls $symbolName like Switch with separate Off/On colors', async ({
+    assetKey,
+    symbolName,
+  }) => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const onColorPreview = vi.fn()
+    const onOnOffStateChange = vi.fn()
+    const current = element(assetKey, { color: '#556677' })
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onOffStates={{ [current.id]: false }}
+        onOnOffStateChange={onOnOffStateChange}
+        onPatch={onPatch}
+        onColorPreview={onColorPreview}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const stateToggle = screen.getByRole('switch', { name: `${symbolName} 开关状态` })
+    expect(stateToggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('当前关闭 · Off')).toBeInTheDocument()
+    await user.click(stateToggle)
+    expect(onOnOffStateChange).toHaveBeenCalledWith(current.id, true)
+
+    expect(screen.getByLabelText(`${symbolName} 关状态颜色 HEX`)).toHaveValue('#556677')
+    const onColor = screen.getByLabelText(`${symbolName} 开状态颜色 HEX`)
+    expect(onColor).toHaveValue('#556677')
+    fireEvent.change(onColor, { target: { value: '#77b4bf' } })
+    expect(onColorPreview).toHaveBeenLastCalledWith(current.id, '#77B4BF', 'switch-on')
+    fireEvent.blur(onColor)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: {
+        switchOffColor: '#556677',
+        switchOnColor: '#77B4BF',
+      },
+    })
+  })
+
   it('opens an application-owned HEX picker instead of a native RGB color input', async () => {
     const user = userEvent.setup()
     const onPatch = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('2-wv')]}
+        selectedElements={[element('mp')]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={vi.fn()}
@@ -356,7 +517,7 @@ describe('PropertiesPanel color property', () => {
     fireEvent.change(pickerHex, { target: { value: '#77b4bf' } })
     await user.click(screen.getByRole('button', { name: '完成' }))
 
-    expect(onPatch).toHaveBeenCalledWith('2-wv-element', {
+    expect(onPatch).toHaveBeenCalledWith('mp-element', {
       properties: { color: '#77B4BF' },
     })
   })
@@ -366,7 +527,7 @@ describe('PropertiesPanel color property', () => {
     const onPatch = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('2-wv', { tag: '2WV-01', color: '#E7A23B' })]}
+        selectedElements={[element('mp', { tag: 'MP-01', color: '#E7A23B' })]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={vi.fn()}
@@ -376,8 +537,8 @@ describe('PropertiesPanel color property', () => {
 
     await user.click(screen.getByRole('button', { name: '恢复默认' }))
 
-    expect(onPatch).toHaveBeenCalledWith('2-wv-element', {
-      properties: { tag: '2WV-01' },
+    expect(onPatch).toHaveBeenCalledWith('mp-element', {
+      properties: { tag: 'MP-01' },
     })
   })
 
@@ -563,6 +724,11 @@ describe('PropertiesPanel color property', () => {
     expect(labelInput).toHaveValue('')
     expect(screen.getByRole('switch', { name: '显示子线标签' }))
       .toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('combobox', { name: '通行方向' })).toHaveValue('bidirectional')
+    await user.selectOptions(screen.getByRole('combobox', { name: '通行方向' }), 'forward')
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      flowDirection: 'forward',
+    })
     fireEvent.change(labelInput, { target: { value: '联络线 01' } })
     fireEvent.blur(labelInput)
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
@@ -576,7 +742,12 @@ describe('PropertiesPanel color property', () => {
         selectedConnection={{
           id: edge.id,
           type: 'electrical',
-          edges: [{ ...edge, label: '联络线 01', labelVisible: false }],
+          edges: [{
+            ...edge,
+            flowDirection: 'forward',
+            label: '联络线 01',
+            labelVisible: false,
+          }],
         }}
         onPatch={vi.fn()}
         onPatchConnectionEdge={onPatchConnectionEdge}
@@ -595,11 +766,69 @@ describe('PropertiesPanel color property', () => {
       labelVisible: true,
     })
 
+    expect(screen.getByRole('combobox', { name: '通行方向' })).toHaveValue('forward')
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '通行方向' }),
+      'bidirectional',
+    )
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      flowDirection: undefined,
+    })
+
     fireEvent.change(screen.getByLabelText('子线标签'), { target: { value: '' } })
     fireEvent.blur(screen.getByLabelText('子线标签'))
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
       label: undefined,
     })
+  })
+
+  it('batch configures the flow direction of multiple selected child lines', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdge = vi.fn()
+    const onPatchConnectionEdges = vi.fn()
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:edge-1,edge-2',
+          type: 'electrical',
+          edges: [
+            {
+              id: 'edge-1',
+              sourceNodeId: 'node-1',
+              targetNodeId: 'node-2',
+              flowDirection: 'forward',
+            },
+            {
+              id: 'edge-2',
+              sourceNodeId: 'node-3',
+              targetNodeId: 'node-4',
+            },
+          ],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const direction = screen.getByRole('combobox', { name: '通行方向' })
+    expect(direction).toHaveValue('mixed')
+    expect(screen.getByText('同时应用到 2 条所选子线')).toBeInTheDocument()
+
+    await user.selectOptions(direction, 'reverse')
+
+    expect(onPatchConnectionEdges).toHaveBeenCalledTimes(1)
+    expect(onPatchConnectionEdges).toHaveBeenCalledWith(
+      ['edge-1', 'edge-2'],
+      { flowDirection: 'reverse' },
+    )
+    expect(onPatchConnectionEdge).not.toHaveBeenCalled()
   })
 
   it('edits selected busbars and child lines through one mixed color field', () => {
@@ -647,6 +876,7 @@ describe('PropertiesPanel color property', () => {
     const input = screen.getByLabelText('线路颜色 HEX')
     expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', '多种颜色')
+    expect(screen.queryByRole('combobox', { name: '通行方向' })).not.toBeInTheDocument()
 
     const replacement = defaultConnectionColor('cooling-secondary-hot')
     fireEvent.change(input, { target: { value: replacement } })

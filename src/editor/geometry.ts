@@ -159,6 +159,7 @@ export function elementsEqual(left: DiagramElement[], right: DiagramElement[]) {
       element.labelVisible === candidate.labelVisible &&
       element.labelPlacement === candidate.labelPlacement &&
       element.monitorDataVisible === candidate.monitorDataVisible &&
+      element.monitorMetricLabelsVisible === candidate.monitorMetricLabelsVisible &&
       JSON.stringify(element.monitorMetrics) === JSON.stringify(candidate.monitorMetrics) &&
       JSON.stringify(element.properties) === JSON.stringify(candidate.properties) &&
       JSON.stringify(element.extensions) === JSON.stringify(candidate.extensions)

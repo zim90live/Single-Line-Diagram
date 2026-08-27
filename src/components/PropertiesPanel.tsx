@@ -29,7 +29,13 @@ import {
   normalizeHexColor,
 } from '../editor/objectColors'
 import {
+  GENERIC_SYMBOL_MIN_HEIGHT,
+  GENERIC_SYMBOL_MIN_WIDTH,
+  isGenericSymbolKey,
+} from '../editor/genericSymbol'
+import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+  symbolSupportsOnOffState,
   getScaledSymbolSize,
   getSymbolScaleStep,
   normalizeSymbolColor,
@@ -38,7 +44,7 @@ import {
   symbolsByKey,
   type SymbolColorSlot,
 } from '../editor/symbolCatalog'
-import { Button, NumericField, TextField } from './ui'
+import { Button, NumericField, SelectField, TextField } from './ui'
 import { MonitorMetricsEditor } from './MonitorMetricsEditor'
 
 interface PropertiesPanelProps {
@@ -52,14 +58,19 @@ interface PropertiesPanelProps {
     edgeTypes?: Record<string, AnchorType>
     isNetwork?: boolean
   } | null
+  selectedRouteWaypointCount?: number
+  selectedRouteWaypointMaxReferenceCount?: number
+  selectedJunctionCount?: number
   canvasElements?: DiagramElement[]
   canvasBusbars?: Busbar[]
   canvasConnections?: ConnectionNetwork[]
   onPatch: (elementId: string, patch: Partial<DiagramElement>) => void
   onPatchBusbar?: (busbarId: string, patch: Partial<Busbar>) => void
   onPatchConnectionEdge?: (edgeId: string, patch: Partial<ConnectionEdge>) => void
-  switchStates?: Record<string, boolean>
-  onSwitchStateChange?: (elementId: string, on: boolean) => void
+  onPatchConnectionEdges?: (edgeIds: string[], patch: Partial<ConnectionEdge>) => void
+  onResetConnectionRouting?: () => void
+  onOffStates?: Record<string, boolean>
+  onOnOffStateChange?: (elementId: string, on: boolean) => void
   onColorPreview: (
     elementId: string,
     color: string | null,
@@ -391,7 +402,12 @@ const canvasColorSections: Array<{
 ]
 
 function canvasColorTargetKey(target: CanvasColorTarget) {
-  return `${target.category}:${target.elementColorSlot ?? 'default'}:${target.color}`
+  return [
+    target.category,
+    target.elementAssetKey ?? 'all',
+    target.elementColorSlot ?? 'default',
+    target.color,
+  ].join(':')
 }
 
 function CanvasColorOverview({
@@ -494,14 +510,19 @@ export function PropertiesPanel({
   duplicateDeviceIdentifier = false,
   selectedBusbars,
   selectedConnection,
+  selectedRouteWaypointCount = 0,
+  selectedRouteWaypointMaxReferenceCount = 0,
+  selectedJunctionCount = 0,
   canvasElements = [],
   canvasBusbars = [],
   canvasConnections = [],
   onPatch,
   onPatchBusbar = () => undefined,
   onPatchConnectionEdge = () => undefined,
-  switchStates = {},
-  onSwitchStateChange = () => undefined,
+  onPatchConnectionEdges = () => undefined,
+  onResetConnectionRouting = () => undefined,
+  onOffStates = {},
+  onOnOffStateChange = () => undefined,
   onColorPreview,
   onSelectionColorPreview,
   onSelectionColorCommit,
@@ -512,7 +533,9 @@ export function PropertiesPanel({
   if (
     selectedElements.length === 0 &&
     selectedBusbars.length === 0 &&
-    selectedConnection === null
+    selectedConnection === null &&
+    selectedRouteWaypointCount === 0 &&
+    selectedJunctionCount === 0
   ) {
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
@@ -527,6 +550,51 @@ export function PropertiesPanel({
           onPreview={onCanvasColorPreview}
           onCommit={onCanvasColorCommit}
         />
+      </aside>
+    )
+  }
+
+  if (
+    selectedConnection === null &&
+    selectedJunctionCount > 0 &&
+    selectedRouteWaypointCount === 0 &&
+    selectedElements.length === 0 &&
+    selectedBusbars.length === 0
+  ) {
+    return (
+      <aside className="properties-panel" aria-labelledby="properties-title">
+        <div className="panel-heading properties-heading">
+          <h2 id="properties-title">属性</h2>
+          <span>{selectedJunctionCount} 个节点</span>
+        </div>
+        <div className="multi-selection-summary">
+          <strong>线路节点</strong>
+          <p>双击可继续接线；删除二连节点会恢复局部自动布线，删除三连及以上节点会移除相关连线。</p>
+          <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除节点</Button>
+        </div>
+      </aside>
+    )
+  }
+
+  if (
+    selectedConnection === null &&
+    selectedRouteWaypointCount > 0 &&
+    selectedElements.length === 0 &&
+    selectedBusbars.length === 0
+  ) {
+    return (
+      <aside className="properties-panel" aria-labelledby="properties-title">
+        <div className="panel-heading properties-heading">
+          <h2 id="properties-title">属性</h2>
+          <span>{selectedRouteWaypointMaxReferenceCount > 1
+            ? `共享节点 · ${selectedRouteWaypointMaxReferenceCount} 条子线`
+            : `${selectedRouteWaypointCount} 个节点`}</span>
+        </div>
+        <div className="multi-selection-summary">
+          <strong>线路节点</strong>
+          <p>双击可继续接线；共享节点的移动或删除会同步作用于所有引用子线。</p>
+          <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除节点</Button>
+        </div>
       </aside>
     )
   }
@@ -552,8 +620,18 @@ export function PropertiesPanel({
     )
     const busbarCount = selectedBusbars.length
     const connectionCount = selectedConnection?.edges.length ?? 0
+    const connectionFlowDirections = selectedConnection?.edges.map((edge) => (
+      edge.flowDirection ?? 'bidirectional'
+    )) ?? []
+    const selectionFlowDirection = connectionFlowDirections[0] ?? 'bidirectional'
+    const mixedFlowDirection = connectionFlowDirections.some((direction) => (
+      direction !== selectionFlowDirection
+    ))
     const combined = busbarCount > 0 && connectionCount > 0
     const isNetworkSelection = selectedConnection?.isNetwork ?? connectionCount > 1
+    const manualRouteEdgeCount = selectedConnection?.edges.filter((edge) => (
+      edge.routeNodeIds?.length
+    )).length ?? 0
     const heading = combined
       ? `${busbarCount} 条母线 · ${connectionCount} 条子线`
       : busbarCount > 0
@@ -620,6 +698,33 @@ export function PropertiesPanel({
               />
             </>
           ) : null}
+          {connectionCount > 0 && busbarCount === 0 ? (
+            <SelectField
+              label="通行方向"
+              aria-label="通行方向"
+              hint={connectionCount > 1
+                ? `同时应用到 ${connectionCount} 条所选子线`
+                : '单向时，电流或水流只可沿箭头方向通过'}
+              value={mixedFlowDirection ? 'mixed' : selectionFlowDirection}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'mixed') return
+                const patch: Partial<ConnectionEdge> = {
+                  flowDirection: value === 'bidirectional'
+                    ? undefined
+                    : value as 'forward' | 'reverse',
+                }
+                const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
+                if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
+                else onPatchConnectionEdges(edgeIds, patch)
+              }}
+            >
+              {mixedFlowDirection ? <option value="mixed" disabled>多种方向</option> : null}
+              <option value="bidirectional">双向通行</option>
+              <option value="forward">起点 → 终点</option>
+              <option value="reverse">终点 → 起点</option>
+            </SelectField>
+          ) : null}
           <CommittedColorField
             selectionKey={selectionKey}
             label={colorLabel}
@@ -648,6 +753,15 @@ export function PropertiesPanel({
               </code>
             </div>
           )}
+          {manualRouteEdgeCount > 0 && busbarCount === 0 ? (
+            <Button
+              variant="neutral-soft"
+              leadingIcon={<RotateCcw />}
+              onClick={onResetConnectionRouting}
+            >
+              恢复自动布线{manualRouteEdgeCount > 1 ? `（${manualRouteEdgeCount} 条）` : ''}
+            </Button>
+          ) : null}
           <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>
             删除{combined ? '所选线路' : busbarCount > 0 ? '母线' : isNetworkSelection ? '线路网络' : connectionCount > 1 ? '所选子线' : '子线'}
           </Button>
@@ -656,8 +770,14 @@ export function PropertiesPanel({
     )
   }
 
-  if (selectedElements.length > 1 || selectedBusbars.length > 0) {
-    const objectCount = selectedElements.length + selectedBusbars.length
+  if (
+    selectedElements.length > 1 ||
+    selectedBusbars.length > 0 ||
+    selectedRouteWaypointCount > 0 ||
+    selectedJunctionCount > 0
+  ) {
+    const objectCount = selectedElements.length + selectedBusbars.length +
+      selectedRouteWaypointCount + selectedJunctionCount
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
         <div className="panel-heading properties-heading">
@@ -666,7 +786,9 @@ export function PropertiesPanel({
         </div>
         <div className="multi-selection-summary">
           <strong>已选择多个对象</strong>
-          <p>可整体移动、缩放、旋转，或使用复制、删除和撤销命令。</p>
+          <p>{selectedRouteWaypointCount > 0 || selectedJunctionCount > 0
+            ? '可整体移动或旋转；包含节点的混合选区不能缩放。'
+            : '可整体移动、缩放、旋转，或使用复制、删除和撤销命令。'}</p>
           <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除所选</Button>
         </div>
       </aside>
@@ -675,13 +797,14 @@ export function PropertiesPanel({
 
   const element = selectedElements[0]
   const symbol = symbolsByKey.get(element.assetKey)
+  const isGeneric = isGenericSymbolKey(element.assetKey)
   const scale = symbol ? element.width / symbol.intrinsicWidth : 1
-  const scaleStep = symbol ? getSymbolScaleStep(symbol, EDITOR_GRID_SIZE) : 1
-  const isSwitch = element.assetKey === 'switch'
-  const switchOn = switchStates[element.id] ?? false
+  const scaleStep = symbol && !isGeneric ? getSymbolScaleStep(symbol, EDITOR_GRID_SIZE) : 1
+  const supportsOnOffState = symbolSupportsOnOffState(symbol)
+  const stateOn = onOffStates[element.id] ?? false
   const symbolColor = normalizeSymbolColor(element.properties.color)
   const hasCustomColor = typeof element.properties.color === 'string'
-  const switchColorProperties = (
+  const stateColorProperties = (
     slot: Extract<SymbolColorSlot, 'switch-off' | 'switch-on'>,
     color: string | null,
   ) => {
@@ -718,12 +841,24 @@ export function PropertiesPanel({
             properties: { ...element.properties, tag: tag || element.name },
           })}
         />
-        <PropertyToggle
-          label="显示图元标签"
-          description="仅控制当前图元"
-          checked={element.labelVisible !== false}
-          onChange={(labelVisible) => onPatch(element.id, { labelVisible })}
-        />
+        {!isGeneric ? (
+          <PropertyToggle
+            label="显示图元标签"
+            description="仅控制当前图元"
+            checked={element.labelVisible !== false}
+            onChange={(labelVisible) => onPatch(element.id, { labelVisible })}
+          />
+        ) : null}
+        {isGeneric ? (
+          <PropertyToggle
+            label="显示虚线框"
+            description="背景与设备标识保留"
+            checked={element.properties.genericBorderVisible !== false}
+            onChange={(genericBorderVisible) => onPatch(element.id, {
+              properties: { ...element.properties, genericBorderVisible },
+            })}
+          />
+        ) : null}
         <PropertyToggle
           label="显示运行数据"
           description={(element.monitorMetrics?.length ?? 0) > 0
@@ -732,53 +867,65 @@ export function PropertiesPanel({
           checked={element.monitorDataVisible === true}
           onChange={(monitorDataVisible) => onPatch(element.id, { monitorDataVisible })}
         />
+        <PropertyToggle
+          label="显示指标名称与单位"
+          description={(element.monitorMetrics?.length ?? 0) > 0
+            ? '统一控制全部指标'
+            : '添加指标后生效'}
+          checked={element.monitorMetricLabelsVisible !== false}
+          onChange={(monitorMetricLabelsVisible) => onPatch(element.id, {
+            monitorMetricLabelsVisible,
+          })}
+        />
         <MonitorMetricsEditor
           metrics={element.monitorMetrics ?? []}
           onChange={(monitorMetrics) => onPatch(element.id, { monitorMetrics })}
         />
-        {isSwitch ? (
+        {supportsOnOffState ? (
           <PropertyToggle
-            label="Switch 开关状态"
-            description={switchOn ? '当前闭合 · On' : '当前断开 · Off'}
-            checked={switchOn}
-            onChange={(on) => onSwitchStateChange(element.id, on)}
+            label={`${symbol.name} 开关状态`}
+            description={element.assetKey === 'switch'
+              ? stateOn ? '当前闭合 · On' : '当前断开 · Off'
+              : stateOn ? '当前开启 · On' : '当前关闭 · Off'}
+            checked={stateOn}
+            onChange={(on) => onOnOffStateChange(element.id, on)}
           />
         ) : null}
-        {isSwitch ? (
+        {supportsOnOffState ? (
           <>
             <CommittedColorField
               selectionKey={`${element.id}:switch-off`}
-              label="Switch 关状态颜色"
+              label={`${symbol.name} 关状态颜色`}
               value={resolvedSymbolColorForSlot(element, 'switch-off')}
               fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
               hasCustomColor={typeof element.properties.switchOffColor === 'string'}
               onPreview={(color) => onColorPreview(element.id, color, 'switch-off')}
               onCommit={(color) => onPatch(element.id, {
-                properties: switchColorProperties('switch-off', color),
+                properties: stateColorProperties('switch-off', color),
               })}
               onRestore={() => onPatch(element.id, {
-                properties: switchColorProperties('switch-off', null),
+                properties: stateColorProperties('switch-off', null),
               })}
             />
             <CommittedColorField
               selectionKey={`${element.id}:switch-on`}
-              label="Switch 开状态颜色"
+              label={`${symbol.name} 开状态颜色`}
               value={resolvedSymbolColorForSlot(element, 'switch-on')}
               fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
               hasCustomColor={typeof element.properties.switchOnColor === 'string'}
               onPreview={(color) => onColorPreview(element.id, color, 'switch-on')}
               onCommit={(color) => onPatch(element.id, {
-                properties: switchColorProperties('switch-on', color),
+                properties: stateColorProperties('switch-on', color),
               })}
               onRestore={() => onPatch(element.id, {
-                properties: switchColorProperties('switch-on', null),
+                properties: stateColorProperties('switch-on', null),
               })}
             />
           </>
         ) : symbol?.configurableColor ? (
           <CommittedColorField
             selectionKey={element.id}
-            label="图元颜色"
+            label={isGeneric ? '虚线框颜色' : '图元颜色'}
             value={symbolColor}
             fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
             hasCustomColor={hasCustomColor}
@@ -796,7 +943,24 @@ export function PropertiesPanel({
         <div className="property-grid">
           <NumericField label="X" value={element.x} step={EDITOR_GRID_SIZE} onCommit={(x) => onPatch(element.id, { x })} />
           <NumericField label="Y" value={element.y} step={EDITOR_GRID_SIZE} onCommit={(y) => onPatch(element.id, { y })} />
-          {symbol ? (
+          {isGeneric ? (
+            <>
+              <NumericField
+                label="宽度"
+                value={element.width}
+                min={GENERIC_SYMBOL_MIN_WIDTH}
+                step={EDITOR_GRID_SIZE}
+                onCommit={(width) => onPatch(element.id, { width })}
+              />
+              <NumericField
+                label="高度"
+                value={element.height}
+                min={GENERIC_SYMBOL_MIN_HEIGHT}
+                step={EDITOR_GRID_SIZE}
+                onCommit={(height) => onPatch(element.id, { height })}
+              />
+            </>
+          ) : symbol ? (
             <NumericField
               label="缩放"
               value={scale * 100}

@@ -4,6 +4,7 @@ import {
   type AnchorType,
   type AssetDefinition,
   type DiagramElement,
+  type LineSystemType,
   type SymbolAnchor,
 } from '../domain/project'
 
@@ -34,8 +35,13 @@ export function getAnchorTypeLabel(type: AnchorType) {
   return anchorTypeLabels.get(type) ?? type
 }
 
-export function getDefaultAnchorType(category: string): AnchorType {
-  return category === '冷却' ? 'cooling-general' : 'electrical'
+export function getDefaultAnchorType(
+  category: string,
+  lineSystemType?: LineSystemType,
+): AnchorType {
+  if (category === '冷却') return 'cooling-general'
+  if (category === '电力') return 'electrical'
+  return lineSystemType === 'power' ? 'electrical' : 'cooling-general'
 }
 
 export function deriveAnchorDirection(
@@ -107,6 +113,7 @@ export function isAutomaticAnchorName(name: string, type: AnchorType) {
 export function createSymbolAnchor(
   asset: Pick<AssetDefinition, 'category' | 'intrinsicWidth' | 'intrinsicHeight' | 'anchors'>,
   point: Pick<AnchorPoint, 'x' | 'y'>,
+  lineSystemType?: LineSystemType,
 ): SymbolAnchor {
   const direction = deriveAnchorDirection(
     point.x,
@@ -121,7 +128,7 @@ export function createSymbolAnchor(
     throw new Error('该位置已有锚点。')
   }
 
-  const type = getDefaultAnchorType(asset.category)
+  const type = getDefaultAnchorType(asset.category, lineSystemType)
   return {
     id: `anchor-${crypto.randomUUID()}`,
     name: getNextAnchorName(asset.anchors, type),

@@ -10,10 +10,13 @@ import {
   bridgedPathData,
   bridgedPolylinePoints,
   connectTerminals,
+  connectionRouteBranchPointKeys,
+  connectionTerminalArrowPath,
   connectionTypesCompatible,
   crossingPointKeys,
   deleteConnectionEdge,
   deleteBusbarConnections,
+  normalizeConnectionNetworks,
   pathDataWithBridges,
   previewConnectionRoutesForDiagram,
   previewConnectionRoutesForElements,
@@ -21,6 +24,7 @@ import {
   routeConnectionNetworks,
   routeConnectionPreview,
   routeOrthogonalGrid,
+  roundedOrthogonalPathData,
 } from './connections'
 
 const coolingAsset: AssetDefinition = {
@@ -116,6 +120,74 @@ function gridSegmentKeys(points: Array<{ x: number; y: number }>, gridSize = 8) 
 }
 
 describe('connection topology and routing', () => {
+  it('removes a self-loop when connection topology is normalized', () => {
+    const left = powerElement('normalize-left', 0, 0)
+    const right = powerElement('normalize-right', 160, 0)
+    const network: ConnectionNetwork = {
+      id: 'normalize-network',
+      diagramId: 'diagram-power',
+      type: 'electrical',
+      nodes: [
+        {
+          id: 'normalize-left-node',
+          kind: 'element-anchor',
+          elementId: left.id,
+          anchorId: 'right-electrical',
+        },
+        {
+          id: 'normalize-right-node',
+          kind: 'element-anchor',
+          elementId: right.id,
+          anchorId: 'left-electrical',
+        },
+        { id: 'normalize-junction', kind: 'node', x: 112, y: 32 },
+      ],
+      edges: [
+        {
+          id: 'normalize-left-edge',
+          sourceNodeId: 'normalize-left-node',
+          targetNodeId: 'normalize-junction',
+        },
+        {
+          id: 'normalize-self-loop',
+          sourceNodeId: 'normalize-junction',
+          targetNodeId: 'normalize-junction',
+        },
+        {
+          id: 'normalize-right-edge',
+          sourceNodeId: 'normalize-junction',
+          targetNodeId: 'normalize-right-node',
+        },
+      ],
+    }
+
+    const normalized = normalizeConnectionNetworks(
+      [network],
+      [left, right],
+      [directionalElectricalAsset],
+    )
+
+    expect(normalized).toHaveLength(1)
+    expect(normalized[0].edges.map((edge) => edge.id)).toEqual([
+      'normalize-left-edge',
+      'normalize-right-edge',
+    ])
+  })
+
+  it('places a fixed-screen arrow at the configured child-line terminal', () => {
+    const points = [{ x: 0, y: 0 }, { x: 80, y: 0 }]
+
+    expect(connectionTerminalArrowPath(points, 'forward')).toBe(
+      'M 80 0 L 72 4 L 72 -4 Z',
+    )
+    expect(connectionTerminalArrowPath(points, 'reverse', 2)).toBe(
+      'M 0 0 L 4 -2 L 4 2 Z',
+    )
+    expect(connectionTerminalArrowPath(points, 'forward', 2, 6)).toBe(
+      'M 77 0 L 73 2 L 73 -2 Z',
+    )
+  })
+
   it('transforms asset anchors with instance scale and rotation', () => {
     const instance = { ...element('rotated', 80, 40, 128, 128), rotation: 90 }
     const resolved = resolveElementAnchor(instance, coolingAsset, coolingAsset.anchors[0])
@@ -158,6 +230,54 @@ describe('connection topology and routing', () => {
     ])
   })
 
+  it('treats ordered manual waypoints as hard routing constraints', () => {
+    const source = powerElement('manual-source', 0, 0)
+    const target = powerElement('manual-target', 240, 0)
+    const network: ConnectionNetwork = {
+      id: 'manual-network',
+      diagramId: 'diagram-power',
+      type: 'electrical',
+      nodes: [
+        {
+          id: 'manual-source-node',
+          kind: 'element-anchor',
+          elementId: source.id,
+          anchorId: 'right-electrical',
+        },
+        {
+          id: 'manual-target-node',
+          kind: 'element-anchor',
+          elementId: target.id,
+          anchorId: 'left-electrical',
+        },
+      ],
+      edges: [{
+        id: 'manual-edge',
+        sourceNodeId: 'manual-source-node',
+        targetNodeId: 'manual-target-node',
+        routeNodeIds: ['manual-waypoint'],
+      }],
+    }
+    const waypoint = { id: 'manual-waypoint', x: 120, y: 128 }
+    const routed = routeConnectionNetworks(
+      [network],
+      [source, target],
+      [directionalElectricalAsset],
+      8,
+      [],
+      [waypoint],
+    )
+    const points = routed.edges[0].points
+    const passesWaypoint = points.slice(1).some((end, index) => {
+      const start = points[index]
+      return waypoint.x >= Math.min(start.x, end.x) && waypoint.x <= Math.max(start.x, end.x) &&
+        waypoint.y >= Math.min(start.y, end.y) && waypoint.y <= Math.max(start.y, end.y)
+    })
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(passesWaypoint).toBe(true)
+  })
+
   it('promotes a general network when a specialized cooling anchor joins', () => {
     const initial = connectTerminals([], 'diagram-cooling', {
       kind: 'anchor', elementId: 'left', anchorId: 'left-general', type: 'cooling-general',
@@ -193,7 +313,7 @@ describe('connection topology and routing', () => {
     expect(withoutSpecializedBranch[0].edges).toHaveLength(1)
   })
 
-  it('reuses a shared path and derives an unmarked branch for repeated anchor wiring', () => {
+  it('allows naturally overlapping paths and derives an unmarked branch for repeated anchor wiring', () => {
     const source = powerElement('shared-source', 64, -96)
     const left = powerElement('shared-left', 0, 80)
     const right = powerElement('shared-right', 128, 80)
@@ -225,7 +345,61 @@ describe('connection topology and routing', () => {
     expect(routed.invalidEdgeIds).toEqual([])
   })
 
-  it('prefers fewer turns before shared segments on equal-length network routes', () => {
+  it('keeps equal-length equal-turn doglegs centered beside an existing network trunk', () => {
+    const trunkSource = powerElement('centered-trunk-source', 0, 0)
+    const branchSource = powerElement('centered-branch-source', 128, 64)
+    const target = powerElement('centered-target', 256, 0)
+    const network: ConnectionNetwork = {
+      id: 'centered-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'trunk-source-anchor', kind: 'element-anchor',
+          elementId: trunkSource.id, anchorId: 'right-electrical',
+        },
+        {
+          id: 'branch-source-anchor', kind: 'element-anchor',
+          elementId: branchSource.id, anchorId: 'right-electrical',
+        },
+        {
+          id: 'centered-target-anchor', kind: 'element-anchor',
+          elementId: target.id, anchorId: 'left-electrical',
+        },
+      ],
+      edges: [
+        {
+          id: 'centered-trunk-edge',
+          sourceNodeId: 'trunk-source-anchor',
+          targetNodeId: 'centered-target-anchor',
+        },
+        {
+          id: 'centered-branch-edge',
+          sourceNodeId: 'branch-source-anchor',
+          targetNodeId: 'centered-target-anchor',
+        },
+      ],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [trunkSource, branchSource, target],
+      [directionalElectricalAsset],
+      8,
+    )
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(routed.edges[0].points).toEqual([
+      { x: 64, y: 32 },
+      { x: 256, y: 32 },
+    ])
+    expect(routed.edges[1].points).toEqual([
+      { x: 192, y: 96 },
+      { x: 224, y: 96 },
+      { x: 224, y: 32 },
+      { x: 256, y: 32 },
+    ])
+  })
+
+  it('prefers fewer turns before considering midpoint placement', () => {
     const left = powerElement('turn-priority-left', 0, 0)
     const middle = powerElement('turn-priority-middle', 128, 0)
     const target = {
@@ -366,6 +540,56 @@ describe('connection topology and routing', () => {
 
     expect(preview.resolvedBusbarTapOffsets['preview-tap-node']).toBe(40)
     expect(preview.edges[0].points.at(-1)).toEqual({ x: 40, y: 0 })
+  })
+
+  it('attaches every incident route to a junction while it is moved', () => {
+    const device = powerElement('junction-preview-device', 96, 0)
+    const network: ConnectionNetwork = {
+      id: 'junction-preview-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        { id: 'junction-preview', kind: 'node', x: 40, y: 32 },
+        {
+          id: 'junction-preview-device-node', kind: 'element-anchor',
+          elementId: device.id, anchorId: 'top-electrical',
+        },
+      ],
+      edges: [{
+        id: 'junction-preview-edge',
+        sourceNodeId: 'junction-preview',
+        targetNodeId: 'junction-preview-device-node',
+      }],
+    }
+    const previewNetwork: ConnectionNetwork = {
+      ...network,
+      nodes: network.nodes.map((node) => node.kind === 'node'
+        ? { ...node, x: 40, y: 48 }
+        : node),
+    }
+    const preview = previewConnectionRoutesForDiagram(
+      {
+        edges: [{
+          networkId: network.id,
+          edgeId: 'junction-preview-edge',
+          type: 'electrical',
+          sourceNodeId: 'junction-preview',
+          targetNodeId: 'junction-preview-device-node',
+          points: [{ x: 40, y: 32 }, { x: 128, y: 32 }, { x: 128, y: 0 }],
+          order: 0,
+        }],
+        crossings: [],
+        invalidEdgeIds: [],
+        resolvedBusbarTapOffsets: {},
+      },
+      [network],
+      [previewNetwork],
+      [device],
+      [device],
+      [directionalElectricalAsset],
+      8,
+    )
+
+    expect(preview.edges[0].points[0]).toEqual({ x: 40, y: 48 })
+    expect(preview.edges[0].points.slice(1)).toContainEqual({ x: 128, y: 48 })
   })
 
   it('routes a hovered target anchor directly without searching inside its symbol obstacle', () => {
@@ -513,6 +737,140 @@ describe('connection topology and routing', () => {
     expect(rendered.bridgeCasingPath.match(/A 4 4/g)).toHaveLength(2)
   })
 
+  it('supports a larger cooling-pipe bridge without changing the default bridge', () => {
+    const route = {
+      networkId: 'cooling-bridge-network',
+      edgeId: 'cooling-bridge-edge',
+      type: 'cooling-primary-cold' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      points: [{ x: 0, y: 0 }, { x: 32, y: 0 }],
+      order: 0,
+    }
+    const crossings = [{
+      x: 16,
+      y: 0,
+      bridgeEdgeId: route.edgeId,
+      underEdgeId: 'under-edge',
+    }]
+
+    expect(bridgedPathData(route, crossings, 8).linePath).toContain('A 4 4')
+    const rendered = bridgedPathData(route, crossings, 8, { bridgeRadius: 8 })
+    expect(rendered.linePath).toContain('L 8 0 A 8 8 0 0 1 24 0')
+    expect(rendered.bridgeCasingPath).toContain('M 8 0 A 8 8 0 0 1 24 0')
+  })
+
+  it('rounds ordinary orthogonal corners and compresses short elbows', () => {
+    expect(roundedOrthogonalPathData([
+      { x: 0, y: 0 },
+      { x: 16, y: 0 },
+      { x: 16, y: 16 },
+    ], 8)).toBe('M 0 0 L 8 0 A 8 8 0 0 1 16 8 L 16 16')
+    expect(roundedOrthogonalPathData([
+      { x: 0, y: 0 },
+      { x: 8, y: 0 },
+      { x: 8, y: 8 },
+    ], 8)).toBe('M 0 0 L 4 0 A 4 4 0 0 1 8 4 L 8 8')
+  })
+
+  it('samples the same rounded cooling corner used by the SVG display path', () => {
+    const route = {
+      networkId: 'rounded-sample-network',
+      edgeId: 'rounded-sample-edge',
+      type: 'cooling-primary-cold' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }, { x: 16, y: 16 }],
+      order: 0,
+    }
+
+    const sampled = bridgedPolylinePoints(route, [], 8, { cornerRadius: 8 }, 8)
+    expect(sampled[0]).toEqual({ x: 0, y: 0 })
+    expect(sampled.at(-1)).toEqual({ x: 16, y: 16 })
+    expect(sampled).toContainEqual({ x: 8, y: 0 })
+    expect(sampled).toContainEqual({ x: 16, y: 8 })
+    expect(sampled.some((point) => point.x > 8 && point.x < 16 && point.y > 0 && point.y < 8))
+      .toBe(true)
+  })
+
+  it('derives physical branches and keeps their elbows square', () => {
+    const elbow = {
+      networkId: 'cooling-branch-network',
+      edgeId: 'elbow-edge',
+      type: 'cooling-primary-cold' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }, { x: 16, y: 16 }],
+      order: 0,
+    }
+    const branch = {
+      ...elbow,
+      edgeId: 'branch-edge',
+      sourceNodeId: 'branch-source',
+      points: [{ x: 16, y: 0 }, { x: 32, y: 0 }],
+      order: 1,
+    }
+    const branchKeys = connectionRouteBranchPointKeys([elbow, branch])
+      .get(elbow.networkId)!
+
+    expect(branchKeys).toEqual(new Set(['16,0']))
+    expect(roundedOrthogonalPathData(elbow.points, 8, branchKeys))
+      .toBe('M 0 0 L 16 0 L 16 16')
+    expect(bridgedPathData(elbow, [], 8, {
+      cornerRadius: 8,
+      squareCornerPointKeys: branchKeys,
+    }).linePath).toBe('M 0 0 L 16 0 L 16 16')
+  })
+
+  it('keeps a shared two-direction elbow round instead of treating overlap as a branch', () => {
+    const route = {
+      networkId: 'shared-elbow-network',
+      edgeId: 'shared-a',
+      type: 'cooling-secondary-cold' as const,
+      sourceNodeId: 'source-a',
+      targetNodeId: 'target-a',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }, { x: 16, y: 16 }],
+      order: 0,
+    }
+    const overlapping = {
+      ...route,
+      edgeId: 'shared-b',
+      sourceNodeId: 'source-b',
+      targetNodeId: 'target-b',
+      order: 1,
+    }
+    const branchKeys = connectionRouteBranchPointKeys([route, overlapping])
+      .get(route.networkId)!
+
+    expect(branchKeys.size).toBe(0)
+    expect(bridgedPathData(route, [], 8, {
+      cornerRadius: 8,
+      squareCornerPointKeys: branchKeys,
+    }).linePath).toContain('A 8 8')
+  })
+
+  it('keeps an elbow square when a bridge arc is immediately adjacent', () => {
+    const route = {
+      networkId: 'bridge-adjacent-elbow-network',
+      edgeId: 'bridge-adjacent-elbow-edge',
+      type: 'cooling-primary-hot' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }, { x: 16, y: 16 }],
+      order: 0,
+    }
+    const rendered = bridgedPathData(route, [{
+      x: 8,
+      y: 0,
+      bridgeEdgeId: route.edgeId,
+      underEdgeId: 'under-edge',
+    }], 8, { cornerRadius: 8 })
+
+    expect(rendered.linePath).toBe(
+      'M 0 0 L 4 0 A 4 4 0 0 1 12 0 L 16 0 L 16 16',
+    )
+  })
+
   it('merges ordinary electrical branches through implicit taps on one busbar', () => {
     const first = connectTerminals([], 'diagram-power', {
       kind: 'anchor', elementId: 'power-left', anchorId: 'electrical-left', type: 'electrical',
@@ -555,6 +913,50 @@ describe('connection topology and routing', () => {
     expect(connectTerminals([], 'diagram-power', source, {
       ...target,
       busbarId: source.busbarId,
+    })).toBeNull()
+  })
+
+  it('starts a new branch from an existing node and rejects a same-network cycle', () => {
+    const existing: ConnectionNetwork = {
+      id: 'node-source-network',
+      diagramId: 'diagram-power',
+      type: 'electrical',
+      nodes: [
+        { id: 'left', kind: 'element-anchor', elementId: 'left-device', anchorId: 'right-electrical' },
+        { id: 'right', kind: 'element-anchor', elementId: 'right-device', anchorId: 'left-electrical' },
+        { id: 'middle', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [{
+        id: 'trunk',
+        sourceNodeId: 'left',
+        targetNodeId: 'right',
+        routeNodeIds: ['middle'],
+      }],
+    }
+    const source = {
+      kind: 'node',
+      networkId: existing.id,
+      nodeId: 'middle',
+      point: { x: 80, y: 32 },
+      type: 'electrical',
+    } as const
+    const branched = connectTerminals([existing], 'diagram-power', source, {
+      kind: 'anchor',
+      elementId: 'branch-device',
+      anchorId: 'left-electrical',
+      type: 'electrical',
+    })!
+
+    expect(branched[0].edges).toHaveLength(2)
+    expect(branched[0].nodes).toContainEqual(expect.objectContaining({
+      kind: 'element-anchor',
+      elementId: 'branch-device',
+    }))
+    expect(connectTerminals(branched, 'diagram-power', source, {
+      kind: 'anchor',
+      elementId: 'right-device',
+      anchorId: 'left-electrical',
+      type: 'electrical',
     })).toBeNull()
   })
 

@@ -24,6 +24,7 @@ const network: ConnectionNetwork = {
       id: 'edge-a-b',
       sourceNodeId: 'node-a',
       targetNodeId: 'tap-b',
+      flowDirection: 'forward',
       color: '#77B4BF',
       label: '馈线 01',
       labelVisible: false,
@@ -50,6 +51,7 @@ describe('selection clipboard topology', () => {
       elements: [],
       busbars: [],
       connections: [],
+      routeWaypoints: [],
     }))
   })
 
@@ -130,6 +132,7 @@ describe('selection clipboard topology', () => {
       id: expect.not.stringMatching(/^edge-a-b$/),
       sourceNodeId: instantiated[0].nodes[0].id,
       targetNodeId: instantiated[0].nodes[1].id,
+      flowDirection: 'forward',
       color: '#77B4BF',
       label: '馈线 01',
       labelVisible: false,
@@ -138,18 +141,91 @@ describe('selection clipboard topology', () => {
     }))
   })
 
-  it('copies monitoring configuration with fresh metric IDs and no runtime values', () => {
+  it('remaps manual route waypoint references when copying internal topology', () => {
+    const copied = copyConnectionsWithinSelection(
+      [{
+        ...network,
+        nodes: [
+          ...network.nodes,
+          { id: 'waypoint-original', kind: 'node', x: 80, y: 80 },
+        ],
+        edges: [{ ...network.edges[0], routeNodeIds: ['waypoint-original'] }],
+      }],
+      new Set(['element-a']),
+      new Set(['busbar-b']),
+    )
+    const instantiated = instantiateCopiedConnections(
+      copied,
+      'diagram-copy',
+      new Map([['element-a', 'element-a-copy']]),
+      new Map([['busbar-b', 'busbar-b-copy']]),
+      () => crypto.randomUUID(),
+      new Map([['waypoint-original', 'waypoint-copy']]),
+    )
+
+    expect(instantiated[0].edges[0].routeNodeIds).toEqual(['waypoint-copy'])
+    expect(instantiated[0].nodes).toContainEqual(expect.objectContaining({
+      id: 'waypoint-copy',
+      kind: 'node',
+      x: 80,
+      y: 80,
+    }))
+  })
+
+  it('retains and offsets junction topology between selected endpoint objects', () => {
+    const branched: ConnectionNetwork = {
+      id: 'branched',
+      diagramId: 'diagram-original',
+      type: 'electrical',
+      nodes: [
+        { id: 'a', kind: 'element-anchor', elementId: 'element-a', anchorId: 'right' },
+        { id: 'b', kind: 'element-anchor', elementId: 'element-b', anchorId: 'left' },
+        { id: 'c', kind: 'element-anchor', elementId: 'element-c', anchorId: 'left' },
+        { id: 'j', kind: 'node', x: 80, y: 64 },
+      ],
+      edges: [
+        { id: 'a-j', sourceNodeId: 'a', targetNodeId: 'j' },
+        { id: 'j-b', sourceNodeId: 'j', targetNodeId: 'b' },
+        { id: 'j-c', sourceNodeId: 'j', targetNodeId: 'c' },
+      ],
+    }
+    const copied = copyConnectionsWithinSelection(
+      [branched],
+      new Set(['element-a', 'element-b']),
+      new Set(),
+    )
+
+    expect(copied[0].edges.map((edge) => edge.id).sort()).toEqual(['a-j', 'j-b'])
+    expect(copied[0].nodes.some((node) => node.kind === 'node')).toBe(true)
+
+    let id = 0
+    const instantiated = instantiateCopiedConnections(
+      copied,
+      'diagram-copy',
+      new Map([['element-a', 'element-a-copy'], ['element-b', 'element-b-copy']]),
+      new Map(),
+      (prefix) => `${prefix}-${++id}`,
+      new Map(),
+      { x: 16, y: 24 },
+    )
+    expect(instantiated[0].nodes.find((node) => node.kind === 'node'))
+      .toMatchObject({ x: 96, y: 88 })
+    expect(instantiated[0].edges).toHaveLength(2)
+  })
+
+  it('copies monitoring configuration and generic border visibility with fresh metric IDs', () => {
     const source: DiagramElement = {
       id: 'source-element',
       diagramId: 'diagram-a',
-      assetKey: 'chwp',
-      name: 'CHWP',
+      assetKey: 'generic',
+      name: '通用图元',
       x: 0,
       y: 0,
-      width: 80,
-      height: 40,
+      width: 96,
+      height: 48,
       rotation: 0,
       monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
       monitorMetrics: [{
         id: 'source-temperature',
         name: '出水温度',
@@ -160,7 +236,7 @@ describe('selection clipboard topology', () => {
         simulationMax: 100,
         alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
       }],
-      properties: { tag: 'CHWP-01' },
+      properties: { tag: 'GEN-01', genericBorderVisible: false },
       extensions: {},
     }
     const copy = instantiateCopiedElement(source, {
@@ -174,11 +250,13 @@ describe('selection clipboard topology', () => {
       id: 'copy-element',
       diagramId: 'diagram-b',
       monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
       monitorMetrics: [{
         id: 'monitor-metric-copy',
         name: '出水温度',
         alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
       }],
+      properties: { tag: 'GEN-01', genericBorderVisible: false },
     })
     expect(copy.monitorMetrics?.[0]).not.toBe(source.monitorMetrics?.[0])
     const copiedMetric = copy.monitorMetrics?.[0]

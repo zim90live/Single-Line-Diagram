@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>两通电动阀工程图例</title>
+  <desc>蝴蝶结阀体加上方执行机构；中性状态只表达设备类型，不声明实时开度。</desc>
+  <g stroke="#777777" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 38H14" />
+    <path d="M50 38H64" />
+    <path d="M14 24V52L32 38L14 24Z" />
+    <path d="M50 24V52L32 38L50 24Z" />
+    <path d="M32 24V16" />
+    <rect x="21" y="2" width="22" height="14" rx="2" />
+    <path d="M27 9H37" stroke-width="1.5" />
+  </g>
+</svg>

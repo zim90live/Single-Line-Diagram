@@ -30,6 +30,15 @@
   --focus: #e5e7e1;
   --cooling: #77b4bf;
   --cooling-soft: rgba(78, 145, 157, 0.16);
+  --cooling-primary-cold: #ffc800;
+  --cooling-primary-hot: #ff6011;
+  --cooling-secondary-cold: #0084ff;
+  --cooling-secondary-hot: #00f074;
+  --connection-cooling-pipe-width: 2px;
+  --connection-cooling-pipe-shell-width: 10px;
+  --connection-cooling-pipe-shell-color: #262626;
+  --connection-cooling-pipe-bridge-mask-width: 18px;
+  --connection-cooling-pipe-hit-width: 16px;
   --electrical: #d5b96f;
   --electrical-soft: rgba(181, 143, 65, 0.16);
   --error: #df816f;
