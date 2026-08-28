@@ -148,5 +148,31 @@ test('pans the dense POD through the imperative viewport path', async ({ page })
   )).toBeGreaterThan(renderRevisionBefore)
   expect(Number(await stage.getAttribute('data-canvas-render-revision')) - renderRevisionBefore)
     .toBeLessThanOrEqual(4)
+
+  const trackpadTransformBefore = await world.getAttribute('transform')
+  const trackpadRenderRevisionBefore = Number(
+    await stage.getAttribute('data-canvas-render-revision'),
+  )
+  for (let index = 0; index < 12; index += 1) {
+    await canvas.dispatchEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: start.x,
+      clientY: start.y,
+      deltaMode: 0,
+      deltaX: 3.25,
+      deltaY: Math.sin(index / 3) * 1.5,
+    })
+  }
+  await expect.poll(() => world.getAttribute('transform')).not.toBe(trackpadTransformBefore)
+  expect(Number(await stage.getAttribute('data-canvas-render-revision')))
+    .toBe(trackpadRenderRevisionBefore)
+  await expect.poll(async () => (
+    Number(await stage.getAttribute('data-canvas-render-revision'))
+  )).toBeGreaterThan(trackpadRenderRevisionBefore)
+  expect(
+    Number(await stage.getAttribute('data-canvas-render-revision')) -
+      trackpadRenderRevisionBefore,
+  ).toBeLessThanOrEqual(2)
   await expect(saveStatus).toHaveText(saveStatusBefore ?? '')
 })

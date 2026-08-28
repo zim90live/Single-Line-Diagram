@@ -219,6 +219,56 @@ test('keeps zoom and pan as unsaved session-only view state', async ({ page }) =
   await expect(zoomReadout).not.toHaveText('120%')
   await expect(savedStatus).toBeVisible()
 
+  const beforeTrackpadPanX = Number(await stage.getAttribute('data-grid-translation-x'))
+  const beforeTrackpadPanY = Number(await stage.getAttribute('data-grid-translation-y'))
+  await canvas.dispatchEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    clientX: center.x,
+    clientY: center.y,
+    deltaMode: 0,
+    deltaX: 18.5,
+    deltaY: -11.25,
+  })
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-x')))
+    .toBeCloseTo(beforeTrackpadPanX - 18.5, 6)
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-y')))
+    .toBeCloseTo(beforeTrackpadPanY + 11.25, 6)
+  await expect(savedStatus).toBeVisible()
+
+  const pinchViewportBefore = await stage.evaluate((element) => ({
+    zoom: Number(element.dataset.gridZoom),
+    tx: Number(element.dataset.gridTranslationX),
+    ty: Number(element.dataset.gridTranslationY),
+  }))
+  const pinchPoint = { x: center.x - canvasBox.x, y: center.y - canvasBox.y }
+  const worldUnderPinchBefore = {
+    x: (pinchPoint.x - pinchViewportBefore.tx) / pinchViewportBefore.zoom,
+    y: (pinchPoint.y - pinchViewportBefore.ty) / pinchViewportBefore.zoom,
+  }
+  await canvas.dispatchEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    clientX: center.x,
+    clientY: center.y,
+    ctrlKey: true,
+    deltaMode: 0,
+    deltaX: 0,
+    deltaY: -18,
+  })
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom')))
+    .toBeGreaterThan(pinchViewportBefore.zoom)
+  const pinchViewportAfter = await stage.evaluate((element) => ({
+    zoom: Number(element.dataset.gridZoom),
+    tx: Number(element.dataset.gridTranslationX),
+    ty: Number(element.dataset.gridTranslationY),
+  }))
+  expect((pinchPoint.x - pinchViewportAfter.tx) / pinchViewportAfter.zoom)
+    .toBeCloseTo(worldUnderPinchBefore.x, 6)
+  expect((pinchPoint.y - pinchViewportAfter.ty) / pinchViewportAfter.zoom)
+    .toBeCloseTo(worldUnderPinchBefore.y, 6)
+  await expect(savedStatus).toBeVisible()
+
   const beforePanX = Number(await stage.getAttribute('data-grid-translation-x'))
   await page.mouse.move(center.x, center.y)
   await page.mouse.down({ button: 'middle' })
@@ -227,6 +277,55 @@ test('keeps zoom and pan as unsaved session-only view state', async ({ page }) =
   await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-x')))
     .not.toBe(beforePanX)
   await expect(savedStatus).toBeVisible()
+
+  const beforeSpacePanX = Number(await stage.getAttribute('data-grid-translation-x'))
+  const beforeSpacePanY = Number(await stage.getAttribute('data-grid-translation-y'))
+  await page.mouse.move(center.x, center.y)
+  await page.keyboard.down('Space')
+  await expect(canvas).toHaveAttribute('data-pan-ready', 'true')
+  await expect(canvas).toHaveCSS('cursor', 'grab')
+  await page.mouse.down({ button: 'left' })
+  await expect(canvas).toHaveAttribute('data-panning', 'true')
+  await page.mouse.move(center.x + 72, center.y + 48)
+  await page.mouse.up({ button: 'left' })
+  await expect(canvas).not.toHaveAttribute('data-panning')
+  await expect(canvas).toHaveAttribute('data-pan-ready', 'true')
+  await page.keyboard.up('Space')
+  await expect(canvas).not.toHaveAttribute('data-pan-ready')
+  await expect.poll(async () => ({
+    x: Number(await stage.getAttribute('data-grid-translation-x')),
+    y: Number(await stage.getAttribute('data-grid-translation-y')),
+  })).toEqual({ x: beforeSpacePanX + 72, y: beforeSpacePanY + 48 })
+  await expect(page.locator('.selection-marquee')).toHaveCount(0)
+  await expect(savedStatus).toBeVisible()
+
+  await page.getByRole('tab', { name: '监控模式' }).click()
+  const monitorCanvas = page.getByLabel('一次接线图监控画布')
+  const monitorCanvasBox = await monitorCanvas.boundingBox()
+  if (!monitorCanvasBox) throw new Error('无法读取监控画布尺寸')
+  const monitorCenter = {
+    x: monitorCanvasBox.x + monitorCanvasBox.width / 2,
+    y: monitorCanvasBox.y + monitorCanvasBox.height / 2,
+  }
+  const beforeMonitorPanX = Number(await stage.getAttribute('data-grid-translation-x'))
+  await page.mouse.move(monitorCenter.x, monitorCenter.y)
+  await page.keyboard.down('Space')
+  await page.mouse.down({ button: 'left' })
+  await page.mouse.move(monitorCenter.x - 32, monitorCenter.y + 16)
+  await page.mouse.up({ button: 'left' })
+  await page.keyboard.up('Space')
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-translation-x')))
+    .toBe(beforeMonitorPanX - 32)
+  await expect(savedStatus).toBeVisible()
+
+  await page.getByRole('tab', { name: '编辑模式' }).click()
+  const projectNameInput = page.getByLabel('项目名称')
+  const projectNameBeforeSpace = await projectNameInput.inputValue()
+  await projectNameInput.focus()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Space')
+  await expect(projectNameInput).toHaveValue(`${projectNameBeforeSpace} `)
+  await expect(canvas).not.toHaveAttribute('data-pan-ready')
 })
 
 test('starts a new connection by double-clicking a node', async ({ page }) => {
@@ -996,11 +1095,14 @@ test('switches to monitor mode, locks editing, and exports the Switch state', as
   await page.getByRole('tab', { name: '监控模式' }).click()
   await expect(page.getByLabel('一次接线图监控画布')).toBeVisible()
   await expect(page.locator('.symbol-section')).toHaveCount(0)
-  await expect(page.locator('.properties-panel')).toHaveCount(0)
+  await expect(page.locator('.monitor-properties-panel')).toBeVisible()
   await expect(page.getByLabel('项目名称')).toBeDisabled()
 
   await expect(image).toHaveAttribute('data-symbol-state', 'on')
   await image.click()
+  const monitorStateToggle = page.getByRole('switch', { name: '开关状态' })
+  await expect(monitorStateToggle).toHaveAttribute('aria-checked', 'true')
+  await monitorStateToggle.click()
   await expect(image).toHaveAttribute('data-symbol-state', 'off')
   await expect(image).toHaveAttribute('data-symbol-color', offColor)
 
@@ -1011,7 +1113,7 @@ test('switches to monitor mode, locks editing, and exports the Switch state', as
   await expect(page.getByRole('button', { name: '暂停流动' })).toBeVisible()
   await expect(page.getByText('正在显示水泵闭合回路运行流向')).toBeVisible()
 
-  await image.click()
+  await monitorStateToggle.click()
   await expect(image).toHaveAttribute('data-symbol-state', 'on')
   const downloadPromise = page.waitForEvent('download')
     await page.getByRole('button', { name: '导出', exact: true }).click()

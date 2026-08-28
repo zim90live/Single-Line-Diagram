@@ -783,8 +783,14 @@ button:focus-visible,
   touch-action: none;
 }
 
-.diagram-viewport[data-panning='true'] {
-  cursor: grabbing;
+.diagram-viewport[data-pan-ready='true'],
+.diagram-viewport[data-pan-ready='true'] * {
+  cursor: grab !important;
+}
+
+.diagram-viewport[data-panning='true'],
+.diagram-viewport[data-panning='true'] * {
+  cursor: grabbing !important;
 }
 
 .diagram-viewport:focus {

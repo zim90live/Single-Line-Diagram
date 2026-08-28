@@ -13,7 +13,6 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
-  type WheelEvent,
 } from 'react'
 
 import type {
@@ -132,6 +131,11 @@ import {
 } from './geometry'
 import { GridSurface, type GridRenderState } from './GridSurface'
 import { GRID_PRESENTATION, getAdaptiveGridScale } from './gridScale'
+import {
+  inferWheelGestureKind,
+  pinchZoomFactor,
+  type WheelGestureKind,
+} from './wheelGestures'
 import {
   elementDeviceIdentifier,
   labelPlacementForPointer,
@@ -842,6 +846,7 @@ interface RouteSegmentDragPreview {
 type Interaction =
   | {
       kind: 'pan'
+      trigger: 'middle' | 'space-left'
       pointerId: number
       startClient: Point
       startViewport: DiagramViewport
@@ -980,6 +985,7 @@ const DEFAULT_BUSBAR_LENGTH = 160
 const NETWORK_SELECTION_PREFIX = 'network:'
 const MULTI_CONNECTION_SELECTION_PREFIX = 'edges:'
 const NUDGE_COMMIT_DELAY_MS = 120
+const WHEEL_GESTURE_END_DELAY_MS = 160
 const RENDER_CULLING_OBJECT_THRESHOLD = 180
 const RENDER_OVERSCAN_SCREEN_PX = 160
 const PAN_CULLING_SYNC_SCREEN_DISTANCE = 120
@@ -1462,6 +1468,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const clipboardRef = useRef<DiagramSelectionClipboard>(createEmptySelectionClipboard())
     const pasteCountRef = useRef(0)
     const interactionRef = useRef<Interaction | null>(null)
+    const spacePanHeldRef = useRef(false)
+    const finishSpacePanRef = useRef<() => void>(() => undefined)
+    const wheelHandlerRef = useRef<(event: globalThis.WheelEvent) => void>(() => undefined)
+    const wheelGestureRef = useRef<{
+      kind: WheelGestureKind | null
+      panTarget: DiagramViewport | null
+    }>({ kind: null, panTarget: null })
+    const finishWheelGestureRef = useRef<() => void>(() => undefined)
     const lastJunctionPressRef = useRef<{
       junctionId: string
       timeStamp: number
@@ -1602,6 +1616,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       (handle) => window.clearTimeout(handle),
       NUDGE_COMMIT_DELAY_MS,
       () => nudgeCommitRef.current(),
+    ), [])
+    const wheelGestureEndScheduler = useMemo(() => createTrailingScheduler(
+      (callback, delay) => window.setTimeout(callback, delay),
+      (handle) => window.clearTimeout(handle),
+      WHEEL_GESTURE_END_DELAY_MS,
+      () => finishWheelGestureRef.current(),
     ), [])
     const canvasSize = useElementSize(viewportElementRef)
     const gridScale = getAdaptiveGridScale(gridSize, viewportValue.zoom)
@@ -2170,6 +2190,93 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       lastPanReactViewportRef.current = currentViewport
       setViewportValue(currentViewport)
     }
+
+    finishWheelGestureRef.current = () => {
+      const gesture = wheelGestureRef.current
+      if (gesture.kind === 'trackpad-pan') flushPanViewport()
+      gesture.kind = null
+      gesture.panTarget = null
+    }
+
+    finishSpacePanRef.current = () => {
+      const interaction = interactionRef.current
+      if (interaction?.kind !== 'pan' || interaction.trigger !== 'space-left') return
+      flushPanViewport()
+      interactionRef.current = null
+      const viewportElement = viewportElementRef.current
+      delete viewportElement?.dataset.panning
+      if (viewportElement?.hasPointerCapture(interaction.pointerId)) {
+        viewportElement.releasePointerCapture(interaction.pointerId)
+      }
+    }
+
+    useEffect(() => {
+      const keyboardContextIsCanvas = () => {
+        const viewportElement = viewportElementRef.current
+        if (!viewportElement) return false
+        const activeElement = document.activeElement
+        return viewportElement.matches(':hover') ||
+          activeElement === viewportElement ||
+          (activeElement instanceof Node && viewportElement.contains(activeElement))
+      }
+      const textEntryTargetOwnsSpace = (target: EventTarget | null) => {
+        if (!(target instanceof HTMLElement)) return false
+        return target.isContentEditable || target.matches('input, textarea, select')
+      }
+      const setSpacePanReady = (ready: boolean) => {
+        spacePanHeldRef.current = ready
+        const viewportElement = viewportElementRef.current
+        if (!viewportElement) return
+        if (ready) viewportElement.dataset.panReady = 'true'
+        else delete viewportElement.dataset.panReady
+      }
+      const handleWindowKeyDown = (event: globalThis.KeyboardEvent) => {
+        if (
+          event.code !== 'Space' ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.altKey ||
+          textEntryTargetOwnsSpace(event.target) ||
+          !keyboardContextIsCanvas()
+        ) return
+        event.preventDefault()
+        if (event.repeat || spacePanHeldRef.current) return
+        if (interactionRef.current && interactionRef.current.kind !== 'pan') return
+        setSpacePanReady(true)
+      }
+      const handleWindowKeyUp = (event: globalThis.KeyboardEvent) => {
+        if (event.code !== 'Space' || !spacePanHeldRef.current) return
+        event.preventDefault()
+        setSpacePanReady(false)
+        finishSpacePanRef.current()
+      }
+      const handleWindowBlur = () => {
+        if (!spacePanHeldRef.current) return
+        setSpacePanReady(false)
+        finishSpacePanRef.current()
+      }
+
+      window.addEventListener('keydown', handleWindowKeyDown)
+      window.addEventListener('keyup', handleWindowKeyUp)
+      window.addEventListener('blur', handleWindowBlur)
+      return () => {
+        window.removeEventListener('keydown', handleWindowKeyDown)
+        window.removeEventListener('keyup', handleWindowKeyUp)
+        window.removeEventListener('blur', handleWindowBlur)
+        spacePanHeldRef.current = false
+        const viewportElement = viewportElementRef.current
+        delete viewportElement?.dataset.panReady
+        delete viewportElement?.dataset.panning
+      }
+    }, [])
+
+    useEffect(() => {
+      const viewportElement = viewportElementRef.current
+      if (!viewportElement) return
+      const handleWheel = (event: globalThis.WheelEvent) => wheelHandlerRef.current(event)
+      viewportElement.addEventListener('wheel', handleWheel, { passive: false })
+      return () => viewportElement.removeEventListener('wheel', handleWheel)
+    }, [])
 
     const clientPoint = (clientX: number, clientY: number): Point => {
       const rect = viewportElementRef.current?.getBoundingClientRect()
@@ -4362,12 +4469,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     useEffect(() => {
       viewportFrameScheduler.cancel()
       panViewportFrameScheduler.cancel()
+      wheelGestureEndScheduler.cancel()
       pendingPanViewportRef.current = null
+      wheelGestureRef.current = { kind: null, panTarget: null }
       viewportValueRef.current = viewport
       reportedZoomRef.current = viewport.zoom
       lastPanReactViewportRef.current = viewport
       setViewportValue(viewport)
-    }, [panViewportFrameScheduler, viewport, viewportFrameScheduler])
+    }, [panViewportFrameScheduler, viewport, viewportFrameScheduler, wheelGestureEndScheduler])
 
     useEffect(() => {
       committedElementsRef.current = elements
@@ -4433,12 +4542,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       nudgeCommitScheduler.cancel()
       panViewportFrameScheduler.cancel()
       viewportFrameScheduler.cancel()
+      wheelGestureEndScheduler.cancel()
       pendingPanViewportRef.current = null
     }, [
       diagramPreviewScheduler,
       nudgeCommitScheduler,
       panViewportFrameScheduler,
       viewportFrameScheduler,
+      wheelGestureEndScheduler,
       wiringPointerScheduler,
     ])
 
@@ -4859,18 +4970,37 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       event.currentTarget.setPointerCapture(event.pointerId)
     }
 
+    const startPanInteraction = (
+      event: PointerEvent<HTMLDivElement>,
+      trigger: 'middle' | 'space-left',
+    ) => {
+      if (interactionRef.current) return false
+      wheelGestureEndScheduler.cancel()
+      finishWheelGestureRef.current()
+      event.preventDefault()
+      viewportElementRef.current?.focus()
+      interactionRef.current = {
+        kind: 'pan',
+        trigger,
+        pointerId: event.pointerId,
+        startClient: { x: event.clientX, y: event.clientY },
+        startViewport: viewportValueRef.current,
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      event.currentTarget.dataset.panning = 'true'
+      return true
+    }
+
+    const handlePointerDownCapture = (event: PointerEvent<HTMLDivElement>) => {
+      flushPendingNudge()
+      if (event.button !== 0 || !spacePanHeldRef.current) return
+      if (startPanInteraction(event, 'space-left')) event.stopPropagation()
+    }
+
     const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
       viewportElementRef.current?.focus()
       if (event.button === 1) {
-        event.preventDefault()
-        interactionRef.current = {
-          kind: 'pan',
-          pointerId: event.pointerId,
-          startClient: { x: event.clientX, y: event.clientY },
-          startViewport: viewportValueRef.current,
-        }
-        event.currentTarget.setPointerCapture(event.pointerId)
-        event.currentTarget.dataset.panning = 'true'
+        startPanInteraction(event, 'middle')
         return
       }
       if (mode === 'monitor') {
@@ -5775,14 +5905,45 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       setMarquee(null)
     }
 
-    const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const handleWheel = (event: globalThis.WheelEvent) => {
       event.preventDefault()
-      const direction = event.deltaY < 0 ? 1.12 : 1 / 1.12
-      const nextZoom = clampZoom(viewportValueRef.current.zoom * direction)
+      if (event.deltaX === 0 && event.deltaY === 0) return
+
+      const inferredKind = inferWheelGestureKind(event)
+      const gesture = wheelGestureRef.current
+      const changesPinchMode = gesture.kind !== null &&
+        (gesture.kind === 'pinch-zoom') !== (inferredKind === 'pinch-zoom')
+      const gainsHorizontalTrackpadSignal = gesture.kind === 'mouse-zoom' &&
+        inferredKind === 'trackpad-pan' && event.deltaX !== 0
+      if (changesPinchMode || gainsHorizontalTrackpadSignal) {
+        wheelGestureEndScheduler.cancel()
+        finishWheelGestureRef.current()
+      }
+      if (!gesture.kind) gesture.kind = inferredKind
+      wheelGestureEndScheduler.schedule()
+
+      if (gesture.kind === 'trackpad-pan') {
+        const baseViewport = gesture.panTarget ?? viewportValueRef.current
+        const nextViewport = {
+          ...baseViewport,
+          tx: baseViewport.tx - event.deltaX,
+          ty: baseViewport.ty - event.deltaY,
+        }
+        gesture.panTarget = nextViewport
+        schedulePanViewport(nextViewport)
+        return
+      }
+
+      const currentViewport = viewportValueRef.current
+      const zoomFactor = gesture.kind === 'pinch-zoom'
+        ? pinchZoomFactor(event.deltaY)
+        : event.deltaY < 0 ? 1.12 : 1 / 1.12
+      const nextZoom = clampZoom(currentViewport.zoom * zoomFactor)
       applyViewport(
-        zoomAroundPoint(viewportValueRef.current, clientPoint(event.clientX, event.clientY), nextZoom),
+        zoomAroundPoint(currentViewport, clientPoint(event.clientX, event.clientY), nextZoom),
       )
     }
+    wheelHandlerRef.current = handleWheel
 
     const nudgeSelection = (x: number, y: number) => {
       const selected = new Set(selectedIdsRef.current)
@@ -6162,10 +6323,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           onKeyUp={handleKeyUp}
           onPointerCancel={cancelInteraction}
           onPointerDown={handlePointerDown}
-          onPointerDownCapture={flushPendingNudge}
+          onPointerDownCapture={handlePointerDownCapture}
           onPointerMove={handlePointerMove}
           onPointerUp={finishInteraction}
-          onWheel={handleWheel}
         >
           <Canvas
             className="grid-webgl"
