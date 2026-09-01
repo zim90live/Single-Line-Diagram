@@ -153,12 +153,34 @@ describe('monitor static flow lines', () => {
       { kind: 'connection', lineWidth: 1.5, widthSpace: 'screen' },
     ])
   })
+
+  it('draws primary cooling lines after auxiliary lines on shared geometry', () => {
+    const groups = buildMonitorStaticFlowLineGroups([{
+      id: 'primary',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+      worldWidth: 2,
+      baseColor: '#FFC800',
+      renderPriority: 1,
+    }, {
+      id: 'auxiliary',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+      worldWidth: 1,
+      baseColor: '#8D8459',
+      renderPriority: 0,
+    }], [])
+
+    expect(groups.map(({ color, lineWidth }) => ({ color, lineWidth }))).toEqual([
+      { color: '#8D8459', lineWidth: 1 },
+      { color: '#FFC800', lineWidth: 2 },
+    ])
+  })
 })
 
 describe('inactive monitor flow paths', () => {
   it('subtracts an active interval from the middle of one physical segment', () => {
     const inactive = deriveInactiveFlowPaths([{
       id: 'displayed',
+      connectionEdgeId: 'edge-1',
       points: [{ x: 0, y: 0 }, { x: 24, y: 0 }],
       worldWidth: 2,
       style: 'cooling',
@@ -172,6 +194,7 @@ describe('inactive monitor flow paths', () => {
     expect(inactive).toEqual([
       {
         id: 'inactive:displayed:0',
+        connectionEdgeId: 'edge-1',
         points: [{ x: 0, y: 0 }, { x: 8, y: 0 }],
         screenWidth: undefined,
         worldWidth: 2,
@@ -180,6 +203,7 @@ describe('inactive monitor flow paths', () => {
       },
       {
         id: 'inactive:displayed:1',
+        connectionEdgeId: 'edge-1',
         points: [{ x: 16, y: 0 }, { x: 24, y: 0 }],
         screenWidth: undefined,
         worldWidth: 2,

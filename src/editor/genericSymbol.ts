@@ -7,6 +7,8 @@ export const GENERIC_SYMBOL_MIN_WIDTH = 32
 export const GENERIC_SYMBOL_MIN_HEIGHT = 24
 export const GENERIC_SYMBOL_TAG_FONT_SIZE = 10
 export const GENERIC_SYMBOL_TAG_HORIZONTAL_PADDING = 12
+export const GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR = '#121316'
+export const GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY = 'genericBackgroundColor'
 
 function snapDimension(value: number, minimum: number, gridSize: number) {
   return Math.max(minimum, Math.round(value / gridSize) * gridSize)
@@ -14,6 +16,18 @@ function snapDimension(value: number, minimum: number, gridSize: number) {
 
 export function isGenericSymbolKey(assetKey: string) {
   return assetKey === GENERIC_SYMBOL_KEY
+}
+
+export function normalizeGenericSymbolBackgroundColor(value: unknown) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+    ? value.toUpperCase()
+    : GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR
+}
+
+export function resolvedGenericSymbolBackgroundColor(element: DiagramElement) {
+  return normalizeGenericSymbolBackgroundColor(
+    element.properties[GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY],
+  )
 }
 
 export function getSnappedGenericSymbolSize(

@@ -194,11 +194,42 @@ export function insetDraggedRouteSegmentFromElementAnchors(
 function adjacentRouteCoordinates(
   segment: DraggableRouteSegment,
   routedEdges: RoutedConnectionEdge[],
+  networks: ConnectionNetwork[] = [],
 ) {
   const baseCoordinate = segment.orientation === 'horizontal'
     ? segment.start.y
     : segment.start.x
   const participantEdgeIds = new Set(segment.edgeIds)
+  if (networks.length) {
+    const routesByEdgeId = new Map(routedEdges.map((route) => [route.edgeId, route]))
+    networks.forEach((network) => {
+      const edgesById = new Map(network.edges.map((edge) => [edge.id, edge]))
+      const adjacentNodeIds = new Set<string>()
+      const logicalConnectionIds = new Set<string>()
+      segment.edgeIds.forEach((edgeId) => {
+        const edge = edgesById.get(edgeId)
+        const route = routesByEdgeId.get(edgeId)
+        if (!edge || !route || !edge.logicalConnectionId) return
+        logicalConnectionIds.add(edge.logicalConnectionId)
+        const first = route.points[0]
+        const last = route.points.at(-1)
+        if (first && (pointsEqual(segment.start, first) || pointsEqual(segment.end, first))) {
+          adjacentNodeIds.add(edge.sourceNodeId)
+        }
+        if (last && (pointsEqual(segment.start, last) || pointsEqual(segment.end, last))) {
+          adjacentNodeIds.add(edge.targetNodeId)
+        }
+      })
+      if (!adjacentNodeIds.size || !logicalConnectionIds.size) return
+      network.edges.forEach((edge) => {
+        if (
+          edge.logicalConnectionId &&
+          logicalConnectionIds.has(edge.logicalConnectionId) &&
+          (adjacentNodeIds.has(edge.sourceNodeId) || adjacentNodeIds.has(edge.targetNodeId))
+        ) participantEdgeIds.add(edge.id)
+      })
+    })
+  }
   const coordinates = new Set(routedEdges.flatMap((route) => (
     participantEdgeIds.has(route.edgeId)
       ? route.points.map((point) => (
@@ -214,12 +245,13 @@ export function draggedRouteSegmentAlignsWithExistingRoute(
   segment: DraggableRouteSegment,
   routedEdges: RoutedConnectionEdge[],
   delta: number,
+  networks: ConnectionNetwork[] = [],
 ) {
   const baseCoordinate = segment.orientation === 'horizontal'
     ? segment.start.y
     : segment.start.x
   const targetCoordinate = baseCoordinate + delta
-  return [...adjacentRouteCoordinates(segment, routedEdges)].some((coordinate) => (
+  return [...adjacentRouteCoordinates(segment, routedEdges, networks)].some((coordinate) => (
     Math.abs(coordinate - targetCoordinate) < EPSILON
   ))
 }
@@ -229,13 +261,14 @@ export function snapDraggedRouteSegmentDelta(
   routedEdges: RoutedConnectionEdge[],
   rawDelta: number,
   gridSize: number,
+  networks: ConnectionNetwork[] = [],
 ) {
   const baseCoordinate = segment.orientation === 'horizontal'
     ? segment.start.y
     : segment.start.x
   const rawCoordinate = baseCoordinate + rawDelta
   const gridCoordinate = baseCoordinate + snap(rawDelta, gridSize)
-  const candidateCoordinates = adjacentRouteCoordinates(segment, routedEdges)
+  const candidateCoordinates = adjacentRouteCoordinates(segment, routedEdges, networks)
 
   let snappedCoordinate = gridCoordinate
   let snappedDistance = Math.abs(gridCoordinate - rawCoordinate)
@@ -422,6 +455,29 @@ function sharedWaypointAt(
   }) ?? null
 }
 
+function sharedFreeEndpointAt(
+  edgeIds: string[],
+  networks: ConnectionNetwork[],
+  routesByEdgeId: Map<string, RoutedConnectionEdge>,
+  point: Point,
+) {
+  const nodesById = new Map(networks.flatMap((network) => (
+    network.nodes.map((node) => [node.id, node] as const)
+  )))
+  const endpointIds = edgeIds.flatMap((edgeId) => {
+    const route = routesByEdgeId.get(edgeId)
+    if (!route) return []
+    if (pointsEqual(route.points[0], point)) return [route.sourceNodeId]
+    if (pointsEqual(route.points.at(-1)!, point)) return [route.targetNodeId]
+    return []
+  })
+  if (endpointIds.length !== edgeIds.length) return null
+  const id = endpointIds[0]
+  return endpointIds.every((candidate) => candidate === id) && nodesById.get(id)?.kind === 'node'
+    ? id
+    : null
+}
+
 type IdFactory = (prefix: string) => string
 
 const defaultIdFactory: IdFactory = (prefix) => `${prefix}-${crypto.randomUUID()}`
@@ -436,18 +492,19 @@ export function applyDraggedRouteSegment(
   createId: IdFactory = defaultIdFactory,
 ) {
   const waypointsById = new Map(routeWaypoints.map((waypoint) => [waypoint.id, waypoint]))
+  const routesByEdgeId = new Map(routedEdges.map((route) => [route.edgeId, route]))
   const existingStartId = sharedWaypointAt(
     segment.edgeIds,
     networks,
     waypointsById,
     segment.start,
-  )
+  ) ?? sharedFreeEndpointAt(segment.edgeIds, networks, routesByEdgeId, segment.start)
   const existingEndId = sharedWaypointAt(
     segment.edgeIds,
     networks,
     waypointsById,
     segment.end,
-  )
+  ) ?? sharedFreeEndpointAt(segment.edgeIds, networks, routesByEdgeId, segment.end)
   const startId = existingStartId ?? createId('route-waypoint')
   const endId = existingEndId && existingEndId !== startId
     ? existingEndId
@@ -461,8 +518,11 @@ export function applyDraggedRouteSegment(
   if (!existingEndId || existingEndId === startId) nextWaypoints.push({ id: endId, ...nextEnd })
 
   const nextWaypointById = new Map(nextWaypoints.map((waypoint) => [waypoint.id, waypoint]))
+  const movedPointsById = new Map<string, Point>([
+    [startId, nextStart],
+    [endId, nextEnd],
+  ])
   const participantIds = new Set(segment.edgeIds)
-  const routesByEdgeId = new Map(routedEdges.map((route) => [route.edgeId, route]))
   const nextNetworks = networks.map((network) => {
     const edges = network.edges.map((edge) => {
       if (!participantIds.has(edge.id)) return edge
@@ -474,7 +534,10 @@ export function applyDraggedRouteSegment(
       const insertedIds = startDistance <= endDistance
         ? [startId, endId]
         : [endId, startId]
-      const allIds = [...new Set([...(edge.routeNodeIds ?? []), ...insertedIds])]
+      const allIds = [...new Set([
+        ...(edge.routeNodeIds ?? []),
+        ...insertedIds.filter((id) => id !== edge.sourceNodeId && id !== edge.targetNodeId),
+      ])]
       const routeNodeIds = allIds.sort((leftId, rightId) => {
         const insertedDistance = (id: string) => {
           if (id === startId) return startDistance
@@ -488,12 +551,16 @@ export function applyDraggedRouteSegment(
         return (leftDistance ?? Number.MAX_SAFE_INTEGER) -
           (rightDistance ?? Number.MAX_SAFE_INTEGER)
       })
-      return { ...edge, routeNodeIds }
+      if (routeNodeIds.length) return { ...edge, routeNodeIds }
+      const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteNodes } = edge
+      return edgeWithoutRouteNodes
     })
-    const referencedIds = new Set(edges.flatMap((edge) => edge.routeNodeIds ?? []))
+    const referencedIds = new Set(edges.flatMap((edge) => (
+      'routeNodeIds' in edge ? edge.routeNodeIds ?? [] : []
+    )))
     const existingIds = new Set(network.nodes.map((node) => node.id))
     const nodes = network.nodes.map((node) => {
-      const point = nextWaypointById.get(node.id)
+      const point = movedPointsById.get(node.id) ?? nextWaypointById.get(node.id)
       return node.kind === 'node' && point
         ? { ...node, x: point.x, y: point.y }
         : node

@@ -37,6 +37,15 @@
   --connection-cooling-pipe-width: 2px;
   --connection-cooling-pipe-shell-width: 10px;
   --connection-cooling-pipe-shell-color: #262626;
+  --connection-cooling-auxiliary-neutral: #70736f;
+  --connection-cooling-auxiliary-color-weight: 20%;
+  --connection-cooling-auxiliary-pipe-width: 1px;
+  --connection-cooling-auxiliary-pipe-shell-width: 4px;
+  --connection-cooling-auxiliary-pipe-shell-color: #1d1f20;
+  --connection-cooling-auxiliary-pipe-inner-shadow-opacity: 20%;
+  --connection-cooling-auxiliary-pipe-bridge-mask-width: 12px;
+  --connection-cooling-selection-width: 6px;
+  --connection-cooling-selection-color: #b7b8b5;
   --connection-cooling-pipe-bridge-mask-width: 18px;
   --connection-cooling-pipe-hit-width: 16px;
   --electrical: #d5b96f;
@@ -47,6 +56,7 @@
   --alarm-critical: #e36f62;
   --alarm-major: #dc934f;
   --alarm-minor: #d8bf63;
+  --alarm-foreground: #000000;
   --success: #8eac94;
   --success-soft: rgba(142, 172, 148, 0.13);
   --border-default: rgba(235, 237, 232, 0.11);

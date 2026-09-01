@@ -1,4 +1,10 @@
-import type { Busbar, DiagramElement, DiagramViewport } from '../domain/project'
+import type {
+  Busbar,
+  ConnectionNetwork,
+  DiagramElement,
+  DiagramViewport,
+  RouteWaypoint,
+} from '../domain/project'
 
 export interface Point {
   x: number
@@ -10,6 +16,64 @@ export interface Rect {
   y: number
   width: number
   height: number
+}
+
+export interface DiagramObjectSelection {
+  elementIds: ReadonlySet<string>
+  busbarIds: ReadonlySet<string>
+  nodeIds: ReadonlySet<string>
+  routeWaypointIds: ReadonlySet<string>
+}
+
+export function translateDiagramSelection(
+  elements: DiagramElement[],
+  busbars: Busbar[],
+  connections: ConnectionNetwork[],
+  routeWaypoints: RouteWaypoint[],
+  selection: DiagramObjectSelection,
+  delta: Point,
+  gridSize?: number,
+) {
+  const translated = (value: number, offset: number) => (
+    gridSize === undefined ? value + offset : snap(value + offset, gridSize)
+  )
+  return {
+    elements: elements.map((element) => selection.elementIds.has(element.id)
+      ? {
+          ...element,
+          x: translated(element.x, delta.x),
+          y: translated(element.y, delta.y),
+        }
+      : element),
+    busbars: busbars.map((busbar) => selection.busbarIds.has(busbar.id)
+      ? {
+          ...busbar,
+          x: translated(busbar.x, delta.x),
+          y: translated(busbar.y, delta.y),
+        }
+      : busbar),
+    connections: connections.map((network) => ({
+      ...network,
+      nodes: network.nodes.map((node) => (
+        node.kind === 'node' && selection.nodeIds.has(node.id)
+          ? {
+              ...node,
+              x: translated(node.x, delta.x),
+              y: translated(node.y, delta.y),
+            }
+          : node
+      )),
+    })),
+    routeWaypoints: routeWaypoints.map((waypoint) => (
+      selection.routeWaypointIds.has(waypoint.id)
+        ? {
+            ...waypoint,
+            x: translated(waypoint.x, delta.x),
+            y: translated(waypoint.y, delta.y),
+          }
+        : waypoint
+    )),
+  }
 }
 
 export const MIN_ZOOM = 0.25
@@ -69,6 +133,19 @@ export function rotatePoint(point: Point, center: Point, degrees: number): Point
   return {
     x: center.x + dx * cosine - dy * sine,
     y: center.y + dx * sine + dy * cosine,
+  }
+}
+
+export function rotatePointOnGrid(
+  point: Point,
+  center: Point,
+  degrees: number,
+  gridSize: number,
+): Point {
+  const rotated = rotatePoint(point, center, degrees)
+  return {
+    x: snap(rotated.x, gridSize),
+    y: snap(rotated.y, gridSize),
   }
 }
 

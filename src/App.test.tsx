@@ -11,6 +11,7 @@ import { useAppStore } from './store/useAppStore'
 
 const insertBusbarMock = vi.fn()
 const duplicateMock = vi.fn()
+const toggleDirectLineToolMock = vi.fn()
 
 vi.mock('./editor/DiagramCanvas', () => ({
   DiagramCanvas: forwardRef(function MockDiagramCanvas(
@@ -29,6 +30,7 @@ vi.mock('./editor/DiagramCanvas', () => ({
       zoomIn: vi.fn(),
       zoomOut: vi.fn(),
       zoomReset: vi.fn(),
+      toggleDirectLineTool: toggleDirectLineToolMock,
       insertSymbol: vi.fn(),
       insertBusbar: insertBusbarMock,
       previewElementColor: vi.fn(),
@@ -83,6 +85,7 @@ describe('AIDC editor workspace', () => {
   beforeEach(() => {
     insertBusbarMock.mockClear()
     duplicateMock.mockClear()
+    toggleDirectLineToolMock.mockClear()
     const document = createDefaultProject('测试接线图', symbolAssets)
     useAppStore.setState({
       document,
@@ -101,6 +104,7 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByText('电力线路')).toBeInTheDocument()
     expect(screen.getByTestId('diagram-canvas')).toBeInTheDocument()
     expect(screen.getByText('CHWP')).toBeInTheDocument()
+    expect(screen.getByText('TMU')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '母线' })).toBeDisabled()
     expect(screen.getByText('点击颜色，替换当前画布中同类同色对象。')).toBeInTheDocument()
 
@@ -168,6 +172,18 @@ describe('AIDC editor workspace', () => {
     expect(busbarTool).toBeEnabled()
     await user.dblClick(busbarTool)
     expect(insertBusbarMock).toHaveBeenCalledOnce()
+  })
+
+  it('starts direct line drawing only from its explicit toolbar button', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    const tool = screen.getByRole('button', { name: '绘制线路' })
+    expect(tool).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(tool)
+
+    expect(toggleDirectLineToolMock).toHaveBeenCalledOnce()
   })
 
   it('drills into a child diagram and enables return navigation', async () => {

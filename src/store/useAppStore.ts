@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 
 import {
+  createChildDiagram,
+  moveDiagram as moveDiagramInHierarchy,
+  type DiagramDropPosition,
+  type DiagramHierarchyMutationResult,
+} from '../domain/diagramHierarchy'
+import {
   createDefaultProject,
   elementUsesOnOffState,
   getFirstDiagramId,
@@ -40,6 +46,13 @@ interface AppState {
     assetKey: string,
     configuration: Pick<AssetDefinition, 'anchors' | 'coolingDeviceRole'>,
   ) => void
+  createDiagram: (parentId: string) => DiagramHierarchyMutationResult
+  renameDiagram: (diagramId: string, name: string) => DiagramHierarchyMutationResult
+  moveDiagram: (
+    sourceId: string,
+    targetId: string,
+    position: DiagramDropPosition,
+  ) => DiagramHierarchyMutationResult
   renameProject: (name: string) => void
   markSaved: () => void
 }
@@ -229,6 +242,87 @@ export const useAppStore = create<AppState>((set) => ({
         dirty: true,
       }
     }),
+
+  createDiagram: (parentId) => {
+    let result: DiagramHierarchyMutationResult = {
+      ok: false,
+      changed: false,
+      message: '无法新增图纸',
+    }
+    set((state) => {
+      result = createChildDiagram(
+        state.document,
+        parentId,
+        `diagram-${crypto.randomUUID()}`,
+      )
+      if (!result.ok || !result.changed || !result.diagrams || !result.diagramId) return state
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          diagrams: result.diagrams!,
+        })),
+        currentDiagramId: result.diagramId,
+        selectedElementIds: [],
+        dirty: true,
+      }
+    })
+    return result
+  },
+
+  renameDiagram: (diagramId, name) => {
+    const nextName = name.trim()
+    if (!nextName) {
+      return { ok: false, changed: false, message: '图纸名称不能为空' }
+    }
+    if (nextName.length > 40) {
+      return { ok: false, changed: false, message: '图纸名称不能超过 40 个字符' }
+    }
+
+    let result: DiagramHierarchyMutationResult = {
+      ok: false,
+      changed: false,
+      message: '找不到要重命名的图纸',
+    }
+    set((state) => {
+      const diagram = state.document.diagrams.find((candidate) => candidate.id === diagramId)
+      if (!diagram) return state
+      if (diagram.name === nextName) {
+        result = { ok: true, changed: false, diagramId }
+        return state
+      }
+      result = { ok: true, changed: true, diagramId }
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          diagrams: document.diagrams.map((candidate) => (
+            candidate.id === diagramId ? { ...candidate, name: nextName } : candidate
+          )),
+        })),
+        dirty: true,
+      }
+    })
+    return result
+  },
+
+  moveDiagram: (sourceId, targetId, position) => {
+    let result: DiagramHierarchyMutationResult = {
+      ok: false,
+      changed: false,
+      message: '无法移动图纸',
+    }
+    set((state) => {
+      result = moveDiagramInHierarchy(state.document, sourceId, targetId, position)
+      if (!result.ok || !result.changed || !result.diagrams) return state
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          diagrams: result.diagrams!,
+        })),
+        dirty: true,
+      }
+    })
+    return result
+  },
 
   renameProject: (name) =>
     set((state) => ({

@@ -30,6 +30,18 @@ const network: ConnectionNetwork = {
       labelVisible: false,
       labelEndpoint: 'source',
       labelSide: 'positive',
+      monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
+      monitorMetrics: [{
+        id: 'current-original',
+        name: '电流',
+        valueType: 'number',
+        unit: 'A',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+      }],
     },
     { id: 'edge-b-c', sourceNodeId: 'tap-b', targetNodeId: 'node-c' },
   ],
@@ -138,7 +150,15 @@ describe('selection clipboard topology', () => {
       labelVisible: false,
       labelEndpoint: 'source',
       labelSide: 'positive',
+      monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
     }))
+    expect(instantiated[0].edges[0].monitorMetrics).toEqual([
+      expect.objectContaining({
+        id: expect.not.stringMatching(/^current-original$/),
+        name: '电流',
+      }),
+    ])
   })
 
   it('remaps manual route waypoint references when copying internal topology', () => {
@@ -184,8 +204,18 @@ describe('selection clipboard topology', () => {
         { id: 'j', kind: 'node', x: 80, y: 64 },
       ],
       edges: [
-        { id: 'a-j', sourceNodeId: 'a', targetNodeId: 'j' },
-        { id: 'j-b', sourceNodeId: 'j', targetNodeId: 'b' },
+        {
+          id: 'a-j',
+          sourceNodeId: 'a',
+          targetNodeId: 'j',
+          logicalConnectionId: 'trunk-logical-edge',
+        },
+        {
+          id: 'j-b',
+          sourceNodeId: 'j',
+          targetNodeId: 'b',
+          logicalConnectionId: 'trunk-logical-edge',
+        },
         { id: 'j-c', sourceNodeId: 'j', targetNodeId: 'c' },
       ],
     }
@@ -211,6 +241,8 @@ describe('selection clipboard topology', () => {
     expect(instantiated[0].nodes.find((node) => node.kind === 'node'))
       .toMatchObject({ x: 96, y: 88 })
     expect(instantiated[0].edges).toHaveLength(2)
+    expect(new Set(instantiated[0].edges.map((edge) => edge.logicalConnectionId)).size).toBe(1)
+    expect(instantiated[0].edges[0].logicalConnectionId).not.toBe('trunk-logical-edge')
   })
 
   it('copies monitoring configuration and generic border visibility with fresh metric IDs', () => {
@@ -236,7 +268,11 @@ describe('selection clipboard topology', () => {
         simulationMax: 100,
         alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
       }],
-      properties: { tag: 'GEN-01', genericBorderVisible: false },
+      properties: {
+        tag: 'GEN-01',
+        genericBorderVisible: false,
+        genericBackgroundColor: '#334455',
+      },
       extensions: {},
     }
     const copy = instantiateCopiedElement(source, {
@@ -256,7 +292,11 @@ describe('selection clipboard topology', () => {
         name: '出水温度',
         alarm: { mode: 'upper', minor: 60, major: 75, critical: 90 },
       }],
-      properties: { tag: 'GEN-01', genericBorderVisible: false },
+      properties: {
+        tag: 'GEN-01',
+        genericBorderVisible: false,
+        genericBackgroundColor: '#334455',
+      },
     })
     expect(copy.monitorMetrics?.[0]).not.toBe(source.monitorMetrics?.[0])
     const copiedMetric = copy.monitorMetrics?.[0]

@@ -42,6 +42,33 @@ describe('wheel gesture classification', () => {
     })).toBe('mouse-zoom')
   })
 
+  it('keeps macOS pixel-mode mouse-wheel ticks on zoom', () => {
+    expect(inferWheelGestureKind({
+      ctrlKey: false,
+      deltaMode: 0,
+      deltaX: 0,
+      deltaY: 4,
+      devicePixelRatio: 1,
+      wheelDeltaY: -120,
+    })).toBe('mouse-zoom')
+    expect(inferWheelGestureKind({
+      ctrlKey: false,
+      deltaMode: 0,
+      deltaX: 0,
+      deltaY: 4,
+      devicePixelRatio: 2,
+      wheelDeltaY: -60,
+    })).toBe('mouse-zoom')
+    expect(inferWheelGestureKind({
+      ctrlKey: false,
+      deltaMode: 0,
+      deltaX: 0,
+      deltaY: 4.25,
+      devicePixelRatio: 2,
+      wheelDeltaY: -9,
+    })).toBe('trackpad-pan')
+  })
+
   it('maps pinch deltas to smooth bounded zoom factors', () => {
     expect(pinchZoomFactor(-10)).toBeGreaterThan(1)
     expect(pinchZoomFactor(10)).toBeLessThan(1)

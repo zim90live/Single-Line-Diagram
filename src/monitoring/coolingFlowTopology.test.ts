@@ -309,6 +309,57 @@ describe('cooling closed-loop topology', () => {
     }])
   })
 
+  it('keeps split node-bounded edges at one logical connection resistance', () => {
+    const network: ConnectionNetwork = {
+      id: 'node-bounded-resistance-network',
+      diagramId: 'diagram',
+      type: coolingType,
+      nodes: [
+        { id: 'out', kind: 'element-anchor', elementId: 'pump-1', anchorId: 'pump-out' },
+        { id: 'middle-a', kind: 'node', x: 8, y: 0 },
+        { id: 'middle-b', kind: 'node', x: 16, y: 0 },
+        { id: 'in', kind: 'element-anchor', elementId: 'pump-1', anchorId: 'pump-in' },
+      ],
+      edges: [
+        { id: 'direct', sourceNodeId: 'out', targetNodeId: 'in' },
+        {
+          id: 'split-a',
+          sourceNodeId: 'out',
+          targetNodeId: 'middle-a',
+          logicalConnectionId: 'split-logical-edge',
+        },
+        {
+          id: 'split-b',
+          sourceNodeId: 'middle-a',
+          targetNodeId: 'middle-b',
+          logicalConnectionId: 'split-logical-edge',
+        },
+        {
+          id: 'split-c',
+          sourceNodeId: 'middle-b',
+          targetNodeId: 'in',
+          logicalConnectionId: 'split-logical-edge',
+        },
+      ],
+    }
+    const topology = deriveCoolingFlowTopology({
+      elements: [element('pump-1', 'pump')],
+      assets: [pumpAsset],
+      networks: [network],
+      runtime: new MockCoolingRuntimeProvider().getSnapshot({
+        elements: [element('pump-1', 'pump')],
+        assets: [pumpAsset],
+      }),
+    })
+
+    expect(Object.fromEntries(topology.edges.map((edge) => [edge.edgeId, edge.flowRate]))).toEqual({
+      direct: 50,
+      'split-a': 50,
+      'split-b': 50,
+      'split-c': 50,
+    })
+  })
+
   it('uses the net flow direction when two pumps oppose on a shared pipe', () => {
     const pumpElements = [element('pump-1', 'pump'), element('pump-2', 'pump')]
     const network: ConnectionNetwork = {

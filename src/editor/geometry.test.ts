@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Busbar, DiagramElement, DiagramViewport } from '../domain/project'
+import type {
+  Busbar,
+  ConnectionNetwork,
+  DiagramElement,
+  DiagramViewport,
+} from '../domain/project'
 import {
   busbarInsideRect,
   diagramObjectsBounds,
   elementInsideRect,
   elementsBounds,
   elementsEqual,
+  rotatePointOnGrid,
   screenToWorld,
   snap,
+  translateDiagramSelection,
   worldToScreen,
   worldDeltaToLocal,
   zoomAroundPoint,
@@ -49,6 +56,19 @@ describe('editor geometry', () => {
   it('snaps movement to the configured grid', () => {
     expect(snap(26, 10)).toBe(30)
     expect(snap(-14, 10)).toBe(-10)
+  })
+
+  it('keeps rotated points on-grid when the group center is between grid lines', () => {
+    const rotated = rotatePointOnGrid(
+      { x: 8, y: 0 },
+      { x: 4, y: 0 },
+      90,
+      8,
+    )
+
+    expect(rotated).toEqual({ x: 8, y: 8 })
+    expect(rotated.x % 8).toBe(0)
+    expect(rotated.y % 8).toBe(0)
   })
 
   it('strict marquee selection accounts for rotation', () => {
@@ -114,6 +134,50 @@ describe('editor geometry', () => {
       width: 160,
       height: 80,
     })
+  })
+
+  it('keeps selected elements, busbars and nodes in one relative translation', () => {
+    const element = createElement({ x: 16, y: 24 })
+    const busbar: Busbar = {
+      id: 'busbar-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 64,
+      y: 80,
+      length: 96,
+    }
+    const network: ConnectionNetwork = {
+      id: 'network-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      nodes: [
+        { id: 'node-1', kind: 'node', x: 104, y: 112 },
+        { id: 'node-2', kind: 'node', x: 160, y: 112 },
+      ],
+      edges: [{ id: 'edge-1', sourceNodeId: 'node-1', targetNodeId: 'node-2' }],
+    }
+    const translated = translateDiagramSelection(
+      [element],
+      [busbar],
+      [network],
+      [],
+      {
+        elementIds: new Set([element.id]),
+        busbarIds: new Set([busbar.id]),
+        nodeIds: new Set(['node-1']),
+        routeWaypointIds: new Set(),
+      },
+      { x: 16, y: -8 },
+      8,
+    )
+
+    expect(translated.elements[0]).toMatchObject({ x: 32, y: 16 })
+    expect(translated.busbars[0]).toMatchObject({ x: 80, y: 72 })
+    expect(translated.connections[0].nodes).toEqual([
+      expect.objectContaining({ id: 'node-1', x: 120, y: 104 }),
+      expect.objectContaining({ id: 'node-2', x: 160, y: 112 }),
+    ])
   })
 
   it('converts rotated resize movement into element-local axes', () => {

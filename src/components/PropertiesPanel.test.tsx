@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
+import { GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR } from '../editor/genericSymbol'
 import { defaultConnectionColor } from '../editor/objectColors'
 import { DEFAULT_CONFIGURABLE_SYMBOL_COLOR } from '../editor/symbolCatalog'
 import { PropertiesPanel } from './PropertiesPanel'
@@ -59,6 +60,52 @@ describe('PropertiesPanel color property', () => {
 
     await user.click(screen.getByRole('button', { name: '恢复自动布线' }))
     expect(onResetConnectionRouting).toHaveBeenCalledOnce()
+  })
+
+  it('offers automatic routing for a selected node-bounded span', () => {
+    const canvasConnections: ConnectionNetwork[] = [{
+      id: 'network-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      nodes: [
+        { id: 'left', kind: 'busbar-tap', busbarId: 'left-busbar', offset: 0 },
+        { id: 'middle', kind: 'node', x: 80, y: 40 },
+        { id: 'right', kind: 'busbar-tap', busbarId: 'right-busbar', offset: 0 },
+      ],
+      edges: [
+        {
+          id: 'left-span',
+          sourceNodeId: 'left',
+          targetNodeId: 'middle',
+          logicalConnectionId: 'logical-edge',
+        },
+        {
+          id: 'right-span',
+          sourceNodeId: 'middle',
+          targetNodeId: 'right',
+          logicalConnectionId: 'logical-edge',
+        },
+      ],
+    }]
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'left-span',
+          type: 'electrical',
+          edges: [canvasConnections[0].edges[0]],
+        }}
+        canvasConnections={canvasConnections}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: '恢复自动布线' })).toBeInTheDocument()
   })
 
   it('describes mixed waypoint selections without exposing element scaling controls', () => {
@@ -223,7 +270,7 @@ describe('PropertiesPanel color property', () => {
     expect(onPatch).toHaveBeenLastCalledWith(current.id, { labelVisible: true })
   })
 
-  it('edits a generic frame visibility, width, height, and border color independently', async () => {
+  it('edits a generic frame visibility, size, border color, and background independently', async () => {
     const user = userEvent.setup()
     const onPatch = vi.fn()
     const onColorPreview = vi.fn()
@@ -254,6 +301,19 @@ describe('PropertiesPanel color property', () => {
     expect(screen.getByLabelText('虚线框颜色 HEX')).toHaveValue(
       DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
     )
+    const backgroundColor = screen.getByLabelText('背景颜色 HEX')
+    expect(backgroundColor).toHaveValue(GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR)
+    fireEvent.change(backgroundColor, { target: { value: '#334455' } })
+    expect(onColorPreview).toHaveBeenLastCalledWith(
+      current.id,
+      '#334455',
+      'generic-background',
+    )
+    expect(onPatch).toHaveBeenCalledTimes(1)
+    fireEvent.blur(backgroundColor)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: { tag: 'GEN-01', genericBackgroundColor: '#334455' },
+    })
 
     fireEvent.change(screen.getByLabelText('宽度'), { target: { value: '160' } })
     fireEvent.blur(screen.getByLabelText('宽度'))
@@ -724,6 +784,15 @@ describe('PropertiesPanel color property', () => {
     expect(labelInput).toHaveValue('')
     expect(screen.getByRole('switch', { name: '显示子线标签' }))
       .toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: '显示运行数据' }))
+      .toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: '显示指标名称与单位' }))
+      .toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('heading', { name: '运行指标' })).toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: '显示运行数据' }))
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      monitorDataVisible: true,
+    })
     expect(screen.getByRole('combobox', { name: '通行方向' })).toHaveValue('bidirectional')
     await user.selectOptions(screen.getByRole('combobox', { name: '通行方向' }), 'forward')
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
@@ -747,6 +816,18 @@ describe('PropertiesPanel color property', () => {
             flowDirection: 'forward',
             label: '联络线 01',
             labelVisible: false,
+            monitorDataVisible: true,
+            monitorMetricLabelsVisible: false,
+            monitorMetrics: [{
+              id: 'line-current',
+              name: '电流',
+              valueType: 'number',
+              unit: 'A',
+              precision: 1,
+              simulationMin: 0,
+              simulationMax: 100,
+              alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+            }],
           }],
         }}
         onPatch={vi.fn()}
@@ -765,6 +846,15 @@ describe('PropertiesPanel color property', () => {
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
       labelVisible: true,
     })
+    expect(screen.getByRole('switch', { name: '显示运行数据' }))
+      .toHaveAttribute('aria-checked', 'true')
+    const hiddenMetricLabels = screen.getByRole('switch', { name: '显示指标名称与单位' })
+    expect(hiddenMetricLabels).toHaveAttribute('aria-checked', 'false')
+    await user.click(hiddenMetricLabels)
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      monitorMetricLabelsVisible: true,
+    })
+    expect(screen.getByText('电流')).toBeInTheDocument()
 
     expect(screen.getByRole('combobox', { name: '通行方向' })).toHaveValue('forward')
     await user.selectOptions(
@@ -829,6 +919,127 @@ describe('PropertiesPanel color property', () => {
       { flowDirection: 'reverse' },
     )
     expect(onPatchConnectionEdge).not.toHaveBeenCalled()
+  })
+
+  it('configures cooling child lines as primary or auxiliary in one batch', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdge = vi.fn()
+    const onPatchConnectionEdges = vi.fn()
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:edge-1,edge-2',
+          type: 'cooling-secondary-cold',
+          edges: [
+            {
+              id: 'edge-1',
+              sourceNodeId: 'node-1',
+              targetNodeId: 'node-2',
+              coolingLineRole: 'auxiliary',
+            },
+            {
+              id: 'edge-2',
+              sourceNodeId: 'node-3',
+              targetNodeId: 'node-4',
+            },
+          ],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const role = screen.getByRole('combobox', { name: '管路级别' })
+    expect(role).toHaveValue('mixed')
+    expect(screen.getByText('同时应用到 2 条所选冷却子线')).toBeInTheDocument()
+    await user.selectOptions(role, 'auxiliary')
+    expect(onPatchConnectionEdges).toHaveBeenCalledWith(
+      ['edge-1', 'edge-2'],
+      { coolingLineRole: 'auxiliary' },
+    )
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edge-1',
+          type: 'cooling-secondary-cold',
+          edges: [{
+            id: 'edge-1',
+            sourceNodeId: 'node-1',
+            targetNodeId: 'node-2',
+            coolingLineRole: 'auxiliary',
+          }],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '管路级别' }),
+      'primary',
+    )
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith('edge-1', {
+      coolingLineRole: undefined,
+    })
+  })
+
+  it('does not show cooling line roles for electrical or mixed-system selections', () => {
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edge-1',
+          type: 'electrical',
+          edges: [{ id: 'edge-1', sourceNodeId: 'node-1', targetNodeId: 'node-2' }],
+        }}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('combobox', { name: '管路级别' })).not.toBeInTheDocument()
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:edge-1,edge-2',
+          type: 'electrical',
+          edgeTypes: {
+            'edge-1': 'electrical',
+            'edge-2': 'cooling-primary-cold',
+          },
+          edges: [
+            { id: 'edge-1', sourceNodeId: 'node-1', targetNodeId: 'node-2' },
+            { id: 'edge-2', sourceNodeId: 'node-3', targetNodeId: 'node-4' },
+          ],
+        }}
+        onPatch={vi.fn()}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('combobox', { name: '管路级别' })).not.toBeInTheDocument()
   })
 
   it('edits selected busbars and child lines through one mixed color field', () => {

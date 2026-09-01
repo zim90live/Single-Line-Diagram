@@ -7,7 +7,12 @@ import type { RoutedConnectionEdge } from './connections'
 import {
   ELEMENT_LABEL_LINE_HEIGHT,
   estimateLabelTextWidth,
+  monitorMetricLabelWidth,
+  positionMonitorMetricLabelRows,
+  resolveMonitorMetricLabelLines,
+  type ElementMetricLabelRow,
 } from './elementLabels'
+import type { MonitorMetricReadings } from '../monitoring/elementMetrics'
 import type { Point, Rect } from './geometry'
 
 export const CONNECTION_LABEL_ENDPOINT_GAP = 8
@@ -24,6 +29,8 @@ export interface ConnectionLabelPlacement {
 
 export interface ConnectionLabelLayout extends ConnectionLabelPlacement {
   text: string
+  nameText: string | null
+  metricRows: ElementMetricLabelRow[]
   orientation: ConnectionLabelOrientation
   axisAlignment: ConnectionLabelAxisAlignment
   bounds: Rect
@@ -64,6 +71,7 @@ function placementBounds(
   segment: EndpointSegment,
   side: ConnectionLabelSide,
   labelWidth: number,
+  labelHeight: number,
 ): Pick<ConnectionLabelLayout, 'axisAlignment' | 'bounds' | 'textX' | 'textY' | 'textAnchor'> {
   if (segment.orientation === 'horizontal') {
     const axisAlignment = segment.direction > 0 ? 'left' : 'right'
@@ -71,7 +79,7 @@ function placementBounds(
       ? segment.point.x + CONNECTION_LABEL_ENDPOINT_PADDING
       : segment.point.x - CONNECTION_LABEL_ENDPOINT_PADDING - labelWidth
     const y = side === 'negative'
-      ? segment.point.y - CONNECTION_LABEL_ENDPOINT_GAP - ELEMENT_LABEL_LINE_HEIGHT
+      ? segment.point.y - CONNECTION_LABEL_ENDPOINT_GAP - labelHeight
       : segment.point.y + CONNECTION_LABEL_ENDPOINT_GAP
     return {
       axisAlignment,
@@ -79,7 +87,7 @@ function placementBounds(
         x,
         y,
         width: labelWidth,
-        height: ELEMENT_LABEL_LINE_HEIGHT,
+        height: labelHeight,
       },
       textX: segment.direction > 0 ? x : x + labelWidth,
       textY: y + 11,
@@ -92,14 +100,14 @@ function placementBounds(
     : segment.point.x + CONNECTION_LABEL_ENDPOINT_GAP
   const y = segment.direction > 0
     ? segment.point.y + CONNECTION_LABEL_ENDPOINT_PADDING
-    : segment.point.y - CONNECTION_LABEL_ENDPOINT_PADDING - ELEMENT_LABEL_LINE_HEIGHT
+    : segment.point.y - CONNECTION_LABEL_ENDPOINT_PADDING - labelHeight
   return {
     axisAlignment,
     bounds: {
       x,
       y,
       width: labelWidth,
-      height: ELEMENT_LABEL_LINE_HEIGHT,
+      height: labelHeight,
     },
     textX: side === 'negative' ? x + labelWidth : x,
     textY: y + 11,
@@ -131,15 +139,30 @@ export function layoutConnectionLabels(
   routes: RoutedConnectionEdge[],
   networks: ConnectionNetwork[],
   preview: ConnectionLabelPlacement | null = null,
+  options: { readings?: MonitorMetricReadings } = {},
 ): ConnectionLabelLayout[] {
+  const readings = options.readings ?? {}
   const edgesById = new Map(networks.flatMap((network) => (
     network.edges.map((edge) => [edge.id, edge] as const)
   )))
   return routes.flatMap((route) => {
     const edge = edgesById.get(route.edgeId)
-    if (!edge || edge.labelVisible === false) return []
-    const text = edge.label?.trim()
-    if (!text) return []
+    if (!edge) return []
+    const nameText = edge.labelVisible === false ? null : edge.label?.trim() || null
+    const metricLines = resolveMonitorMetricLabelLines(
+      edge.id,
+      edge.monitorMetrics,
+      edge.monitorDataVisible === true,
+      edge.monitorMetricLabelsVisible !== false,
+      readings,
+    )
+    if (!nameText && metricLines.length === 0) return []
+    const text = [
+      ...(nameText ? [nameText] : []),
+      ...metricLines.map((line) => line.labelVisible
+        ? `${line.labelText}\t${line.valueText}`
+        : line.valueText),
+    ].join('\n')
     const endpoint = preview?.edgeId === edge.id
       ? preview.endpoint
       : edge.labelEndpoint ?? 'target'
@@ -148,10 +171,23 @@ export function layoutConnectionLabels(
       : edge.labelSide ?? 'negative'
     const segment = endpointSegment(route, endpoint)
     if (!segment) return []
-    const placement = placementBounds(segment, side, estimateLabelTextWidth(text))
+    const labelWidth = Math.max(
+      nameText ? estimateLabelTextWidth(nameText) : 0,
+      monitorMetricLabelWidth(metricLines),
+    )
+    const labelHeight = (
+      Number(Boolean(nameText)) + metricLines.length
+    ) * ELEMENT_LABEL_LINE_HEIGHT
+    const placement = placementBounds(segment, side, labelWidth, labelHeight)
     return [{
       edgeId: edge.id,
       text,
+      nameText,
+      metricRows: positionMonitorMetricLabelRows(
+        metricLines,
+        placement.bounds,
+        Number(Boolean(nameText)),
+      ),
       endpoint,
       side,
       orientation: segment.orientation,

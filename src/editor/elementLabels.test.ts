@@ -6,7 +6,10 @@ import {
   ELEMENT_LABEL_AVOIDANCE_STEP,
   ELEMENT_LABEL_FONT_SIZE,
   ELEMENT_LABEL_GAP,
+  ELEMENT_LABEL_LINE_HEIGHT,
+  ELEMENT_METRIC_COLUMN_GAP,
   elementDeviceIdentifier,
+  estimateLabelTextWidth,
   labelPlacementForPointer,
   layoutElementLabels,
   nextDeviceIdentifier,
@@ -128,6 +131,12 @@ describe('element label layout', () => {
         valueText: '82.3',
         unit: '°C',
         severity: 'major',
+        valueBounds: {
+          x: layout.bounds.x + layout.bounds.width - estimateLabelTextWidth('82.3'),
+          y: layout.bounds.y,
+          width: estimateLabelTextWidth('82.3'),
+          height: ELEMENT_LABEL_LINE_HEIGHT,
+        },
       }),
       expect.objectContaining({
         label: '运行状态',
@@ -136,11 +145,22 @@ describe('element label layout', () => {
         valueText: '离线',
         unit: '',
         severity: 'critical',
+        valueBounds: {
+          x: layout.bounds.x + layout.bounds.width - estimateLabelTextWidth('离线'),
+          y: layout.bounds.y + ELEMENT_LABEL_LINE_HEIGHT,
+          width: estimateLabelTextWidth('离线'),
+          height: ELEMENT_LABEL_LINE_HEIGHT,
+        },
       }),
     ])
     expect(layout.text).toContain('出水温度(°C)\t82.3')
     expect(layout.text).not.toContain('82.3°C')
     expect(layout.text).not.toContain('CHWP-01')
+    const widestMetricRow = layout.metricRows[0]
+    expect(
+      widestMetricRow.valueBounds.x -
+      (layout.bounds.x + estimateLabelTextWidth(widestMetricRow.labelText)),
+    ).toBe(ELEMENT_METRIC_COLUMN_GAP)
 
     const [valuesOnlyLayout] = layoutElementLabels([{
       ...current,
@@ -167,6 +187,10 @@ describe('element label layout', () => {
     ])
     expect(valuesOnlyLayout.text).toBe('82.3\n离线')
     expect(valuesOnlyLayout.bounds.width).toBeLessThan(layout.bounds.width)
+    expect(valuesOnlyLayout.metricRows[0].valueBounds.width).toBe(
+      layout.metricRows[0].valueBounds.width,
+    )
+    expect(valuesOnlyLayout.metricRows[0].valueBounds.x).toBe(valuesOnlyLayout.bounds.x)
     expect(valuesOnlyLayout.metricRows[0].ariaLabel).toContain('出水温度(°C)')
   })
 

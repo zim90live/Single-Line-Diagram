@@ -47,8 +47,11 @@ function retainRoutesForInput(routed: RoutedConnections, input: RouteComputation
     return result
   }, [])
   const retainedEdgeIds = new Set(retainedEdges.map((edge) => edge.edgeId))
+  const retainedBusbarIds = new Set(input.busbars.map((busbar) => `busbar:${busbar.id}`))
   const retainedCrossings = routed.crossings.filter((crossing) => (
-    retainedEdgeIds.has(crossing.bridgeEdgeId) && retainedEdgeIds.has(crossing.underEdgeId)
+    retainedEdgeIds.has(crossing.bridgeEdgeId) && (
+      retainedEdgeIds.has(crossing.underEdgeId) || retainedBusbarIds.has(crossing.underEdgeId)
+    )
   ))
   const retainedInvalidEdgeIds = routed.invalidEdgeIds.filter((edgeId) => (
     retainedCurrentEdgeIds.has(edgeId)

@@ -65,6 +65,7 @@ const network: ConnectionNetwork = {
     sourceNodeId: 'left-node',
     targetNodeId: 'right-node',
     flowDirection: 'forward',
+    coolingLineRole: 'auxiliary',
     color: '#123456',
     label: '主管',
     labelEndpoint: 'target',
@@ -113,6 +114,7 @@ describe('connection junction topology', () => {
     expect(next.edges).toHaveLength(2)
     expect(next.edges.find((edge) => edge.id === 'main-edge')).toMatchObject({
       flowDirection: 'forward',
+      coolingLineRole: 'auxiliary',
       color: '#123456',
       label: '主管',
       labelEndpoint: 'target',
@@ -373,6 +375,19 @@ describe('connection junction topology', () => {
           labelEndpoint: 'source',
           labelSide: 'positive',
           flowDirection: 'forward',
+          coolingLineRole: 'auxiliary',
+          monitorDataVisible: true,
+          monitorMetricLabelsVisible: false,
+          monitorMetrics: [{
+            id: 'flow',
+            name: '流量',
+            valueType: 'number',
+            unit: 'm³/h',
+            precision: 1,
+            simulationMin: 0,
+            simulationMax: 100,
+            alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+          }],
         },
       ],
     }
@@ -394,6 +409,9 @@ describe('connection junction topology', () => {
       labelEndpoint: 'target',
       labelSide: 'negative',
       flowDirection: 'reverse',
+      monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
+      monitorMetrics: [expect.objectContaining({ id: 'flow', name: '流量' })],
     }])
   })
 

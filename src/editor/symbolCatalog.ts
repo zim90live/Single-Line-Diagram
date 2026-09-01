@@ -5,9 +5,11 @@ import type {
   SymbolAnchor,
 } from '../domain/project'
 import {
+  GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY,
   GENERIC_SYMBOL_DEFAULT_HEIGHT,
   GENERIC_SYMBOL_DEFAULT_WIDTH,
   GENERIC_SYMBOL_KEY,
+  normalizeGenericSymbolBackgroundColor,
 } from './genericSymbol'
 
 const symbolUrls = import.meta.glob<string>([
@@ -31,7 +33,7 @@ export interface SymbolDefinition extends AssetDefinition {
 }
 
 export type SymbolVisualState = 'off' | 'on'
-export type SymbolColorSlot = 'default' | 'switch-off' | 'switch-on'
+export type SymbolColorSlot = 'default' | 'switch-off' | 'switch-on' | 'generic-background'
 
 export const DEFAULT_CONFIGURABLE_SYMBOL_COLOR = '#777777'
 export const SWITCH_OFF_COLOR_PROPERTY = 'switchOffColor'
@@ -103,6 +105,7 @@ const metadata: SymbolMetadata[] = [
   { file: 'FM.svg', name: 'FM', category: '电力', width: 64, height: 64 },
   { file: 'MP.svg', name: 'MP', category: '冷却', width: 32, height: 32, configurableColor: true },
   { file: 'PHE.png', name: 'PHE', category: '冷却', width: 200, height: 80 },
+  { file: 'TMU.png', name: 'TMU', category: '冷却', width: 72, height: 96 },
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
   { file: 'Generator.svg', name: 'Generator', category: '电力', width: 48, height: 48, configurableColor: true },
@@ -210,6 +213,7 @@ export function symbolColorSlotForElement(
 export function symbolColorPropertyKey(slot: SymbolColorSlot) {
   if (slot === 'switch-off') return SWITCH_OFF_COLOR_PROPERTY
   if (slot === 'switch-on') return SWITCH_ON_COLOR_PROPERTY
+  if (slot === 'generic-background') return GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY
   return 'color'
 }
 
@@ -218,6 +222,7 @@ export function resolvedSymbolColorForSlot(
   slot: SymbolColorSlot,
 ) {
   const value = element.properties[symbolColorPropertyKey(slot)]
+  if (slot === 'generic-background') return normalizeGenericSymbolBackgroundColor(value)
   const legacyStateColor = elementSupportsOnOffState(element)
     ? element.properties.color
     : undefined

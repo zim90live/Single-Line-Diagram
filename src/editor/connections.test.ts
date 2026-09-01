@@ -10,6 +10,7 @@ import {
   bridgedPathData,
   bridgedPolylinePoints,
   connectTerminals,
+  connectedRouteEndpointGeometry,
   connectionRouteBranchPointKeys,
   connectionTerminalArrowPath,
   connectionTypesCompatible,
@@ -25,6 +26,7 @@ import {
   routeConnectionPreview,
   routeOrthogonalGrid,
   roundedOrthogonalPathData,
+  segmentConnectionEdgesAtNodes,
 } from './connections'
 
 const coolingAsset: AssetDefinition = {
@@ -120,6 +122,127 @@ function gridSegmentKeys(points: Array<{ x: number; y: number }>, gridSize = 8) 
 }
 
 describe('connection topology and routing', () => {
+  it('keeps open free-ended lines and permits an explicit closed loop', () => {
+    const point = (
+      nodeId: string,
+      x: number,
+      y: number,
+      networkId = 'pending-direct-network',
+    ) => ({
+      kind: 'node' as const,
+      networkId,
+      nodeId,
+      point: { x, y },
+      type: 'electrical' as const,
+    })
+    const start = point('free-start', 0, 0)
+    const middle = point('free-middle', 80, 0)
+    const first = connectTerminals([], 'diagram-power', start, middle)
+
+    expect(first).not.toBeNull()
+    const networkId = first![0].id
+    const normalizedOpen = normalizeConnectionNetworks(
+      first!,
+      [],
+      [],
+    )
+    expect(normalizedOpen[0].nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'free-start', kind: 'node' }),
+      expect.objectContaining({ id: 'free-middle', kind: 'node' }),
+    ]))
+
+    const end = point('free-end', 80, 80, networkId)
+    const extended = connectTerminals(
+      first!,
+      'diagram-power',
+      point('free-middle', 80, 0, networkId),
+      end,
+    )
+    const closed = connectTerminals(
+      extended!,
+      'diagram-power',
+      end,
+      point('free-start', 0, 0, networkId),
+    )
+
+    expect(closed).not.toBeNull()
+    expect(closed![0].edges).toHaveLength(3)
+    expect(normalizeConnectionNetworks(closed!, [], [])[0].edges).toHaveLength(3)
+    expect(connectTerminals(
+      closed!,
+      'diagram-power',
+      point('free-start', 0, 0, networkId),
+      end,
+    )).toBeNull()
+  })
+
+  it('segments a logical route at every persisted node and keeps per-span direction', () => {
+    let generatedIndex = 0
+    const segmented = segmentConnectionEdgesAtNodes([{
+      id: 'segmented-network',
+      diagramId: 'diagram-power',
+      type: 'electrical',
+      nodes: [
+        { id: 'source', kind: 'busbar-tap', busbarId: 'left', offset: 0 },
+        { id: 'middle-a', kind: 'node', x: 40, y: 0 },
+        { id: 'middle-b', kind: 'node', x: 80, y: 0 },
+        { id: 'target', kind: 'busbar-tap', busbarId: 'right', offset: 0 },
+      ],
+      edges: [{
+        id: 'logical-edge',
+        sourceNodeId: 'source',
+        targetNodeId: 'target',
+        routeNodeIds: ['middle-a', 'middle-b'],
+        flowDirection: 'forward',
+        color: '#123456',
+        label: '回路 A',
+        labelEndpoint: 'target',
+        monitorDataVisible: true,
+        monitorMetrics: [{
+          id: 'current',
+          name: '电流',
+          valueType: 'number',
+          unit: 'A',
+          precision: 1,
+          simulationMin: 0,
+          simulationMax: 100,
+          alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+        }],
+      }],
+    }], () => `generated-edge-${++generatedIndex}`)[0]
+
+    expect(segmented.edges).toEqual([
+      expect.objectContaining({
+        id: 'generated-edge-1',
+        sourceNodeId: 'source',
+        targetNodeId: 'middle-a',
+        logicalConnectionId: 'logical-edge',
+        flowDirection: 'forward',
+        color: '#123456',
+      }),
+      expect.objectContaining({
+        id: 'generated-edge-2',
+        sourceNodeId: 'middle-a',
+        targetNodeId: 'middle-b',
+        logicalConnectionId: 'logical-edge',
+        flowDirection: 'forward',
+      }),
+      expect.objectContaining({
+        id: 'logical-edge',
+        sourceNodeId: 'middle-b',
+        targetNodeId: 'target',
+        logicalConnectionId: 'logical-edge',
+        label: '回路 A',
+        labelEndpoint: 'target',
+        monitorDataVisible: true,
+        monitorMetrics: [expect.objectContaining({ id: 'current', name: '电流' })],
+      }),
+    ])
+    expect(segmented.edges.every((edge) => !('routeNodeIds' in edge))).toBe(true)
+    expect(segmented.edges.filter((edge) => edge.label === '回路 A')).toHaveLength(1)
+    expect(segmented.edges.filter((edge) => edge.monitorMetrics?.length)).toHaveLength(1)
+  })
+
   it('removes a self-loop when connection topology is normalized', () => {
     const left = powerElement('normalize-left', 0, 0)
     const right = powerElement('normalize-right', 160, 0)
@@ -717,6 +840,49 @@ describe('connection topology and routing', () => {
     expect(sampledBridge.some((point) => point.x > 40)).toBe(true)
   })
 
+  it('places a cooling bridge on a primary line when it crosses an auxiliary line', () => {
+    const networks: ConnectionNetwork[] = [
+      {
+        id: 'primary-network', diagramId: 'diagram-cooling', type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'primary-left', kind: 'node', x: -32, y: 0 },
+          { id: 'primary-right', kind: 'node', x: 32, y: 0 },
+        ],
+        edges: [{
+          id: 'primary-edge',
+          sourceNodeId: 'primary-left',
+          targetNodeId: 'primary-right',
+        }],
+      },
+      {
+        id: 'auxiliary-network', diagramId: 'diagram-cooling', type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'auxiliary-top', kind: 'node', x: 0, y: -32 },
+          { id: 'auxiliary-bottom', kind: 'node', x: 0, y: 32 },
+        ],
+        edges: [{
+          id: 'auxiliary-edge',
+          sourceNodeId: 'auxiliary-top',
+          targetNodeId: 'auxiliary-bottom',
+          coolingLineRole: 'auxiliary',
+        }],
+      },
+    ]
+
+    const routed = routeConnectionNetworks(networks, [], [], 8)
+
+    expect(routed.crossings).toEqual([{
+      x: 0,
+      y: 0,
+      bridgeEdgeId: 'primary-edge',
+      underEdgeId: 'auxiliary-edge',
+    }])
+    expect(pathDataWithBridges(routed.edges[0], routed.crossings, 8))
+      .toContain(' A 4 4 0 0 1 ')
+    expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8))
+      .not.toContain(' A 4 4 0 0 1 ')
+  })
+
   it('compresses adjacent bridge arcs without adding per-crossing topology', () => {
     const route = {
       networkId: 'bridge-network',
@@ -771,6 +937,109 @@ describe('connection topology and routing', () => {
       { x: 8, y: 0 },
       { x: 8, y: 8 },
     ], 8)).toBe('M 0 0 L 4 0 A 4 4 0 0 1 8 4 L 8 8')
+  })
+
+  it('rounds a cooling elbow split into two editable edges at a persisted node', () => {
+    const horizontal = {
+      networkId: 'split-elbow-network',
+      edgeId: 'split-elbow-horizontal',
+      type: 'cooling-primary-cold' as const,
+      sourceNodeId: 'source',
+      targetNodeId: 'shared-node',
+      points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+      order: 0,
+    }
+    const vertical = {
+      networkId: 'split-elbow-network',
+      edgeId: 'split-elbow-vertical',
+      type: 'cooling-primary-cold' as const,
+      sourceNodeId: 'shared-node',
+      targetNodeId: 'target',
+      points: [{ x: 16, y: 0 }, { x: 16, y: 16 }],
+      order: 1,
+    }
+    const geometry = connectedRouteEndpointGeometry(
+      [horizontal, vertical],
+      new Map([['split-elbow-network', new Set(['shared-node'])]]),
+      [],
+      8,
+    )
+    const horizontalGeometry = geometry.get(horizontal.edgeId)!
+    const verticalGeometry = geometry.get(vertical.edgeId)!
+
+    expect(horizontalGeometry.route.points).toEqual([
+      { x: 0, y: 0 },
+      { x: 8, y: 0 },
+    ])
+    expect(verticalGeometry.route.points).toEqual([
+      { x: 16, y: 8 },
+      { x: 16, y: 16 },
+    ])
+    expect(horizontalGeometry.targetEndpointArc?.midpoint)
+      .toEqual(verticalGeometry.sourceEndpointArc?.midpoint)
+
+    const horizontalPath = bridgedPathData(horizontalGeometry.route, [], 8, {
+      cornerRadius: 8,
+      targetEndpointArc: horizontalGeometry.targetEndpointArc,
+    }).linePath
+    const verticalPath = bridgedPathData(verticalGeometry.route, [], 8, {
+      cornerRadius: 8,
+      sourceEndpointArc: verticalGeometry.sourceEndpointArc,
+    }).linePath
+    expect(horizontalPath).toContain('A 8 8')
+    expect(verticalPath).toContain('A 8 8')
+
+    const horizontalPoints = bridgedPolylinePoints(horizontalGeometry.route, [], 8, {
+      cornerRadius: 8,
+      targetEndpointArc: horizontalGeometry.targetEndpointArc,
+    })
+    const verticalPoints = bridgedPolylinePoints(verticalGeometry.route, [], 8, {
+      cornerRadius: 8,
+      sourceEndpointArc: verticalGeometry.sourceEndpointArc,
+    })
+    expect(horizontalPoints.at(-1)).toEqual(verticalPoints[0])
+  })
+
+  it('keeps a persisted cooling branch square instead of rounding through it', () => {
+    const routes = [
+      {
+        networkId: 'split-branch-network',
+        edgeId: 'branch-left',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'left',
+        targetNodeId: 'branch-node',
+        points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+        order: 0,
+      },
+      {
+        networkId: 'split-branch-network',
+        edgeId: 'branch-right',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'branch-node',
+        targetNodeId: 'right',
+        points: [{ x: 16, y: 0 }, { x: 32, y: 0 }],
+        order: 1,
+      },
+      {
+        networkId: 'split-branch-network',
+        edgeId: 'branch-down',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'branch-node',
+        targetNodeId: 'down',
+        points: [{ x: 16, y: 0 }, { x: 16, y: 16 }],
+        order: 2,
+      },
+    ]
+    const geometry = connectedRouteEndpointGeometry(
+      routes,
+      new Map([['split-branch-network', new Set(['branch-node'])]]),
+      [],
+      8,
+    )
+
+    routes.forEach((route) => {
+      expect(geometry.get(route.edgeId)).toEqual({ route })
+    })
   })
 
   it('samples the same rounded cooling corner used by the SVG display path', () => {
@@ -916,7 +1185,7 @@ describe('connection topology and routing', () => {
     })).toBeNull()
   })
 
-  it('starts a new branch from an existing node and rejects a same-network cycle', () => {
+  it('starts a new branch from an existing node and permits one explicit same-network cycle', () => {
     const existing: ConnectionNetwork = {
       id: 'node-source-network',
       diagramId: 'diagram-power',
@@ -952,7 +1221,14 @@ describe('connection topology and routing', () => {
       kind: 'element-anchor',
       elementId: 'branch-device',
     }))
-    expect(connectTerminals(branched, 'diagram-power', source, {
+    const cycled = connectTerminals(branched, 'diagram-power', source, {
+      kind: 'anchor',
+      elementId: 'right-device',
+      anchorId: 'left-electrical',
+      type: 'electrical',
+    })!
+    expect(cycled[0].edges).toHaveLength(3)
+    expect(connectTerminals(cycled, 'diagram-power', source, {
       kind: 'anchor',
       elementId: 'right-device',
       anchorId: 'left-electrical',

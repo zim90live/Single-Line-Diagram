@@ -76,6 +76,45 @@ function fixture(): ConnectionRouteInput {
   }
 }
 
+function coolingCrossingFixture(): ConnectionRouteInput {
+  return {
+    networks: [
+      {
+        id: 'cooling-horizontal-network',
+        diagramId: 'incremental-diagram',
+        type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'cooling-left', kind: 'node', x: -32, y: 0 },
+          { id: 'cooling-right', kind: 'node', x: 32, y: 0 },
+        ],
+        edges: [{
+          id: 'cooling-horizontal-edge',
+          sourceNodeId: 'cooling-left',
+          targetNodeId: 'cooling-right',
+        }],
+      },
+      {
+        id: 'cooling-vertical-network',
+        diagramId: 'incremental-diagram',
+        type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'cooling-top', kind: 'node', x: 0, y: -32 },
+          { id: 'cooling-bottom', kind: 'node', x: 0, y: 32 },
+        ],
+        edges: [{
+          id: 'cooling-vertical-edge',
+          sourceNodeId: 'cooling-top',
+          targetNodeId: 'cooling-bottom',
+        }],
+      },
+    ],
+    elements: [],
+    assets: [],
+    gridSize: 8,
+    busbars: [],
+  }
+}
+
 describe('incremental connection routing', () => {
   it('reuses the completed snapshot for display-only network changes', () => {
     const previous = fixture()
@@ -101,6 +140,47 @@ describe('incremental connection routing', () => {
     expect(result.routed).toBe(routed)
     expect(result.dirtyNetworkCount).toBe(0)
     expect(result.reusedEdgeCount).toBe(2)
+  })
+
+  it('updates primary-over-auxiliary crossings without rerouting geometry', () => {
+    const previous = coolingCrossingFixture()
+    const routed = routeConnectionNetworks(
+      previous.networks,
+      previous.elements,
+      previous.assets,
+      previous.gridSize,
+    )
+    expect(routed.crossings[0]).toMatchObject({
+      bridgeEdgeId: 'cooling-vertical-edge',
+      underEdgeId: 'cooling-horizontal-edge',
+    })
+    const next = {
+      ...previous,
+      networks: previous.networks.map((network) => (
+        network.id === 'cooling-vertical-network'
+          ? {
+              ...network,
+              edges: network.edges.map((edge) => ({
+                ...edge,
+                coolingLineRole: 'auxiliary' as const,
+              })),
+            }
+          : network
+      )),
+    }
+
+    const result = routeConnectionNetworksIncrementally(previous, routed, next)
+
+    expect(result.mode).toBe('reused')
+    expect(result.dirtyNetworkCount).toBe(0)
+    expect(result.routed.edges[0]).toBe(routed.edges[0])
+    expect(result.routed.edges[1]).toBe(routed.edges[1])
+    expect(result.routed.crossings).toEqual([{
+      x: 0,
+      y: 0,
+      bridgeEdgeId: 'cooling-horizontal-edge',
+      underEdgeId: 'cooling-vertical-edge',
+    }])
   })
 
   it('reroutes only the locally affected network and retains distant edge objects', () => {

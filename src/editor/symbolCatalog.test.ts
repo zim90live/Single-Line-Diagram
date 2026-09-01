@@ -17,8 +17,22 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every active symbol from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(22)
+    expect(symbolCatalog).toHaveLength(23)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
+  })
+
+  it('registers TMU as a 72 by 96 cooling PNG symbol', () => {
+    const tmu = symbolsByKey.get('tmu')
+
+    expect(tmu).toMatchObject({
+      name: 'TMU',
+      source: 'src/assets/symbols/TMU.png',
+      category: '冷却',
+      intrinsicWidth: 72,
+      intrinsicHeight: 96,
+      renderMode: 'image',
+    })
+    expect(getScaledSymbolSize(tmu!, 1, 8)).toEqual({ scale: 1, width: 72, height: 96 })
   })
 
   it('keeps Cabinet A on the stable Cabinet key and registers Cabinet B separately', () => {
@@ -106,6 +120,7 @@ describe('symbol catalog', () => {
 
   it('uses the confirmed cooling and power equipment categories', () => {
     expect(symbolsByKey.get('cpd')?.category).toBe('冷却')
+    expect(symbolsByKey.get('tmu')?.category).toBe('冷却')
     expect(symbolsByKey.get('fm')?.category).toBe('电力')
     expect(symbolsByKey.get('cabinet')?.category).toBe('电力')
     expect(symbolsByKey.get('cabinet-b')?.category).toBe('电力')

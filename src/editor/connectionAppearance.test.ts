@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { AnchorType } from '../domain/project'
 import {
   COOLING_DIRECTION_ARROW_INSET_SCREEN,
+  COOLING_AUXILIARY_COLOR_NEUTRAL,
+  COOLING_AUXILIARY_COLOR_WEIGHT,
+  COOLING_AUXILIARY_PIPE_CORE_WIDTH,
+  COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY,
+  COOLING_AUXILIARY_PIPE_SHELL_COLOR,
+  COOLING_AUXILIARY_PIPE_SHELL_WIDTH,
   COOLING_PIPE_CORE_WIDTH,
   COOLING_PIPE_INNER_SHADOW_BLUR,
   COOLING_PIPE_INNER_SHADOW_COLOR,
@@ -10,6 +16,9 @@ import {
   COOLING_PIPE_INNER_SHADOW_DY,
   COOLING_PIPE_INNER_SHADOW_OPACITY,
   COOLING_PIPE_SHELL_WIDTH,
+  coolingLineRoleRenderPriority,
+  coolingPipeCoreWidth,
+  coolingPipeInnerShadowOpacity,
   COOLING_PIPE_SHELL_ENDPOINT_INSET,
   COOLING_PIPE_BRIDGE_RADIUS,
   COOLING_PIPE_CORNER_RADIUS,
@@ -21,6 +30,8 @@ import {
   isCoolingConnectionType,
   routeHitWidthForConnectionType,
   routeHitWorldWidthForConnectionType,
+  resolvedCoolingLineColor,
+  sortByCoolingLineRenderPriority,
 } from './connectionAppearance'
 
 describe('connection appearance', () => {
@@ -56,6 +67,10 @@ describe('connection appearance', () => {
   it('defines the confirmed cooling pipe shell and inner shadow', () => {
     expect(COOLING_PIPE_SHELL_WIDTH).toBe(10)
     expect(COOLING_PIPE_CORE_WIDTH).toBe(2)
+    expect(COOLING_AUXILIARY_PIPE_SHELL_WIDTH).toBe(4)
+    expect(COOLING_AUXILIARY_PIPE_CORE_WIDTH).toBe(1)
+    expect(COOLING_AUXILIARY_PIPE_SHELL_COLOR).toBe('#1D1F20')
+    expect(COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY).toBe(0.2)
     expect(COOLING_PIPE_SHELL_ENDPOINT_INSET).toBe(0)
     expect(COOLING_PIPE_BRIDGE_RADIUS).toBe(8)
     expect(COOLING_PIPE_CORNER_RADIUS).toBe(8)
@@ -66,10 +81,36 @@ describe('connection appearance', () => {
       color: COOLING_PIPE_INNER_SHADOW_COLOR,
       opacity: COOLING_PIPE_INNER_SHADOW_OPACITY,
     }).toEqual({ dx: 0, dy: 1, blur: 3, color: '#FFFFFF', opacity: 0.5 })
+    expect(coolingPipeInnerShadowOpacity('primary')).toBe(0.5)
+    expect(coolingPipeInnerShadowOpacity(undefined)).toBe(0.5)
+    expect(coolingPipeInnerShadowOpacity('auxiliary')).toBe(0.2)
     expect(coolingPipeFilterRegion([
       { x: 24, y: 40 },
       { x: 104, y: 40 },
     ])).toEqual({ x: 9, y: 25, width: 110, height: 31 })
+  })
+
+  it('mutes auxiliary lines while preserving part of their circuit hue', () => {
+    expect(COOLING_AUXILIARY_COLOR_NEUTRAL).toBe('#70736F')
+    expect(COOLING_AUXILIARY_COLOR_WEIGHT).toBe(0.2)
+    expect(resolvedCoolingLineColor('#FFC800', 'auxiliary')).toBe('#8D8459')
+    expect(resolvedCoolingLineColor('#00F074', 'auxiliary')).toBe('#5A8C70')
+    expect(resolvedCoolingLineColor('#0084FF', 'primary')).toBe('#0084FF')
+    expect(resolvedCoolingLineColor('#0084FF', undefined)).toBe('#0084FF')
+    expect(coolingPipeCoreWidth('auxiliary')).toBe(1)
+    expect(coolingPipeCoreWidth('primary')).toBe(2)
+    expect(coolingLineRoleRenderPriority('auxiliary')).toBeLessThan(
+      coolingLineRoleRenderPriority('primary'),
+    )
+    expect(sortByCoolingLineRenderPriority([
+      { id: 'primary-first', role: 'primary' as const },
+      { id: 'auxiliary-later', role: 'auxiliary' as const },
+      { id: 'primary-second', role: 'primary' as const },
+    ], (item) => item.role).map((item) => item.id)).toEqual([
+      'auxiliary-later',
+      'primary-first',
+      'primary-second',
+    ])
   })
 
   it('insets only the display pipe shell while preserving orthogonal bends', () => {

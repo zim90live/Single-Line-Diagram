@@ -46,6 +46,7 @@ export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
 
 export interface MonitorFlowPath {
   id: string
+  connectionEdgeId?: string
   points: Point[]
   screenWidth?: number
   worldWidth?: number
@@ -53,6 +54,7 @@ export interface MonitorFlowPath {
   style?: FlowAnimationStyle
   animated?: boolean
   baseColor?: string
+  renderPriority?: number
 }
 
 export interface MonitorStaticFlowLineGroup {
@@ -63,6 +65,7 @@ export interface MonitorStaticFlowLineGroup {
   widthSpace: 'screen' | 'world'
   lineCap: 'round' | 'square'
   lineJoin: 'round' | 'miter'
+  renderPriority: number
   paths: Point[][]
 }
 
@@ -136,6 +139,7 @@ export function buildMonitorStaticFlowLineGroups(
       ? path.baseColor ?? '#000000'
       : darkenFlowColor(path.baseColor ?? '#000000')
     const appearance = resolvedStaticLineAppearance(path)
+    const renderPriority = path.renderPriority ?? 1
     const key = [
       color.toUpperCase(),
       appearance.kind,
@@ -143,11 +147,13 @@ export function buildMonitorStaticFlowLineGroups(
       appearance.widthSpace,
       appearance.lineCap,
       appearance.lineJoin,
+      renderPriority,
     ].join(':')
     const group = groups.get(key) ?? {
       id: `monitor-static-flow:${key}`,
       color,
       ...appearance,
+      renderPriority,
       paths: [],
     }
     group.paths.push(path.points)
@@ -155,7 +161,9 @@ export function buildMonitorStaticFlowLineGroups(
   }
   inactivePaths.forEach((path) => append(path, false))
   activePaths.forEach((path) => append(path, true))
-  return [...groups.values()]
+  return [...groups.values()].sort((left, right) => (
+    left.renderPriority - right.renderPriority
+  ))
 }
 
 function pointAtRatio(start: Point, end: Point, ratio: number): Point {
@@ -233,12 +241,16 @@ export function deriveInactiveFlowPaths(
       }
       inactive.push({
         id: `inactive:${path.id}:${fragmentIndex}`,
+        ...(path.connectionEdgeId ? { connectionEdgeId: path.connectionEdgeId } : {}),
         points: fragment,
         screenWidth: path.screenWidth,
         worldWidth: path.worldWidth,
         style,
         animated: false,
         baseColor: path.baseColor,
+        ...(path.renderPriority !== undefined
+          ? { renderPriority: path.renderPriority }
+          : {}),
       })
       fragmentIndex += 1
       fragment = []

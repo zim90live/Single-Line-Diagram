@@ -29,6 +29,7 @@ import { PropertiesPanel } from './components/PropertiesPanel'
 import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
 import { SymbolLibrary } from './components/SymbolLibrary'
 import { Button, IconButton, StatusTag, TextField } from './components/ui'
+import type { DiagramDropPosition } from './domain/diagramHierarchy'
 import {
   elementUsesOnOffState,
   getDiagramPath,
@@ -80,6 +81,7 @@ const initialCommandState: EditorCommandState = {
   selectedRouteWaypointMaxReferenceCount: 0,
   selectedJunctionCount: 0,
   wiringType: null,
+  directLineToolActive: false,
 }
 
 interface ConfirmRequest {
@@ -108,6 +110,14 @@ function formatSavedTime(value: string) {
 function isTextEditingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+}
+
+function PolylineToolIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 5v6h8v8h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 function ConfirmDialog({ request, onClose }: { request: ConfirmRequest; onClose: () => void }) {
@@ -183,17 +193,20 @@ export default function App() {
     replaceDiagramContent,
     syncElementOnOffStates,
     replaceAssetDefinition,
+    createDiagram,
+    renameDiagram,
+    moveDiagram,
     renameProject,
     markSaved,
   } = useAppStore()
 
-  const showToast = (message: string, tone: ToastState['tone'] = 'success') => {
+  const showToast = useCallback((message: string, tone: ToastState['tone'] = 'success') => {
     const id = crypto.randomUUID()
     setToast({ id, message, tone })
     window.setTimeout(() => {
       setToast((current) => current?.id === id ? null : current)
     }, 2600)
-  }
+  }, [])
 
   const currentDiagram = document.diagrams.find((diagram) => diagram.id === currentDiagramId)
   const currentLine = document.lineSystems.find(
@@ -317,6 +330,39 @@ export default function App() {
     (symbolKey: string) => editorRef.current?.insertSymbol(symbolKey),
     [],
   )
+
+  const handleCreateDiagram = useCallback((parentId: string) => {
+    const result = createDiagram(parentId)
+    if (!result.ok || !result.diagramId) {
+      showToast(result.message ?? '无法新增图纸', 'danger')
+      return null
+    }
+    showToast('已新增图纸，可直接输入名称')
+    return result.diagramId
+  }, [createDiagram, showToast])
+
+  const handleRenameDiagram = useCallback((diagramId: string, name: string) => {
+    const result = renameDiagram(diagramId, name)
+    if (!result.ok) {
+      showToast(result.message ?? '无法重命名图纸', 'danger')
+      return false
+    }
+    if (result.changed) showToast('图纸名称已更新')
+    return true
+  }, [renameDiagram, showToast])
+
+  const handleMoveDiagram = useCallback((
+    sourceId: string,
+    targetId: string,
+    position: DiagramDropPosition,
+  ) => {
+    const result = moveDiagram(sourceId, targetId, position)
+    if (!result.ok) {
+      showToast(result.message ?? '无法移动图纸', 'danger')
+    } else if (result.changed) {
+      showToast('图纸层级已更新')
+    }
+  }, [moveDiagram, showToast])
   const insertBusbar = useCallback(() => editorRef.current?.insertBusbar(), [])
   const handleDiagramChange = useCallback((
     nextElements: DiagramElement[],
@@ -641,7 +687,15 @@ export default function App() {
           data-collapsed={leftSidebarCollapsed}
           aria-hidden={leftSidebarCollapsed}
         >
-          <HierarchyPanel document={document} currentDiagramId={currentDiagramId} onSelectDiagram={setCurrentDiagram} />
+          <HierarchyPanel
+            document={document}
+            currentDiagramId={currentDiagramId}
+            editable={workspaceMode === 'edit'}
+            onSelectDiagram={setCurrentDiagram}
+            onCreateDiagram={handleCreateDiagram}
+            onRenameDiagram={handleRenameDiagram}
+            onMoveDiagram={handleMoveDiagram}
+          />
           {workspaceMode === 'edit' ? (
             <SymbolLibrary
               onInsert={insertSymbol}
@@ -725,6 +779,14 @@ export default function App() {
             >
               {workspaceMode === 'edit' ? (
                 <>
+                  <IconButton
+                    label={commandState.directLineToolActive ? '退出线路绘制 (Esc)' : '绘制线路'}
+                    variant={commandState.directLineToolActive ? 'primary-solid' : 'neutral-soft'}
+                    icon={<PolylineToolIcon />}
+                    aria-pressed={commandState.directLineToolActive}
+                    onClick={() => editorRef.current?.toggleDirectLineTool()}
+                  />
+                  <span className="toolbar-divider" />
                   <IconButton label="撤销" icon={<Undo2 />} disabled={!commandState.canUndo} onClick={() => editorRef.current?.undo()} />
                   <IconButton label="重做" icon={<Redo2 />} disabled={!commandState.canRedo} onClick={() => editorRef.current?.redo()} />
                   <IconButton label="复制" icon={<Copy />} disabled={!commandState.canCopy} onClick={() => editorRef.current?.copy()} />
@@ -766,6 +828,10 @@ export default function App() {
                     : currentLine?.type === 'cooling'
                       ? '监控模式 · 选择水泵或阀门后在右侧控制运行状态'
                       : '监控模式 · 选择 Switch 后在右侧控制状态'
+                  : commandState.directLineToolActive
+                  ? commandState.wiringType
+                    ? `正在绘制线路 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)} · Esc 退出`
+                    : '线路绘制已开启 · 单击起点 · Esc 退出'
                   : commandState.wiringType
                   ? `正在接线 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)}`
                   : commandState.selectedConnection && commandState.selectedBusbar

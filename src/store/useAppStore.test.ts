@@ -108,4 +108,29 @@ describe('app document state', () => {
     })
     expect(useAppStore.getState().dirty).toBe(true)
   })
+
+  it('creates, renames, and moves diagrams as persisted project changes', () => {
+    const initial = useAppStore.getState().document
+    const coolingRoot = initial.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    const originalBuilding = initial.diagrams.find((diagram) => diagram.parentId === coolingRoot)!
+    const originalPod = initial.diagrams.find((diagram) => diagram.parentId === originalBuilding.id)!
+
+    const created = useAppStore.getState().createDiagram(coolingRoot)
+    expect(created).toMatchObject({ ok: true, changed: true })
+    expect(useAppStore.getState().currentDiagramId).toBe(created.diagramId)
+    expect(useAppStore.getState().dirty).toBe(true)
+
+    const renamed = useAppStore.getState().renameDiagram(created.diagramId!, '  2 号楼  ')
+    expect(renamed).toMatchObject({ ok: true, changed: true })
+    expect(
+      useAppStore.getState().document.diagrams.find((diagram) => diagram.id === created.diagramId)?.name,
+    ).toBe('2 号楼')
+
+    const moved = useAppStore.getState().moveDiagram(originalPod.id, created.diagramId!, 'inside')
+    expect(moved).toMatchObject({ ok: true, changed: true })
+    expect(
+      useAppStore.getState().document.diagrams.find((diagram) => diagram.id === originalPod.id),
+    ).toMatchObject({ parentId: created.diagramId, level: 'pod' })
+    expect(useAppStore.getState().document.diagrams).not.toBe(initial.diagrams)
+  })
 })

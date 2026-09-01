@@ -223,6 +223,7 @@ export function instantiateCopiedConnections(
           : { busbarId: ownerId }),
       } as ConnectionNode]
     })
+    const logicalConnectionIdMap = new Map<string, string>()
     const edges = network.edges.flatMap((edge) => {
       const sourceNodeId = nodeIdMap.get(edge.sourceNodeId)
       const targetNodeId = nodeIdMap.get(edge.targetNodeId)
@@ -232,11 +233,25 @@ export function instantiateCopiedConnections(
         return mapped ? [mapped] : []
       })
       const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteWaypoints } = edge
+      const logicalConnectionId = edge.logicalConnectionId
+        ? logicalConnectionIdMap.get(edge.logicalConnectionId) ?? (() => {
+            const id = createId('logical-connection')
+            logicalConnectionIdMap.set(edge.logicalConnectionId!, id)
+            return id
+          })()
+        : undefined
       return [{
             ...edgeWithoutRouteWaypoints,
             id: createId('connection-edge'),
             sourceNodeId,
             targetNodeId,
+            ...(edge.monitorMetrics ? {
+              monitorMetrics: edge.monitorMetrics.map((metric) => ({
+                ...structuredClone(metric),
+                id: createId('monitor-metric'),
+              })),
+            } : {}),
+            ...(logicalConnectionId ? { logicalConnectionId } : {}),
             ...(routeNodeIds.length ? { routeNodeIds } : {}),
           }]
     })

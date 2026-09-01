@@ -378,6 +378,31 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
+.hierarchy-heading {
+  align-items: center;
+}
+
+.hierarchy-heading__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.hierarchy-heading__count {
+  margin-right: 2px;
+  color: var(--dim);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hierarchy-heading__action.aidc-icon-button {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+}
+
 .hierarchy-tree,
 .hierarchy-tree ul {
   padding: 0;
@@ -396,14 +421,30 @@ button:focus-visible,
 }
 
 .tree-line__heading {
+  width: 100%;
   height: 28px;
   min-width: 0;
   gap: 7px;
   padding: 0 6px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: var(--text-caption);
   font-weight: 600;
   white-space: nowrap;
+}
+
+.tree-line__heading:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--surface-control-hover) 66%, transparent);
+}
+
+.tree-line__branch {
+  color: color-mix(in srgb, var(--dim) 65%, transparent);
+}
+
+.tree-line__branch[data-expanded='true'],
+.tree-row__branch[data-expanded='true'] {
+  transform: rotate(90deg);
 }
 
 .tree-line__heading > svg {
@@ -435,6 +476,49 @@ button:focus-visible,
   white-space: nowrap;
 }
 
+.tree-row-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.tree-row-shell[data-dragging='true'] {
+  opacity: 0.42;
+}
+
+.tree-row-shell[data-drop-position='before']::before,
+.tree-row-shell[data-drop-position='after']::after {
+  position: absolute;
+  z-index: 2;
+  right: 6px;
+  left: 12px;
+  height: 1px;
+  background: var(--accent);
+  content: '';
+  pointer-events: none;
+}
+
+.tree-row-shell[data-drop-position='before']::before {
+  top: 0;
+}
+
+.tree-row-shell[data-drop-position='after']::after {
+  bottom: 0;
+}
+
+.tree-row-shell[data-drop-position='inside'] > .tree-row {
+  color: var(--ink);
+  background: var(--surface-control-hover);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tree-row[draggable='true'] {
+  cursor: grab;
+}
+
+.tree-row[draggable='true']:active {
+  cursor: grabbing;
+}
+
 .tree-row:hover {
   color: var(--ink);
   background: color-mix(in srgb, var(--surface-control-hover) 66%, transparent);
@@ -453,8 +537,43 @@ button:focus-visible,
   flex: 0 0 auto;
 }
 
-.tree-row__branch {
+.tree-row__branch-slot,
+.tree-row__drag-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tree-row__branch-slot {
+  width: 16px;
+  height: 28px;
+  flex: 0 0 16px;
   color: color-mix(in srgb, var(--dim) 65%, transparent);
+}
+
+.tree-row__drag-slot {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+}
+
+.tree-row__branch-slot[title] {
+  cursor: pointer;
+}
+
+.tree-row__drag-slot svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tree-row__drag-handle {
+  opacity: 0.62;
+}
+
+.tree-row:hover .tree-row__drag-handle,
+.tree-row:focus-visible .tree-row__drag-handle {
+  color: var(--ink);
+  opacity: 1;
 }
 
 .tree-row__name {
@@ -469,6 +588,23 @@ button:focus-visible,
 .tree-row__meta {
   flex: 0 0 auto;
   color: var(--dim);
+  font-size: var(--text-caption);
+}
+
+.tree-row--editing {
+  padding-right: 8px;
+}
+
+.tree-row__rename-field {
+  min-width: 0;
+  flex: 1;
+  gap: 0;
+}
+
+.tree-row__rename-field .aidc-field__control {
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-caption);
 }
 
@@ -793,6 +929,13 @@ button:focus-visible,
   cursor: grabbing !important;
 }
 
+.canvas-stage[data-direct-line-tool='true'] .connection-edge__hit,
+.canvas-stage[data-direct-line-tool='true'] .connection-junction-handle,
+.canvas-stage[data-direct-line-tool='true'] .busbar__hit,
+.canvas-stage[data-direct-line-tool='true'] .busbar-tap-candidate {
+  cursor: crosshair;
+}
+
 .diagram-viewport:focus {
   outline: none;
 }
@@ -933,16 +1076,26 @@ button:focus-visible,
   font-variant-numeric: tabular-nums;
 }
 
-.element-metric-row__value[data-severity='minor'] {
+.element-metric-row__alarm-background {
+  pointer-events: none;
+}
+
+.element-metric-row__alarm-background[data-severity='minor'] {
   fill: var(--alarm-minor);
 }
 
-.element-metric-row__value[data-severity='major'] {
+.element-metric-row__alarm-background[data-severity='major'] {
   fill: var(--alarm-major);
 }
 
-.element-metric-row__value[data-severity='critical'] {
+.element-metric-row__alarm-background[data-severity='critical'] {
   fill: var(--alarm-critical);
+}
+
+.element-metric-row:not([data-severity='normal']) .element-metric-row__reading {
+  fill: var(--alarm-foreground);
+  stroke: none;
+  paint-order: normal;
 }
 
 .element-label__hit {
@@ -1016,6 +1169,7 @@ button:focus-visible,
 .connection-preview,
 .connection-anchor {
   --connection-color: var(--muted);
+  --connection-display-color: var(--connection-color);
   --connection-line-width: 1.5px;
   --connection-selected-line-width: 2.5px;
   --connection-hit-width: 12px;
@@ -1092,7 +1246,24 @@ button:focus-visible,
 [data-connection-type='cooling-general'],
 [data-anchor-type='cooling-general'] { --connection-color: var(--muted); }
 
-.connection-edge__line,
+.connection-edge[data-cooling-line-role='auxiliary'] {
+  --connection-display-color: color-mix(
+    in srgb,
+    var(--connection-color) var(--connection-cooling-auxiliary-color-weight),
+    var(--connection-cooling-auxiliary-neutral)
+  );
+}
+
+.connection-edge__line {
+  fill: none;
+  stroke: var(--connection-display-color);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: var(--connection-line-width);
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
 .connection-preview {
   fill: none;
   stroke: var(--connection-color);
@@ -1115,7 +1286,17 @@ button:focus-visible,
 }
 
 .connection-edge__direction-arrow {
-  fill: var(--connection-color);
+  fill: var(--connection-display-color);
+  pointer-events: none;
+}
+
+.connection-edge__cooling-selection {
+  fill: none;
+  stroke: var(--connection-cooling-selection-color);
+  stroke-linecap: round;
+  stroke-linejoin: miter;
+  stroke-width: var(--connection-cooling-selection-width);
+  vector-effect: none;
   pointer-events: none;
 }
 
@@ -1144,12 +1325,12 @@ button:focus-visible,
 }
 
 .connection-edge[data-selected='true'] .connection-edge__line {
-  stroke: color-mix(in srgb, var(--connection-color) 72%, var(--ink));
+  stroke: color-mix(in srgb, var(--connection-display-color) 72%, var(--ink));
   stroke-width: var(--connection-selected-line-width);
 }
 
 .connection-edge[data-selected='true'] .connection-edge__direction-arrow {
-  fill: color-mix(in srgb, var(--connection-color) 72%, var(--ink));
+  fill: color-mix(in srgb, var(--connection-display-color) 72%, var(--ink));
 }
 
 .connection-edge__hit {
@@ -1171,6 +1352,11 @@ button:focus-visible,
   --connection-hit-width: 20px;
 }
 
+.canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge[data-connection-type^='cooling-'][data-cooling-line-role='auxiliary'] {
+  --connection-line-width: var(--connection-cooling-auxiliary-pipe-width);
+  --connection-selected-line-width: var(--connection-cooling-auxiliary-pipe-width);
+}
+
 .canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge[data-connection-type^='cooling-'] .connection-edge__line,
 .canvas-stage[data-mode='edit'] .connection-preview[data-connection-type^='cooling-'] {
   stroke-linejoin: miter;
@@ -1179,6 +1365,11 @@ button:focus-visible,
 
 .canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge__pipe-shell[data-connection-type^='cooling-'] {
   display: block;
+}
+
+.canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge__pipe-shell[data-connection-type^='cooling-'][data-cooling-line-role='auxiliary'] {
+  stroke: var(--connection-cooling-auxiliary-pipe-shell-color);
+  stroke-width: var(--connection-cooling-auxiliary-pipe-shell-width);
 }
 
 .canvas-stage[data-mode='edit'] .connection-edge[data-connection-type^='cooling-'] .connection-edge__hit--world {
@@ -1191,6 +1382,10 @@ button:focus-visible,
   display: block;
   stroke-width: var(--connection-cooling-pipe-bridge-mask-width);
   vector-effect: none;
+}
+
+.canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge__bridge-casing--world[data-connection-type^='cooling-'][data-cooling-line-role='auxiliary'] {
+  stroke-width: var(--connection-cooling-auxiliary-pipe-bridge-mask-width);
 }
 
 .canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge[data-connection-type^='cooling-'] .connection-edge__direction-arrow-casing {

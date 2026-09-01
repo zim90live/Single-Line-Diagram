@@ -946,7 +946,21 @@ function crossingIndexKeys(start: Point, end: Point) {
   return keys
 }
 
-function findCrossings(edges: RoutedConnectionEdge[]) {
+function coolingLineRolesByEdgeId(networks: ConnectionNetwork[]) {
+  const roles = new Map<string, 'primary' | 'auxiliary'>()
+  networks.forEach((network) => {
+    if (network.type === 'electrical') return
+    network.edges.forEach((edge) => {
+      roles.set(edge.id, edge.coolingLineRole ?? 'primary')
+    })
+  })
+  return roles
+}
+
+function findCrossings(
+  edges: RoutedConnectionEdge[],
+  networks: ConnectionNetwork[] = [],
+) {
   const crossings: Array<ConnectionCrossing & {
     laterIndex: number
     earlierIndex: number
@@ -955,6 +969,7 @@ function findCrossings(edges: RoutedConnectionEdge[]) {
   }> = []
   const seen = new Set<string>()
   const segmentIndex = new Map<string, IndexedRouteSegment[]>()
+  const coolingRoles = coolingLineRolesByEdgeId(networks)
   for (let laterIndex = 0; laterIndex < edges.length; laterIndex += 1) {
     const later = edges[laterIndex]
     for (let leftIndex = 1; leftIndex < later.points.length; leftIndex += 1) {
@@ -984,10 +999,18 @@ function findCrossings(edges: RoutedConnectionEdge[]) {
         const key = `${later.edgeId}::${earlier.edgeId}::${pointKey(point)}`
         if (seen.has(key)) return
         seen.add(key)
+        const laterRole = coolingRoles.get(later.edgeId)
+        const earlierRole = coolingRoles.get(earlier.edgeId)
+        const primaryCrossesAuxiliary = laterRole !== undefined &&
+          earlierRole !== undefined && laterRole !== earlierRole
+        const bridge = primaryCrossesAuxiliary && earlierRole === 'primary'
+          ? earlier
+          : later
+        const under = bridge === later ? earlier : later
         crossings.push({
           ...point,
-          bridgeEdgeId: later.edgeId,
-          underEdgeId: earlier.edgeId,
+          bridgeEdgeId: bridge.edgeId,
+          underEdgeId: under.edgeId,
           laterIndex,
           earlierIndex: earlierSegment.edgeIndex,
           laterSegmentIndex: leftIndex,
@@ -1287,7 +1310,7 @@ export function previewConnectionRoutesForDiagram(
     ...routed,
     edges,
     crossings: [
-      ...findCrossings(edges),
+      ...findCrossings(edges, previewNetworks),
       ...findBusbarCrossings(edges, previewNetworks, previewBusbars),
     ],
     resolvedBusbarTapOffsets,
@@ -1734,7 +1757,7 @@ function routeConnectionNetworksWithSeed(
   return {
     edges: routedEdges,
     crossings: [
-      ...findCrossings(routedEdges),
+      ...findCrossings(routedEdges, networks),
       ...findBusbarCrossings(routedEdges, networks, busbars),
     ],
     invalidEdgeIds,
@@ -1824,6 +1847,24 @@ function routingNetworksEqual(left: ConnectionNetwork, right: ConnectionNetwork)
     ))
 }
 
+function crossingPrioritiesEqual(
+  leftNetworks: ConnectionNetwork[],
+  rightNetworks: ConnectionNetwork[],
+) {
+  if (leftNetworks.length !== rightNetworks.length) return false
+  const rightById = new Map(rightNetworks.map((network) => [network.id, network]))
+  return leftNetworks.every((left) => {
+    const right = rightById.get(left.id)
+    if (!right || left.type !== right.type || left.edges.length !== right.edges.length) return false
+    if (left.type === 'electrical') return true
+    const rightEdgesById = new Map(right.edges.map((edge) => [edge.id, edge]))
+    return left.edges.every((edge) => (
+      (edge.coolingLineRole ?? 'primary') ===
+        (rightEdgesById.get(edge.id)?.coolingLineRole ?? 'primary')
+    ))
+  })
+}
+
 function routingAssetsEqual(left: AssetDefinition[], right: AssetDefinition[]) {
   if (left.length !== right.length) return false
   const rightByKey = new Map(right.map((asset) => [asset.key, asset]))
@@ -1860,10 +1901,11 @@ export function connectionRouteInputsEqual(
   const rightBusbarsById = new Map(right.busbars.map((busbar) => [busbar.id, busbar]))
   return left.networks.every((network, index) => (
     routingNetworksEqual(network, right.networks[index])
-  )) && left.elements.every((element) => {
-    const candidate = rightElementsById.get(element.id)
-    return candidate !== undefined && routingElementsEqual(element, candidate)
-  }) && left.busbars.every((busbar) => {
+  )) && crossingPrioritiesEqual(left.networks, right.networks) &&
+    left.elements.every((element) => {
+      const candidate = rightElementsById.get(element.id)
+      return candidate !== undefined && routingElementsEqual(element, candidate)
+    }) && left.busbars.every((busbar) => {
     const candidate = rightBusbarsById.get(busbar.id)
     return candidate !== undefined && routingBusbarsEqual(busbar, candidate)
   }) && (left.routeWaypoints ?? []).every((waypoint) => {
@@ -1966,6 +2008,10 @@ export function routeConnectionNetworksIncrementally(
   const nextElementsById = new Map(nextInput.elements.map((element) => [element.id, element]))
   const previousBusbarsById = new Map(previousInput.busbars.map((busbar) => [busbar.id, busbar]))
   const nextBusbarsById = new Map(nextInput.busbars.map((busbar) => [busbar.id, busbar]))
+  const crossingPriorityChanged = !crossingPrioritiesEqual(
+    previousInput.networks,
+    nextInput.networks,
+  )
   const changedElementIds = new Set<string>()
   const changedBusbarIds = new Set<string>()
   const changedRouteWaypointIds = new Set<string>()
@@ -2053,8 +2099,21 @@ export function routeConnectionNetworksIncrementally(
   })
 
   if (!routeStructureChanged && !influenceRects.length && !dirtyNetworkIds.size) {
+    const routed = crossingPriorityChanged
+      ? {
+          ...previousRouted,
+          crossings: [
+            ...findCrossings(previousRouted.edges, nextInput.networks),
+            ...findBusbarCrossings(
+              previousRouted.edges,
+              nextInput.networks,
+              nextInput.busbars,
+            ),
+          ],
+        }
+      : previousRouted
     return {
-      routed: previousRouted,
+      routed,
       mode: 'reused',
       dirtyNetworkCount: 0,
       reusedEdgeCount: previousRouted.edges.length,
@@ -2402,6 +2461,73 @@ function connectionEdge(sourceNodeId: string, targetNodeId: string): ConnectionE
   }
 }
 
+function connectionEdgeWithoutDisplayData(edge: ConnectionEdge) {
+  const {
+    label: _label,
+    labelVisible: _labelVisible,
+    labelEndpoint: _labelEndpoint,
+    labelSide: _labelSide,
+    monitorDataVisible: _monitorDataVisible,
+    monitorMetricLabelsVisible: _monitorMetricLabelsVisible,
+    monitorMetrics: _monitorMetrics,
+    ...rest
+  } = edge
+  return rest
+}
+
+/**
+ * Turns every persisted route node into a real edge boundary. Automatic route
+ * corners remain derived geometry, while every editable node-to-node span gets
+ * its own stable edge id and can therefore be selected, styled or deleted on
+ * its own.
+ */
+export function segmentConnectionEdgesAtNodes(
+  networks: ConnectionNetwork[],
+  idFactory: (prefix: string) => string = createId,
+) {
+  return networks.map((network) => {
+    const usedIds = new Set(network.edges.map((edge) => edge.id))
+    const freeNodeIds = new Set(network.nodes.flatMap((node) => (
+      node.kind === 'node' ? [node.id] : []
+    )))
+    const nextId = () => {
+      let id = idFactory('connection-edge')
+      while (usedIds.has(id)) id = idFactory('connection-edge')
+      usedIds.add(id)
+      return id
+    }
+    return {
+      ...network,
+      edges: network.edges.flatMap((edge) => {
+        const originalRouteNodeIds = edge.routeNodeIds ?? []
+        const routeNodeIds = originalRouteNodeIds.filter((id) => freeNodeIds.has(id))
+        if (!routeNodeIds.length) {
+          if (edge.routeNodeIds === undefined) return [edge]
+          const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteNodes } = edge
+          return [edgeWithoutRouteNodes]
+        }
+        const chain = [edge.sourceNodeId, ...routeNodeIds, edge.targetNodeId]
+        if (chain.some((id, index) => index > 0 && id === chain[index - 1])) return []
+        const logicalConnectionId = edge.logicalConnectionId ?? edge.id
+        const labelSegmentIndex = edge.labelEndpoint === 'source' ? 0 : chain.length - 2
+        const hasDisplayData = Boolean(edge.label?.trim()) || Boolean(edge.monitorMetrics?.length)
+        const retainedIdSegmentIndex = hasDisplayData ? labelSegmentIndex : 0
+        const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteNodes } = edge
+        const edgeWithoutDisplayData = connectionEdgeWithoutDisplayData(edgeWithoutRouteNodes)
+        return chain.slice(1).map((targetNodeId, segmentIndex) => ({
+          ...(segmentIndex === labelSegmentIndex
+            ? edgeWithoutRouteNodes
+            : edgeWithoutDisplayData),
+          id: segmentIndex === retainedIdSegmentIndex ? edge.id : nextId(),
+          sourceNodeId: chain[segmentIndex],
+          targetNodeId,
+          logicalConnectionId,
+        }))
+      }),
+    }
+  })
+}
+
 function terminalMatches(node: ConnectionNode, terminal: ConnectionTerminal) {
   if (terminal.kind === 'anchor') {
     return node.kind === 'element-anchor' &&
@@ -2495,8 +2621,20 @@ export function connectTerminals(
   }
 
   if (sourceIndex === targetIndex) {
-    // 同一网络中的两个节点已经存在连通路径，继续加边只会形成业务语义不明的闭环。
-    return null
+    const withSource = ensureTerminal(networks[sourceIndex], source)
+    const withTarget = ensureTerminal(withSource.network, target)
+    if (withSource.nodeId === withTarget.nodeId) return null
+    const duplicate = withTarget.network.edges.some((edge) => (
+      edge.sourceNodeId === withSource.nodeId && edge.targetNodeId === withTarget.nodeId ||
+      edge.sourceNodeId === withTarget.nodeId && edge.targetNodeId === withSource.nodeId
+    ))
+    if (duplicate) return null
+    const updated: ConnectionNetwork = {
+      ...withTarget.network,
+      type,
+      edges: [...withTarget.network.edges, connectionEdge(withSource.nodeId, withTarget.nodeId)],
+    }
+    return networks.map((network, networkIndex) => networkIndex === sourceIndex ? updated : network)
   }
 
   if (sourceIndex < 0 || targetIndex < 0) {
@@ -2562,19 +2700,13 @@ function normalizeNetwork(
     terminalTypeForNode(node, elementsById, assetsByKey, busbarsById, network.type) !== null
   ))
   let nodeIds = new Set(nodes.map((node) => node.id))
-  let edges = network.edges.flatMap((edge) => {
+  let edges = segmentConnectionEdgesAtNodes([{ ...network, nodes }])[0].edges.flatMap((edge) => {
     if (
       edge.sourceNodeId === edge.targetNodeId ||
       !nodeIds.has(edge.sourceNodeId) ||
       !nodeIds.has(edge.targetNodeId)
     ) return []
-    const routeNodeIds = (edge.routeNodeIds ?? []).filter((id) => (
-      nodes.find((node) => node.id === id)?.kind === 'node'
-    ))
-    const chain = [edge.sourceNodeId, ...routeNodeIds, edge.targetNodeId]
-    if (chain.some((id, index) => index > 0 && id === chain[index - 1])) return []
-    const { routeNodeIds: _routeNodeIds, ...rest } = edge
-    return [{ ...rest, ...(routeNodeIds.length ? { routeNodeIds } : {}) }]
+    return [edge]
   })
 
   let changed = true
@@ -2582,22 +2714,15 @@ function normalizeNetwork(
     changed = false
     const degree = new Map(nodes.map((node) => [node.id, 0]))
     edges.forEach((edge) => {
-      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
-      for (let index = 1; index < chain.length; index += 1) {
-        degree.set(chain[index - 1], (degree.get(chain[index - 1]) ?? 0) + 1)
-        degree.set(chain[index], (degree.get(chain[index]) ?? 0) + 1)
-      }
+      degree.set(edge.sourceNodeId, (degree.get(edge.sourceNodeId) ?? 0) + 1)
+      degree.set(edge.targetNodeId, (degree.get(edge.targetNodeId) ?? 0) + 1)
     })
-    const removable = nodes.find((node) => (
-      (degree.get(node.id) ?? 0) === 0 ||
-      (node.kind === 'node' && (degree.get(node.id) ?? 0) < 2)
-    ))
+    const removable = nodes.find((node) => (degree.get(node.id) ?? 0) === 0)
     if (removable) {
       nodes = nodes.filter((node) => node.id !== removable.id)
       edges = edges.filter((edge) => (
         edge.sourceNodeId !== removable.id &&
-        edge.targetNodeId !== removable.id &&
-        !(edge.routeNodeIds ?? []).includes(removable.id)
+        edge.targetNodeId !== removable.id
       ))
       changed = true
     }
@@ -2606,11 +2731,8 @@ function normalizeNetwork(
   nodeIds = new Set(nodes.map((node) => node.id))
   const adjacency = new Map(nodes.map((node) => [node.id, new Set<string>()]))
   edges.forEach((edge) => {
-    const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
-    for (let index = 1; index < chain.length; index += 1) {
-      adjacency.get(chain[index - 1])?.add(chain[index])
-      adjacency.get(chain[index])?.add(chain[index - 1])
-    }
+    adjacency.get(edge.sourceNodeId)?.add(edge.targetNodeId)
+    adjacency.get(edge.targetNodeId)?.add(edge.sourceNodeId)
   })
   const tapIdsByBusbar = new Map<string, string[]>()
   nodes.forEach((node) => {
@@ -2854,6 +2976,8 @@ export interface BridgedPathOptions {
   bridgeRadius?: number
   cornerRadius?: number
   squareCornerPointKeys?: ReadonlySet<string>
+  sourceEndpointArc?: RouteEndpointArc
+  targetEndpointArc?: RouteEndpointArc
 }
 
 interface BridgeArc {
@@ -2869,6 +2993,197 @@ interface RoundedCorner {
   center: Point
   radius: number
   sweep: 0 | 1
+}
+
+export interface RouteEndpointArc {
+  entry: Point
+  midpoint: Point
+  center: Point
+  radius: number
+  sweep: 0 | 1
+}
+
+export interface ConnectedRouteDisplayGeometry {
+  route: RoutedConnectionEdge
+  sourceEndpointArc?: RouteEndpointArc
+  targetEndpointArc?: RouteEndpointArc
+}
+
+interface RouteEndpointIncident {
+  route: RoutedConnectionEdge
+  endpoint: 'source' | 'target'
+  nodeId: string
+  point: Point
+  adjacent: Point
+  direction: number
+  length: number
+}
+
+function routeEndpointIncident(
+  route: RoutedConnectionEdge,
+  endpoint: 'source' | 'target',
+): RouteEndpointIncident | null {
+  const pointIndex = endpoint === 'source' ? 0 : route.points.length - 1
+  const step = endpoint === 'source' ? 1 : -1
+  const point = route.points[pointIndex]
+  if (!point) return null
+  let adjacentIndex = pointIndex + step
+  while (
+    adjacentIndex >= 0 &&
+    adjacentIndex < route.points.length &&
+    pointsEqual(point, route.points[adjacentIndex])
+  ) adjacentIndex += step
+  const adjacent = route.points[adjacentIndex]
+  if (!adjacent) return null
+  const direction = segmentDirection(point, adjacent)
+  if (direction === undefined) return null
+  return {
+    route,
+    endpoint,
+    nodeId: endpoint === 'source' ? route.sourceNodeId : route.targetNodeId,
+    point,
+    adjacent,
+    direction,
+    length: Math.abs(adjacent.x - point.x) + Math.abs(adjacent.y - point.y),
+  }
+}
+
+function routeDirectionVector(direction: number) {
+  if (direction === 0) return { x: 1, y: 0 }
+  if (direction === 1) return { x: 0, y: 1 }
+  if (direction === 2) return { x: -1, y: 0 }
+  return { x: 0, y: -1 }
+}
+
+function stableGeometryCoordinate(value: number) {
+  return Math.round(value * 1_000_000) / 1_000_000
+}
+
+function routeEndpointArc(
+  point: Point,
+  direction: number,
+  otherDirection: number,
+  radius: number,
+): RouteEndpointArc {
+  const vector = routeDirectionVector(direction)
+  const otherVector = routeDirectionVector(otherDirection)
+  const center = {
+    x: point.x + (vector.x + otherVector.x) * radius,
+    y: point.y + (vector.y + otherVector.y) * radius,
+  }
+  const midpointOffset = radius / Math.sqrt(2)
+  const entry = {
+    x: point.x + vector.x * radius,
+    y: point.y + vector.y * radius,
+  }
+  const midpoint = {
+    x: stableGeometryCoordinate(
+      center.x - (vector.x + otherVector.x) * midpointOffset,
+    ),
+    y: stableGeometryCoordinate(
+      center.y - (vector.y + otherVector.y) * midpointOffset,
+    ),
+  }
+  const start = { x: entry.x - center.x, y: entry.y - center.y }
+  const end = { x: midpoint.x - center.x, y: midpoint.y - center.y }
+  return {
+    entry,
+    midpoint,
+    center,
+    radius,
+    sweep: start.x * end.y - start.y * end.x > 0 ? 1 : 0,
+  }
+}
+
+function trimRouteEndpoint(
+  geometry: ConnectedRouteDisplayGeometry,
+  endpoint: 'source' | 'target',
+  entry: Point,
+) {
+  const points = geometry.route.points.map((point) => ({ ...point }))
+  points[endpoint === 'source' ? 0 : points.length - 1] = entry
+  return {
+    ...geometry,
+    route: { ...geometry.route, points },
+  }
+}
+
+/**
+ * A persisted degree-two node splits editing semantics into two edges, but it
+ * is still one physical elbow. Each incident edge owns one half of the visual
+ * quarter-circle so different edge styles can meet deterministically without
+ * changing topology or creating a duplicate full arc.
+ */
+export function connectedRouteEndpointGeometry(
+  routes: RoutedConnectionEdge[],
+  roundableNodeIdsByNetworkId: ReadonlyMap<string, ReadonlySet<string>>,
+  crossings: ConnectionCrossingSource,
+  preferredRadius: number,
+  squareCornerPointKeysByNetworkId: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
+) {
+  const geometryByEdgeId = new Map<string, ConnectedRouteDisplayGeometry>(
+    routes.map((route) => [route.edgeId, { route }]),
+  )
+  if (preferredRadius <= 0) return geometryByEdgeId
+
+  const incidentsByNode = new Map<string, RouteEndpointIncident[]>()
+  routes.forEach((route) => {
+    for (const endpoint of ['source', 'target'] as const) {
+      const incident = routeEndpointIncident(route, endpoint)
+      if (
+        !incident ||
+        !roundableNodeIdsByNetworkId.get(route.networkId)?.has(incident.nodeId)
+      ) continue
+      const key = `${route.networkId}::${incident.nodeId}`
+      const incidents = incidentsByNode.get(key) ?? []
+      incidents.push(incident)
+      incidentsByNode.set(key, incidents)
+    }
+  })
+
+  incidentsByNode.forEach((incidents) => {
+    const firstIncident = incidents[0]
+    if (squareCornerPointKeysByNetworkId.get(firstIncident.route.networkId)
+      ?.has(pointKey(firstIncident.point))) return
+    const directions = [...new Set(incidents.map((incident) => incident.direction))]
+    if (
+      directions.length !== 2 ||
+      reverseDirection(directions[0]) === directions[1]
+    ) return
+    if (incidents.some((incident) => crossingsForEdge(crossings, incident.route.edgeId)
+      .some((crossing) => (
+        pointOnOrthogonalSegment(crossing, incident.point, incident.adjacent) &&
+        Math.abs(crossing.x - incident.point.x) +
+          Math.abs(crossing.y - incident.point.y) <= preferredRadius * 2
+      )))) return
+
+    const radius = Math.min(
+      preferredRadius,
+      ...incidents.map((incident) => incident.length / 2),
+    )
+    if (radius <= 0) return
+
+    incidents.forEach((incident) => {
+      const otherDirection = directions.find((direction) => direction !== incident.direction)!
+      const endpointArc = routeEndpointArc(
+        incident.point,
+        incident.direction,
+        otherDirection,
+        radius,
+      )
+      const current = geometryByEdgeId.get(incident.route.edgeId)
+      if (!current) return
+      const trimmed = trimRouteEndpoint(current, incident.endpoint, endpointArc.entry)
+      geometryByEdgeId.set(incident.route.edgeId, {
+        ...trimmed,
+        ...(incident.endpoint === 'source'
+          ? { sourceEndpointArc: endpointArc }
+          : { targetEndpointArc: endpointArc }),
+      })
+    })
+  })
+
+  return geometryByEdgeId
 }
 
 function cornerIsNearCrossing(
@@ -2942,6 +3257,12 @@ function roundedCorners(
 
 function roundedCornerPathCommand(corner: RoundedCorner) {
   return `A ${corner.radius} ${corner.radius} 0 0 ${corner.sweep} ${corner.exit.x} ${corner.exit.y}`
+}
+
+function endpointArcPathCommand(arc: RouteEndpointArc, reverse = false) {
+  const end = reverse ? arc.entry : arc.midpoint
+  const sweep = reverse ? arc.sweep ? 0 : 1 : arc.sweep
+  return `A ${arc.radius} ${arc.radius} 0 0 ${sweep} ${end.x} ${end.y}`
 }
 
 export function roundedOrthogonalPathData(
@@ -3049,7 +3370,11 @@ export function bridgedPathData(
     options.squareCornerPointKeys ?? new Set(),
     edgeCrossings,
   )
-  let linePath = `M ${route.points[0].x} ${route.points[0].y}`
+  let linePath = options.sourceEndpointArc
+    ? `M ${options.sourceEndpointArc.midpoint.x} ${options.sourceEndpointArc.midpoint.y} ${
+        endpointArcPathCommand(options.sourceEndpointArc, true)
+      }`
+    : `M ${route.points[0].x} ${route.points[0].y}`
   const casingParts: string[] = []
   for (let index = 1; index < route.points.length; index += 1) {
     const start = corners.get(index - 1)?.exit ?? route.points[index - 1]
@@ -3070,6 +3395,9 @@ export function bridgedPathData(
     linePath += ` L ${end.x} ${end.y}`
     if (corner) linePath += ` ${roundedCornerPathCommand(corner)}`
   }
+  if (options.targetEndpointArc) {
+    linePath += ` ${endpointArcPathCommand(options.targetEndpointArc)}`
+  }
   return {
     linePath,
     bridgeCasingPath: casingParts.join(' '),
@@ -3078,6 +3406,30 @@ export function bridgedPathData(
 
 function appendDistinctPoint(points: Point[], point: Point) {
   if (!points.length || !pointsEqual(points[points.length - 1], point)) points.push(point)
+}
+
+function appendSampledEndpointArc(
+  points: Point[],
+  arc: RouteEndpointArc,
+  reverse: boolean,
+  steps: number,
+) {
+  const start = reverse ? arc.midpoint : arc.entry
+  const end = reverse ? arc.entry : arc.midpoint
+  const sweep = reverse ? arc.sweep ? 0 : 1 : arc.sweep
+  const startAngle = Math.atan2(start.y - arc.center.y, start.x - arc.center.x)
+  const endAngle = Math.atan2(end.y - arc.center.y, end.x - arc.center.x)
+  let delta = endAngle - startAngle
+  if (sweep && delta <= 0) delta += Math.PI * 2
+  if (!sweep && delta >= 0) delta -= Math.PI * 2
+  appendDistinctPoint(points, start)
+  for (let step = 1; step <= steps; step += 1) {
+    const angle = startAngle + delta * (step / steps)
+    appendDistinctPoint(points, {
+      x: stableGeometryCoordinate(arc.center.x + Math.cos(angle) * arc.radius),
+      y: stableGeometryCoordinate(arc.center.y + Math.sin(angle) * arc.radius),
+    })
+  }
 }
 
 /**
@@ -3103,7 +3455,18 @@ export function bridgedPolylinePoints(
     options.squareCornerPointKeys ?? new Set(),
     edgeCrossings,
   )
-  const points: Point[] = [{ ...route.points[0] }]
+  const endpointArcSteps = Math.max(2, Math.round(resolvedArcSteps / 4))
+  const points: Point[] = []
+  if (options.sourceEndpointArc) {
+    appendSampledEndpointArc(
+      points,
+      options.sourceEndpointArc,
+      true,
+      endpointArcSteps,
+    )
+  } else {
+    points.push({ ...route.points[0] })
+  }
   for (let index = 1; index < route.points.length; index += 1) {
     const start = corners.get(index - 1)?.exit ?? route.points[index - 1]
     const corner = corners.get(index)
@@ -3154,6 +3517,14 @@ export function bridgedPolylinePoints(
         })
       }
     }
+  }
+  if (options.targetEndpointArc) {
+    appendSampledEndpointArc(
+      points,
+      options.targetEndpointArc,
+      false,
+      endpointArcSteps,
+    )
   }
   return points
 }

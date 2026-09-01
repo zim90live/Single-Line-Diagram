@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ConnectionNetwork } from '../domain/project'
+import type { Busbar, ConnectionNetwork } from '../domain/project'
 import type { RoutedConnections } from './connections'
 import type { RouteComputationInput } from './routeEngine'
 import { routedConnectionsForInput, type RouteSnapshot } from './useRoutedConnections'
@@ -45,6 +45,35 @@ describe('routed connection snapshots', () => {
     const snapshot: RouteSnapshot = { input: completedInput, routed }
 
     expect(routedConnectionsForInput(snapshot, completedInput)).toBe(routed)
+  })
+
+  it('retains child-line crossings over existing busbars', () => {
+    const busbar: Busbar = {
+      id: 'busbar',
+      diagramId: 'diagram',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 80,
+    }
+    const completedInput = { ...input(), busbars: [busbar] }
+    const routedWithBusbarCrossing: RoutedConnections = {
+      ...routed,
+      crossings: [{
+        x: 4,
+        y: 0,
+        bridgeEdgeId: 'edge',
+        underEdgeId: 'busbar:busbar',
+      }],
+    }
+    const snapshot: RouteSnapshot = {
+      input: completedInput,
+      routed: routedWithBusbarCrossing,
+    }
+
+    expect(routedConnectionsForInput(snapshot, completedInput))
+      .toBe(routedWithBusbarCrossing)
   })
 
   it('removes deleted logical edges while a newer route job is pending', () => {
@@ -102,5 +131,77 @@ describe('routed connection snapshots', () => {
     }])
 
     expect(routedConnectionsForInput(snapshot, displayOnlyInput)).toBe(routed)
+  })
+
+  it('previews a changed cooling bridge priority while the route job is pending', () => {
+    const horizontal: ConnectionNetwork = {
+      id: 'horizontal-network',
+      diagramId: 'diagram',
+      type: 'cooling-primary-cold',
+      nodes: [
+        { id: 'left', kind: 'node', x: -8, y: 0 },
+        { id: 'right', kind: 'node', x: 8, y: 0 },
+      ],
+      edges: [{ id: 'horizontal-edge', sourceNodeId: 'left', targetNodeId: 'right' }],
+    }
+    const vertical: ConnectionNetwork = {
+      id: 'vertical-network',
+      diagramId: 'diagram',
+      type: 'cooling-primary-cold',
+      nodes: [
+        { id: 'top', kind: 'node', x: 0, y: -8 },
+        { id: 'bottom', kind: 'node', x: 0, y: 8 },
+      ],
+      edges: [{ id: 'vertical-edge', sourceNodeId: 'top', targetNodeId: 'bottom' }],
+    }
+    const completedInput = input([horizontal, vertical])
+    const crossingRoutes: RoutedConnections = {
+      edges: [
+        {
+          networkId: horizontal.id,
+          edgeId: horizontal.edges[0].id,
+          type: horizontal.type,
+          sourceNodeId: 'left',
+          targetNodeId: 'right',
+          points: [{ x: -8, y: 0 }, { x: 8, y: 0 }],
+          order: 0,
+        },
+        {
+          networkId: vertical.id,
+          edgeId: vertical.edges[0].id,
+          type: vertical.type,
+          sourceNodeId: 'top',
+          targetNodeId: 'bottom',
+          points: [{ x: 0, y: -8 }, { x: 0, y: 8 }],
+          order: 1,
+        },
+      ],
+      crossings: [{
+        x: 0,
+        y: 0,
+        bridgeEdgeId: 'vertical-edge',
+        underEdgeId: 'horizontal-edge',
+      }],
+      invalidEdgeIds: [],
+      resolvedBusbarTapOffsets: {},
+    }
+    const snapshot: RouteSnapshot = { input: completedInput, routed: crossingRoutes }
+    const pendingInput = input([horizontal, {
+      ...vertical,
+      edges: vertical.edges.map((edge) => ({
+        ...edge,
+        coolingLineRole: 'auxiliary' as const,
+      })),
+    }])
+
+    const preview = routedConnectionsForInput(snapshot, pendingInput)
+
+    expect(preview.edges).toEqual(crossingRoutes.edges)
+    expect(preview.crossings).toEqual([{
+      x: 0,
+      y: 0,
+      bridgeEdgeId: 'horizontal-edge',
+      underEdgeId: 'vertical-edge',
+    }])
   })
 })

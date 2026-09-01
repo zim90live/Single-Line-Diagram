@@ -208,9 +208,54 @@ describe('manual route waypoints', () => {
       { id: 'waypoint-0', x: 56, y: 0 },
       { id: 'waypoint-1', x: 56, y: 80 },
     ])
-    expect(result.networks[0].edges.map((edge) => edge.routeNodeIds)).toEqual([
+    expect(result.networks[0].edges.map((edge) => (
+      'routeNodeIds' in edge ? edge.routeNodeIds : undefined
+    ))).toEqual([
       ['waypoint-0', 'waypoint-1'],
       ['waypoint-0', 'waypoint-1'],
+    ])
+  })
+
+  it('moves existing node-bounded segment endpoints without creating duplicate nodes', () => {
+    const nodeBoundedNetwork: ConnectionNetwork = {
+      id: 'network-a',
+      diagramId: 'diagram-a',
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'node', x: 40, y: 80 },
+        { id: 'right-node', kind: 'node', x: 120, y: 80 },
+      ],
+      edges: [{ id: 'edge-a', sourceNodeId: 'left-node', targetNodeId: 'right-node' }],
+    }
+    const nodeBoundedRoute: RoutedConnectionEdge = {
+      networkId: 'network-a',
+      edgeId: 'edge-a',
+      type: 'electrical',
+      sourceNodeId: 'left-node',
+      targetNodeId: 'right-node',
+      order: 0,
+      points: [{ x: 40, y: 80 }, { x: 120, y: 80 }],
+    }
+    const segment = atomicRouteSegments([nodeBoundedRoute])[0]
+    let generated = 0
+    const result = applyDraggedRouteSegment(
+      [nodeBoundedNetwork],
+      [],
+      [nodeBoundedRoute],
+      segment,
+      { x: 40, y: 40 },
+      { x: 120, y: 40 },
+      () => `unexpected-node-${++generated}`,
+    )
+
+    expect(generated).toBe(0)
+    expect(result.waypointIds).toEqual(['left-node', 'right-node'])
+    expect(result.networks[0].nodes).toEqual([
+      { id: 'left-node', kind: 'node', x: 40, y: 40 },
+      { id: 'right-node', kind: 'node', x: 120, y: 40 },
+    ])
+    expect(result.networks[0].edges).toEqual([
+      { id: 'edge-a', sourceNodeId: 'left-node', targetNodeId: 'right-node' },
     ])
   })
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ConnectionNetwork } from '../domain/project'
 import type { RoutedConnectionEdge } from './connections'
+import { monitorMetricReadingKey } from '../monitoring/elementMetrics'
 import {
   CONNECTION_LABEL_ENDPOINT_GAP,
   CONNECTION_LABEL_ENDPOINT_PADDING,
@@ -46,6 +47,65 @@ describe('connection labels', () => {
       label: '联络线',
       labelVisible: false,
     })])).toEqual([])
+  })
+
+  it('lays out monitoring rows independently from child-line label visibility', () => {
+    const monitored = network({
+      label: '馈线 01',
+      labelVisible: false,
+      monitorDataVisible: true,
+      monitorMetricLabelsVisible: true,
+      monitorMetrics: [{
+        id: 'current',
+        name: '电流',
+        valueType: 'number',
+        unit: 'A',
+        precision: 1,
+        simulationMin: 0,
+        simulationMax: 100,
+        alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+      }],
+    })
+    const [layout] = layoutConnectionLabels([route()], [monitored], null, {
+      readings: {
+        [monitorMetricReadingKey('edge-1', 'current')]: {
+          elementId: 'edge-1',
+          metricId: 'current',
+          value: 88.3,
+          severity: 'major',
+        },
+      },
+    })
+
+    expect(layout.nameText).toBeNull()
+    expect(layout.bounds.height).toBe(16)
+    expect(layout.metricRows).toEqual([
+      expect.objectContaining({
+        labelText: '电流(A)',
+        labelVisible: true,
+        valueText: '88.3',
+        severity: 'major',
+      }),
+    ])
+
+    monitored.edges[0].labelVisible = true
+    monitored.edges[0].monitorMetricLabelsVisible = false
+    const [withName] = layoutConnectionLabels([route()], [monitored], null, {
+      readings: {
+        [monitorMetricReadingKey('edge-1', 'current')]: {
+          elementId: 'edge-1',
+          metricId: 'current',
+          value: 50,
+          severity: 'normal',
+        },
+      },
+    })
+    expect(withName.nameText).toBe('馈线 01')
+    expect(withName.bounds.height).toBe(32)
+    expect(withName.metricRows[0]).toMatchObject({
+      labelVisible: false,
+      valueText: '50.0',
+    })
   })
 
   it('places horizontal endpoint labels above or below the nearby segment', () => {

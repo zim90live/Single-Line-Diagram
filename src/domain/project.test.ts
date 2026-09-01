@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  connectionEdgeSchema,
   createDefaultProject,
   EDITOR_GRID_SIZE,
   getDiagramPath,
@@ -21,6 +22,36 @@ const asset = {
 }
 
 describe('project document', () => {
+  it('persists cooling line roles and treats legacy lines as primary', () => {
+    expect(connectionEdgeSchema.parse({
+      id: 'auxiliary-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      coolingLineRole: 'auxiliary',
+    }).coolingLineRole).toBe('auxiliary')
+    expect(connectionEdgeSchema.parse({
+      id: 'primary-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+    }).coolingLineRole).toBeUndefined()
+    expect(() => connectionEdgeSchema.parse({
+      id: 'invalid-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      coolingLineRole: 'secondary',
+    })).toThrow()
+
+    const legacy = createDefaultProject('v24 管路级别兼容', [asset]) as unknown as {
+      schemaVersion: number
+    }
+    legacy.schemaVersion = 24
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.connections.every((network) => network.edges.every((edge) => (
+      edge.coolingLineRole === undefined
+    )))).toBe(true)
+  })
+
   it('creates two independent four-level line trees', () => {
     const document = createDefaultProject('测试项目', [asset])
 
@@ -56,6 +87,79 @@ describe('project document', () => {
     const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
 
     expect(parsed).toEqual(document)
+  })
+
+  it('migrates free-ended direct lines from schema v27', () => {
+    const document = createDefaultProject('自由端点往返', [asset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.connections = [{
+      id: 'direct-line-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'direct-start', kind: 'node', x: 0, y: 0 },
+        { id: 'direct-end', kind: 'node', x: 80, y: 0 },
+      ],
+      edges: [{
+        id: 'direct-edge',
+        sourceNodeId: 'direct-start',
+        targetNodeId: 'direct-end',
+      }],
+    }]
+
+    const legacy = JSON.parse(JSON.stringify(document))
+    legacy.schemaVersion = 27
+    const parsed = parseProjectDocument(legacy)
+
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(parsed.connections).toEqual(document.connections)
+  })
+
+  it('persists independent monitoring metrics on child lines', () => {
+    const document = createDefaultProject('子线运行指标', [asset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.connections = [{
+      id: 'metric-line-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'metric-line-start', kind: 'node', x: 0, y: 0 },
+        { id: 'metric-line-end', kind: 'node', x: 80, y: 0 },
+      ],
+      edges: [{
+        id: 'metric-line-edge',
+        sourceNodeId: 'metric-line-start',
+        targetNodeId: 'metric-line-end',
+        label: '馈线 01',
+        labelVisible: false,
+        monitorDataVisible: true,
+        monitorMetricLabelsVisible: false,
+        monitorMetrics: [{
+          id: 'line-current',
+          name: '电流',
+          valueType: 'number',
+          unit: 'A',
+          precision: 1,
+          simulationMin: 0,
+          simulationMax: 100,
+          alarm: { mode: 'upper', minor: 60, major: 80, critical: 95 },
+        }],
+      }],
+    }]
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    expect(parsed.connections[0].edges[0]).toMatchObject({
+      labelVisible: false,
+      monitorDataVisible: true,
+      monitorMetricLabelsVisible: false,
+      monitorMetrics: [{ id: 'line-current', name: '电流', unit: 'A' }],
+    })
+
+    const duplicateMetrics = structuredClone(document)
+    duplicateMetrics.connections[0].edges[0].monitorMetrics!.push(
+      structuredClone(duplicateMetrics.connections[0].edges[0].monitorMetrics![0]),
+    )
+    expect(() => parseProjectDocument(duplicateMetrics)).toThrow('子线的运行指标 ID 必须唯一')
   })
 
   it('round-trips explicit On/Off element states and fills export snapshots', () => {
@@ -248,7 +352,95 @@ describe('project document', () => {
       x: 80,
       y: 96,
     })
-    expect(migrated.connections[0].edges[0].routeNodeIds).toEqual(['waypoint-a'])
+    expect(migrated.connections[0].edges).toEqual([
+      expect.objectContaining({
+        id: 'route-edge',
+        sourceNodeId: 'left-node',
+        targetNodeId: 'waypoint-a',
+        logicalConnectionId: 'route-edge',
+      }),
+      expect.objectContaining({
+        sourceNodeId: 'waypoint-a',
+        targetNodeId: 'right-node',
+        logicalConnectionId: 'route-edge',
+      }),
+    ])
+    expect(migrated.connections[0].edges.every((edge) => (
+      edge.routeNodeIds === undefined
+    ))).toBe(true)
+  })
+
+  it('migrates schema v25 route nodes into attributed node-bounded edges', () => {
+    const connectedAsset = {
+      ...asset,
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 64,
+        y: 32,
+        direction: 'right' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const legacy = JSON.parse(JSON.stringify(createDefaultProject('v25 节点分段', [connectedAsset])))
+    const diagramId = legacy.lineSystems.find((line: { type: string }) => (
+      line.type === 'power'
+    )).rootDiagramId
+    legacy.schemaVersion = 25
+    legacy.elements = ['left', 'right'].map((id, index) => ({
+      id,
+      diagramId,
+      assetKey: connectedAsset.key,
+      name: id,
+      x: index * 160,
+      y: 64,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+    legacy.connections = [{
+      id: 'v25-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'electrical-anchor' },
+        { id: 'route-node', kind: 'node', x: 80, y: 96 },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'electrical-anchor' },
+      ],
+      edges: [{
+        id: 'v25-edge',
+        sourceNodeId: 'left-node',
+        targetNodeId: 'right-node',
+        routeNodeIds: ['route-node'],
+        color: '#123456',
+        flowDirection: 'forward',
+        label: '馈线 A',
+        labelEndpoint: 'target',
+      }],
+    }]
+
+    const migrated = parseProjectDocument(legacy, [connectedAsset])
+
+    expect(migrated.connections[0].nodes).toContainEqual({
+      id: 'route-node', kind: 'node', x: 80, y: 96,
+    })
+    expect(migrated.connections[0].edges).toHaveLength(2)
+    expect(migrated.connections[0].edges.every((edge) => (
+      edge.logicalConnectionId === 'v25-edge' &&
+      edge.color === '#123456' &&
+      edge.flowDirection === 'forward' &&
+      edge.routeNodeIds === undefined
+    ))).toBe(true)
+    expect(migrated.connections[0].edges.filter((edge) => edge.label === '馈线 A')).toEqual([
+      expect.objectContaining({
+        id: 'v25-edge',
+        sourceNodeId: 'route-node',
+        targetNodeId: 'right-node',
+        labelEndpoint: 'target',
+      }),
+    ])
   })
 
   it('round-trips topological junction nodes and enforces their 8px position', () => {
@@ -304,6 +496,71 @@ describe('project document', () => {
     const offGrid = JSON.parse(JSON.stringify(document))
     offGrid.connections[0].nodes[2].x = 81
     expect(() => parseProjectDocument(offGrid)).toThrow(/8px/)
+  })
+
+  it('repairs off-grid editor-generated nodes in affected cached projects', () => {
+    const connectedAsset = {
+      ...asset,
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 64,
+        y: 32,
+        direction: 'right' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const document = createDefaultProject('旋转节点历史兼容', [connectedAsset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.elements.push(...['left', 'right'].map((id, index) => ({
+      id,
+      diagramId,
+      assetKey: connectedAsset.key,
+      name: id,
+      x: index * 160,
+      y: 0,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    })))
+    document.connections.push({
+      id: 'rotation-bug-network',
+      diagramId,
+      type: 'electrical',
+      nodes: [
+        { id: 'left-node', kind: 'element-anchor', elementId: 'left', anchorId: 'electrical-anchor' },
+        { id: 'right-node', kind: 'element-anchor', elementId: 'right', anchorId: 'electrical-anchor' },
+        {
+          id: 'route-waypoint-1516e94d-1a7c-4b6c-bf8d-581b1015b986',
+          kind: 'node',
+          x: 84,
+          y: 36,
+        },
+      ],
+      edges: [
+        {
+          id: 'left-edge',
+          sourceNodeId: 'left-node',
+          targetNodeId: 'route-waypoint-1516e94d-1a7c-4b6c-bf8d-581b1015b986',
+        },
+        {
+          id: 'right-edge',
+          sourceNodeId: 'route-waypoint-1516e94d-1a7c-4b6c-bf8d-581b1015b986',
+          targetNodeId: 'right-node',
+        },
+      ],
+    })
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+
+    expect(parsed.connections[0].nodes).toContainEqual({
+      id: 'route-waypoint-1516e94d-1a7c-4b6c-bf8d-581b1015b986',
+      kind: 'node',
+      x: 88,
+      y: 40,
+    })
   })
 
   it('migrates schema v16 without inventing manual route constraints', () => {
@@ -791,7 +1048,7 @@ describe('project document', () => {
     expect(parsed.assets[0].anchors).toEqual(document.assets[0].anchors)
   })
 
-  it('refreshes installed asset metadata, appends Cabinet B and generic, and preserves data', () => {
+  it('refreshes installed asset metadata, appends new catalog symbols, and preserves data', () => {
     const legacyCabinet = {
       ...asset,
       key: 'cabinet',
@@ -831,6 +1088,15 @@ describe('project document', () => {
       intrinsicWidth: 96,
       intrinsicHeight: 48,
     }
+    const tmu = {
+      ...cabinetA,
+      key: 'tmu',
+      name: 'TMU',
+      category: '冷却',
+      source: 'src/assets/symbols/TMU.png',
+      intrinsicWidth: 72,
+      intrinsicHeight: 96,
+    }
     const document = createDefaultProject('Cabinet 素材同步', [legacyCabinet])
     document.elements.push(
       {
@@ -861,7 +1127,7 @@ describe('project document', () => {
       },
     )
 
-    const parsed = parseProjectDocument(document, [cabinetA, cabinetB, generic])
+    const parsed = parseProjectDocument(document, [cabinetA, cabinetB, generic, tmu])
 
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
       name: 'Cabinet A',
@@ -871,7 +1137,87 @@ describe('project document', () => {
     })
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(cabinetB)
     expect(parsed.assets.find((candidate) => candidate.key === 'generic')).toEqual(generic)
+    expect(parsed.assets.find((candidate) => candidate.key === 'tmu')).toEqual(tmu)
     expect(parsed.elements.map((element) => element.name)).toEqual(['Cabinet A', '东侧机柜'])
+  })
+
+  it('migrates the old TMU default size and edge anchors to 72 by 96 once', () => {
+    const legacyTmu = {
+      ...asset,
+      key: 'tmu',
+      name: 'TMU',
+      category: '冷却',
+      source: 'src/assets/symbols/TMU.png',
+      intrinsicWidth: 48,
+      intrinsicHeight: 64,
+      anchors: [
+        {
+          id: 'top-port',
+          name: '顶部接口',
+          x: 24,
+          y: 0,
+          direction: 'top' as const,
+          type: 'cooling-general' as const,
+        },
+        {
+          id: 'right-port',
+          name: '右侧接口',
+          x: 48,
+          y: 32,
+          direction: 'right' as const,
+          type: 'cooling-general' as const,
+        },
+      ],
+    }
+    const currentTmu = {
+      ...legacyTmu,
+      intrinsicWidth: 72,
+      intrinsicHeight: 96,
+      anchors: [],
+    }
+    const document = createDefaultProject('TMU 尺寸兼容', [legacyTmu])
+    document.elements.push(
+      {
+        id: 'legacy-default-tmu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'tmu',
+        name: 'TMU-01',
+        x: 0,
+        y: 0,
+        width: 48,
+        height: 64,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'resized-tmu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'tmu',
+        name: 'TMU-02',
+        x: 104,
+        y: 0,
+        width: 96,
+        height: 128,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+    )
+
+    const parsed = parseProjectDocument(document, [currentTmu])
+    const parsedTmu = parsed.assets.find((candidate) => candidate.key === 'tmu')
+
+    expect(parsedTmu).toMatchObject({ intrinsicWidth: 72, intrinsicHeight: 96 })
+    expect(parsedTmu?.anchors).toEqual([
+      expect.objectContaining({ id: 'top-port', x: 40, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 72, y: 48, direction: 'right' }),
+    ])
+    expect(parsed.elements.find((element) => element.id === 'legacy-default-tmu'))
+      .toMatchObject({ width: 72, height: 96 })
+    expect(parsed.elements.find((element) => element.id === 'resized-tmu'))
+      .toMatchObject({ width: 96, height: 128 })
+    expect(parseProjectDocument(parsed, [currentTmu])).toEqual(parsed)
   })
 
   it('migrates legacy portrait PHE assets and instances to the PNG landscape layout', () => {
@@ -1041,7 +1387,11 @@ describe('project document', () => {
       width: 96,
       height: 48,
       rotation: 0,
-      properties: { tag: 'GEN-01', genericBorderVisible: false },
+      properties: {
+        tag: 'GEN-01',
+        genericBorderVisible: false,
+        genericBackgroundColor: '#334455',
+      },
       extensions: {},
     })
 
@@ -1050,7 +1400,12 @@ describe('project document', () => {
     expect(parsed.elements[0].properties).toMatchObject({
       tag: 'GEN-01',
       genericBorderVisible: false,
+      genericBackgroundColor: '#334455',
     })
+
+    document.elements[0].properties.genericBackgroundColor = 'black'
+    expect(() => parseProjectDocument(document, [genericAsset]))
+      .toThrow('背景颜色必须是六位十六进制值')
   })
 
   it('requires one cooling line and one power line', () => {

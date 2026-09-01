@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 24 as const
+export const SCHEMA_VERSION = 28 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -22,6 +22,7 @@ export const coolingFlowRoleSchema = z.enum(['inlet', 'outlet'])
 export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
 export const elementOnOffStateSchema = z.enum(['off', 'on'])
 export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
+export const coolingLineRoleSchema = z.enum(['primary', 'auxiliary'])
 export const connectionPointSchema = z.object({
   id: z.string().min(1),
   x: z.number().finite(),
@@ -225,12 +226,17 @@ export const connectionEdgeSchema = z.object({
   id: z.string().min(1),
   sourceNodeId: z.string().min(1),
   targetNodeId: z.string().min(1),
+  logicalConnectionId: z.string().min(1).optional(),
   flowDirection: connectionFlowDirectionSchema.optional(),
+  coolingLineRole: coolingLineRoleSchema.optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
   label: z.string().trim().min(1).optional(),
   labelVisible: z.boolean().optional(),
   labelEndpoint: z.enum(['source', 'target']).optional(),
   labelSide: z.enum(['negative', 'positive']).optional(),
+  monitorDataVisible: z.boolean().optional(),
+  monitorMetricLabelsVisible: z.boolean().optional(),
+  monitorMetrics: z.array(monitorMetricSchema).max(5, '每条子线最多配置 5 项运行指标').optional(),
   routeNodeIds: z.array(z.string().min(1)).optional(),
 })
 
@@ -494,6 +500,7 @@ export const projectDocumentSchema = z
         ['color', '颜色'],
         ['switchOffColor', '关状态颜色'],
         ['switchOnColor', '开状态颜色'],
+        ['genericBackgroundColor', '背景颜色'],
       ] as const) {
         const value = element.properties[property]
         if (value === undefined) continue
@@ -590,6 +597,17 @@ export const projectDocumentSchema = z
       const degree = new Map(network.nodes.map((node) => [node.id, 0]))
       const adjacency = new Map(network.nodes.map((node) => [node.id, new Set<string>()]))
       for (const edge of network.edges) {
+        const metricIds = new Set<string>()
+        for (const metric of edge.monitorMetrics ?? []) {
+          if (metricIds.has(metric.id)) {
+            context.addIssue({
+              code: 'custom',
+              path: [...networkPath, 'edges', edge.id, 'monitorMetrics', metric.id],
+              message: '子线的运行指标 ID 必须唯一',
+            })
+          }
+          metricIds.add(metric.id)
+        }
         if (
           edge.sourceNodeId === edge.targetNodeId ||
           !nodeIds.has(edge.sourceNodeId) ||
@@ -667,11 +685,11 @@ export const projectDocumentSchema = z
               message: '节点必须位于 8px 网格点',
             })
           }
-          if ((degree.get(node.id) ?? 0) < 2) {
+          if ((degree.get(node.id) ?? 0) < 1) {
             context.addIssue({
               code: 'custom',
               path,
-              message: '自由节点必须至少连接两个物理子线段',
+              message: '自由节点必须至少连接一个物理子线段',
             })
           }
           anchorTypes.push(network.type)
@@ -836,6 +854,7 @@ export type Busbar = z.infer<typeof busbarSchema>
 export type ConnectionNode = z.infer<typeof connectionNodeSchema>
 export type ConnectionEdge = z.infer<typeof connectionEdgeSchema>
 export type ConnectionFlowDirection = NonNullable<ConnectionEdge['flowDirection']>
+export type CoolingLineRole = NonNullable<ConnectionEdge['coolingLineRole']>
 export type ConnectionLabelEndpoint = NonNullable<ConnectionEdge['labelEndpoint']>
 export type ConnectionLabelSide = NonNullable<ConnectionEdge['labelSide']>
 export type ConnectionNetwork = z.infer<typeof connectionNetworkSchema>
@@ -1199,6 +1218,9 @@ function repairLegacyConnectionReferences(connections: unknown[]) {
     const referencedNodeIds = new Set(edges.flatMap((edge) => [
       edge.sourceNodeId as string,
       edge.targetNodeId as string,
+      ...(Array.isArray(edge.routeNodeIds)
+        ? edge.routeNodeIds.filter((id): id is string => typeof id === 'string')
+        : []),
     ]))
     const retainedNodes = nodes.filter((node) => referencedNodeIds.has(node.id as string))
     return retainedNodes.length >= 2 && edges.length >= 1
@@ -1207,7 +1229,10 @@ function repairLegacyConnectionReferences(connections: unknown[]) {
   })
 }
 
-function migrateUnifiedConnectionNodes(input: Record<string, unknown>) {
+function migrateUnifiedConnectionNodes(
+  input: Record<string, unknown>,
+  preserveFreeEndpoints = false,
+) {
   if (!Array.isArray(input.diagrams) || !Array.isArray(input.connections)) return input
   const routePointsByDiagram = new Map<string, Map<string, Record<string, unknown>>>()
   const diagrams = input.diagrams.map((value) => {
@@ -1281,7 +1306,9 @@ function migrateUnifiedConnectionNodes(input: Record<string, unknown>) {
         }
       })
       const danglingIds = new Set(retainedNodes.flatMap((node) => (
-        node.kind === 'node' && typeof node.id === 'string' && (degree.get(node.id) ?? 0) < 2
+        node.kind === 'node' &&
+        typeof node.id === 'string' &&
+        (degree.get(node.id) ?? 0) < (preserveFreeEndpoints ? 1 : 2)
           ? [node.id]
           : []
       )))
@@ -1316,11 +1343,142 @@ function migrateUnifiedConnectionNodes(input: Record<string, unknown>) {
   return { ...input, diagrams, connections }
 }
 
+function migrateNodeBoundedConnectionEdges(input: Record<string, unknown>) {
+  if (!Array.isArray(input.connections)) return input
+  return {
+    ...input,
+    connections: input.connections.map((value) => {
+      if (!isRecord(value) || !Array.isArray(value.edges)) return value
+      const usedEdgeIds = new Set(value.edges.flatMap((edge) => (
+        isRecord(edge) && typeof edge.id === 'string' ? [edge.id] : []
+      )))
+      const nextSegmentId = (edgeId: string, segmentIndex: number) => {
+        const base = `${edgeId}:segment:${segmentIndex + 1}`
+        let candidate = base
+        let suffix = 2
+        while (usedEdgeIds.has(candidate)) {
+          candidate = `${base}:${suffix}`
+          suffix += 1
+        }
+        usedEdgeIds.add(candidate)
+        return candidate
+      }
+      return {
+        ...value,
+        edges: value.edges.flatMap((edge) => {
+          if (
+            !isRecord(edge) ||
+            typeof edge.id !== 'string' ||
+            typeof edge.sourceNodeId !== 'string' ||
+            typeof edge.targetNodeId !== 'string'
+          ) return [edge]
+          const routeNodeIds = Array.isArray(edge.routeNodeIds)
+            ? edge.routeNodeIds.filter((id): id is string => typeof id === 'string')
+            : []
+          if (!routeNodeIds.length) return [edge]
+          const edgeId = edge.id
+          const sourceNodeId = edge.sourceNodeId
+          const targetNodeId = edge.targetNodeId
+          const chain = [sourceNodeId, ...routeNodeIds, targetNodeId]
+          const logicalConnectionId = typeof edge.logicalConnectionId === 'string'
+            ? edge.logicalConnectionId
+            : edgeId
+          const labelSegmentIndex = edge.labelEndpoint === 'source' ? 0 : chain.length - 2
+          const {
+            routeNodeIds: _routeNodeIds,
+            label: _label,
+            labelVisible: _labelVisible,
+            labelEndpoint: _labelEndpoint,
+            labelSide: _labelSide,
+            monitorDataVisible: _monitorDataVisible,
+            monitorMetricLabelsVisible: _monitorMetricLabelsVisible,
+            monitorMetrics: _monitorMetrics,
+            ...edgeWithoutRouteAndDisplayData
+          } = edge
+          const hasDisplayData = (
+            typeof edge.label === 'string' && Boolean(edge.label.trim())
+          ) || (
+            Array.isArray(edge.monitorMetrics) && edge.monitorMetrics.length > 0
+          )
+          const retainedIdSegmentIndex = hasDisplayData ? labelSegmentIndex : 0
+          return chain.slice(1).map((targetNodeId, segmentIndex) => ({
+            ...edgeWithoutRouteAndDisplayData,
+            id: segmentIndex === retainedIdSegmentIndex
+              ? edgeId
+              : nextSegmentId(edgeId, segmentIndex),
+            sourceNodeId: chain[segmentIndex],
+            targetNodeId,
+            logicalConnectionId,
+            ...(segmentIndex === labelSegmentIndex ? {
+              ...(typeof edge.label === 'string' ? { label: edge.label } : {}),
+              ...(typeof edge.labelVisible === 'boolean'
+                ? { labelVisible: edge.labelVisible }
+                : {}),
+              ...(edge.labelEndpoint === 'source' || edge.labelEndpoint === 'target'
+                ? { labelEndpoint: edge.labelEndpoint }
+                : {}),
+              ...(edge.labelSide === 'negative' || edge.labelSide === 'positive'
+                ? { labelSide: edge.labelSide }
+                : {}),
+              ...(typeof edge.monitorDataVisible === 'boolean'
+                ? { monitorDataVisible: edge.monitorDataVisible }
+                : {}),
+              ...(typeof edge.monitorMetricLabelsVisible === 'boolean'
+                ? { monitorMetricLabelsVisible: edge.monitorMetricLabelsVisible }
+                : {}),
+              ...(Array.isArray(edge.monitorMetrics)
+                ? { monitorMetrics: edge.monitorMetrics }
+                : {}),
+            } : {}),
+          }))
+        }),
+      }
+    }),
+  }
+}
+
+const EDITOR_CONNECTION_NODE_ID_PREFIXES = [
+  'route-waypoint-',
+  'connection-node-',
+] as const
+
+function repairEditorGeneratedOffGridConnectionNodes(input: Record<string, unknown>) {
+  if (!Array.isArray(input.connections)) return input
+  return {
+    ...input,
+    connections: input.connections.map((value) => {
+      if (!isRecord(value) || !Array.isArray(value.nodes)) return value
+      return {
+        ...value,
+        nodes: value.nodes.map((node) => {
+          const nodeId = isRecord(node) && typeof node.id === 'string' ? node.id : null
+          if (
+            !isRecord(node) ||
+            node.kind !== 'node' ||
+            nodeId === null ||
+            !EDITOR_CONNECTION_NODE_ID_PREFIXES.some((prefix) => nodeId.startsWith(prefix)) ||
+            typeof node.x !== 'number' ||
+            !Number.isFinite(node.x) ||
+            typeof node.y !== 'number' ||
+            !Number.isFinite(node.y) ||
+            node.x % EDITOR_GRID_SIZE === 0 && node.y % EDITOR_GRID_SIZE === 0
+          ) return node
+          return {
+            ...node,
+            x: snapToGrid(node.x),
+            y: snapToGrid(node.y),
+          }
+        }),
+      }
+    }),
+  }
+}
+
 function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 
@@ -1396,9 +1554,12 @@ function migrateProjectDocument(
           )
         : withCvCheckValve.connections
       : [],
-  })
+  }, sourceSchemaVersion >= 27)
+  const withNodeBoundedConnectionEdges = sourceSchemaVersion < 26
+    ? migrateNodeBoundedConnectionEdges(withUnifiedConnections)
+    : withUnifiedConnections
   const migrated = migrateOnOffStateColors(migrateLegacySwitch(
-    withUnifiedConnections,
+    repairEditorGeneratedOffGridConnectionNodes(withNodeBoundedConnectionEdges),
     installedAssets,
   ))
 
@@ -1455,6 +1616,10 @@ const LEGACY_PHE_HEIGHT = 160
 const CURRENT_PHE_WIDTH = 200
 const CURRENT_PHE_HEIGHT = 80
 const CURRENT_PHE_SCALE_STEP = 0.2
+const LEGACY_TMU_WIDTH = 48
+const LEGACY_TMU_HEIGHT = 64
+const CURRENT_TMU_WIDTH = 72
+const CURRENT_TMU_HEIGHT = 96
 
 function normalizeRotation(value: number) {
   return ((value % 360) + 360) % 360
@@ -1522,6 +1687,31 @@ function migrateLegacyPheElement(element: DiagramElement): DiagramElement {
   }
 }
 
+function migrateLegacyTmuAnchor(anchor: SymbolAnchor): SymbolAnchor {
+  return {
+    ...anchor,
+    x: Math.min(
+      CURRENT_TMU_WIDTH,
+      Math.max(0, snapToGrid(CURRENT_TMU_WIDTH * anchor.x / LEGACY_TMU_WIDTH)),
+    ),
+    y: Math.min(
+      CURRENT_TMU_HEIGHT,
+      Math.max(0, snapToGrid(CURRENT_TMU_HEIGHT * anchor.y / LEGACY_TMU_HEIGHT)),
+    ),
+  }
+}
+
+function migrateLegacyTmuElement(element: DiagramElement): DiagramElement {
+  if (element.width !== LEGACY_TMU_WIDTH || element.height !== LEGACY_TMU_HEIGHT) {
+    return element
+  }
+  return {
+    ...element,
+    width: CURRENT_TMU_WIDTH,
+    height: CURRENT_TMU_HEIGHT,
+  }
+}
+
 export function parseProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[] = [],
@@ -1537,6 +1727,17 @@ export function parseProjectDocument(
       installed?.source.endsWith('/PHE.png') &&
       installed.intrinsicWidth === 200 &&
       installed.intrinsicHeight === 80
+      ? [asset.key]
+      : []
+  }))
+  const legacyTmuAssetKeys = new Set(document.assets.flatMap((asset) => {
+    const installed = installedByKey.get(asset.key)
+    return asset.key === 'tmu' &&
+      asset.intrinsicWidth === LEGACY_TMU_WIDTH &&
+      asset.intrinsicHeight === LEGACY_TMU_HEIGHT &&
+      installed?.source.endsWith('/TMU.png') &&
+      installed.intrinsicWidth === CURRENT_TMU_WIDTH &&
+      installed.intrinsicHeight === CURRENT_TMU_HEIGHT
       ? [asset.key]
       : []
   }))
@@ -1561,6 +1762,9 @@ export function parseProjectDocument(
         ...(legacyPheAssetKeys.has(asset.key) ? {
           anchors: asset.anchors.map(migrateLegacyPheAnchor),
         } : {}),
+        ...(legacyTmuAssetKeys.has(asset.key) ? {
+          anchors: asset.anchors.map(migrateLegacyTmuAnchor),
+        } : {}),
         ...(asset.key === 'cv' ? { coolingDeviceRole: 'check-valve' as const } : {}),
       }
     }).concat(
@@ -1575,9 +1779,12 @@ export function parseProjectDocument(
       const withCurrentPheLayout = legacyPheAssetKeys.has(element.assetKey)
         ? migrateLegacyPheElement(element)
         : element
-      return withCurrentPheLayout.assetKey === 'cabinet' && withCurrentPheLayout.name === 'Cabinet'
-        ? { ...withCurrentPheLayout, name: 'Cabinet A' }
+      const withCurrentTmuLayout = legacyTmuAssetKeys.has(withCurrentPheLayout.assetKey)
+        ? migrateLegacyTmuElement(withCurrentPheLayout)
         : withCurrentPheLayout
+      return withCurrentTmuLayout.assetKey === 'cabinet' && withCurrentTmuLayout.name === 'Cabinet'
+        ? { ...withCurrentTmuLayout, name: 'Cabinet A' }
+        : withCurrentTmuLayout
     }),
     diagrams: document.diagrams.map((diagram) => ({
       ...diagram,

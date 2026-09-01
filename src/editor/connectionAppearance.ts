@@ -1,4 +1,4 @@
-import type { AnchorType } from '../domain/project'
+import type { AnchorType, CoolingLineRole } from '../domain/project'
 import type { Point } from './geometry'
 
 export const COOLING_DIRECTION_ARROW_INSET_SCREEN = 6
@@ -6,6 +6,8 @@ export const COOLING_ROUTE_HIT_WIDTH_SCREEN = 20
 export const DEFAULT_ROUTE_HIT_WIDTH_SCREEN = 12
 export const COOLING_PIPE_SHELL_WIDTH = 10
 export const COOLING_PIPE_CORE_WIDTH = 2
+export const COOLING_AUXILIARY_PIPE_SHELL_WIDTH = 4
+export const COOLING_AUXILIARY_PIPE_CORE_WIDTH = 1
 export const COOLING_PIPE_SHELL_ENDPOINT_INSET = 0
 export const COOLING_PIPE_BRIDGE_RADIUS = 8
 export const COOLING_PIPE_CORNER_RADIUS = 8
@@ -15,6 +17,10 @@ export const COOLING_PIPE_INNER_SHADOW_DY = 1
 export const COOLING_PIPE_INNER_SHADOW_BLUR = 3
 export const COOLING_PIPE_INNER_SHADOW_COLOR = '#FFFFFF'
 export const COOLING_PIPE_INNER_SHADOW_OPACITY = 0.5
+export const COOLING_AUXILIARY_PIPE_SHELL_COLOR = '#1D1F20'
+export const COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY = 0.2
+export const COOLING_AUXILIARY_COLOR_NEUTRAL = '#70736F'
+export const COOLING_AUXILIARY_COLOR_WEIGHT = 0.2
 
 const COOLING_PIPE_FILTER_MARGIN = (
   COOLING_PIPE_SHELL_WIDTH / 2 +
@@ -108,6 +114,52 @@ export function coolingPipeFilterRegion(points: Point[]): CoolingPipeFilterRegio
 
 export function isCoolingConnectionType(type: AnchorType) {
   return type !== 'electrical'
+}
+
+export function resolvedCoolingLineColor(
+  color: string,
+  role: CoolingLineRole | undefined,
+) {
+  if (role !== 'auxiliary') return color
+  const source = color.match(/^#([0-9a-f]{6})$/i)?.[1]
+  const neutral = COOLING_AUXILIARY_COLOR_NEUTRAL.slice(1)
+  if (!source) return COOLING_AUXILIARY_COLOR_NEUTRAL
+  const channel = (offset: number) => Math.round(
+    Number.parseInt(source.slice(offset, offset + 2), 16) * COOLING_AUXILIARY_COLOR_WEIGHT +
+    Number.parseInt(neutral.slice(offset, offset + 2), 16) *
+      (1 - COOLING_AUXILIARY_COLOR_WEIGHT),
+  ).toString(16).padStart(2, '0')
+  return `#${channel(0)}${channel(2)}${channel(4)}`.toUpperCase()
+}
+
+export function coolingLineRoleRenderPriority(role: CoolingLineRole | undefined) {
+  return role === 'auxiliary' ? 0 : 1
+}
+
+export function sortByCoolingLineRenderPriority<T>(
+  items: readonly T[],
+  roleFor: (item: T) => CoolingLineRole | undefined,
+) {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => (
+      coolingLineRoleRenderPriority(roleFor(left.item)) -
+        coolingLineRoleRenderPriority(roleFor(right.item)) ||
+      left.index - right.index
+    ))
+    .map(({ item }) => item)
+}
+
+export function coolingPipeCoreWidth(role: CoolingLineRole | undefined) {
+  return role === 'auxiliary'
+    ? COOLING_AUXILIARY_PIPE_CORE_WIDTH
+    : COOLING_PIPE_CORE_WIDTH
+}
+
+export function coolingPipeInnerShadowOpacity(role: CoolingLineRole | undefined) {
+  return role === 'auxiliary'
+    ? COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY
+    : COOLING_PIPE_INNER_SHADOW_OPACITY
 }
 
 export function routeHitWidthForConnectionType(type: AnchorType) {

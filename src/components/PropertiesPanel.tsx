@@ -20,6 +20,7 @@ import {
   type CanvasColorCategory,
   type CanvasColorTarget,
 } from '../editor/canvasColors'
+import { isCoolingConnectionType } from '../editor/connectionAppearance'
 import {
   DEFAULT_BUSBAR_COLOR,
   defaultConnectionColor,
@@ -29,9 +30,12 @@ import {
   normalizeHexColor,
 } from '../editor/objectColors'
 import {
+  GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY,
+  GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR,
   GENERIC_SYMBOL_MIN_HEIGHT,
   GENERIC_SYMBOL_MIN_WIDTH,
   isGenericSymbolKey,
+  resolvedGenericSymbolBackgroundColor,
 } from '../editor/genericSymbol'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
@@ -627,11 +631,41 @@ export function PropertiesPanel({
     const mixedFlowDirection = connectionFlowDirections.some((direction) => (
       direction !== selectionFlowDirection
     ))
+    const connectionCoolingLineRoles = selectedConnection?.edges.map((edge) => (
+      edge.coolingLineRole ?? 'primary'
+    )) ?? []
+    const selectionCoolingLineRole = connectionCoolingLineRoles[0] ?? 'primary'
+    const mixedCoolingLineRole = connectionCoolingLineRoles.some((role) => (
+      role !== selectionCoolingLineRole
+    ))
+    const allSelectedConnectionsCooling = connectionCount > 0 &&
+      selectedConnection!.edges.every((edge) => isCoolingConnectionType(
+        selectedConnection!.edgeTypes?.[edge.id] ?? selectedConnection!.type,
+      ))
     const combined = busbarCount > 0 && connectionCount > 0
     const isNetworkSelection = selectedConnection?.isNetwork ?? connectionCount > 1
-    const manualRouteEdgeCount = selectedConnection?.edges.filter((edge) => (
+    const selectedLogicalConnectionIds = new Set(selectedConnection?.edges.flatMap((edge) => (
+      edge.logicalConnectionId ? [edge.logicalConnectionId] : []
+    )) ?? [])
+    const resettableLogicalConnectionIds = new Set<string>()
+    canvasConnections?.forEach((network) => network.nodes.forEach((node) => {
+      if (node.kind !== 'node') return
+      const incidentEdges = network.edges.filter((edge) => (
+        edge.sourceNodeId === node.id || edge.targetNodeId === node.id
+      ))
+      const logicalConnectionId = incidentEdges[0]?.logicalConnectionId
+      if (
+        incidentEdges.length === 2 &&
+        logicalConnectionId &&
+        incidentEdges[1].logicalConnectionId === logicalConnectionId &&
+        selectedLogicalConnectionIds.has(logicalConnectionId)
+      ) resettableLogicalConnectionIds.add(logicalConnectionId)
+    }))
+    const legacyManualRouteEdgeCount = selectedConnection?.edges.filter((edge) => (
       edge.routeNodeIds?.length
     )).length ?? 0
+    const manualRouteEdgeCount = legacyManualRouteEdgeCount +
+      resettableLogicalConnectionIds.size
     const heading = combined
       ? `${busbarCount} 条母线 · ${connectionCount} 条子线`
       : busbarCount > 0
@@ -696,7 +730,62 @@ export function PropertiesPanel({
                   { labelVisible },
                 )}
               />
+              <PropertyToggle
+                label="显示运行数据"
+                description={(selectedConnection!.edges[0].monitorMetrics?.length ?? 0) > 0
+                  ? '编辑预览 · 监控动态更新'
+                  : '添加指标后生效'}
+                checked={selectedConnection!.edges[0].monitorDataVisible === true}
+                onChange={(monitorDataVisible) => onPatchConnectionEdge(
+                  selectedConnection!.edges[0].id,
+                  { monitorDataVisible },
+                )}
+              />
+              <PropertyToggle
+                label="显示指标名称与单位"
+                description={(selectedConnection!.edges[0].monitorMetrics?.length ?? 0) > 0
+                  ? '统一控制全部指标'
+                  : '添加指标后生效'}
+                checked={selectedConnection!.edges[0].monitorMetricLabelsVisible !== false}
+                onChange={(monitorMetricLabelsVisible) => onPatchConnectionEdge(
+                  selectedConnection!.edges[0].id,
+                  { monitorMetricLabelsVisible },
+                )}
+              />
+              <MonitorMetricsEditor
+                metrics={selectedConnection!.edges[0].monitorMetrics ?? []}
+                onChange={(monitorMetrics) => onPatchConnectionEdge(
+                  selectedConnection!.edges[0].id,
+                  { monitorMetrics },
+                )}
+              />
             </>
+          ) : null}
+          {connectionCount > 0 && busbarCount === 0 ? (
+            allSelectedConnectionsCooling ? (
+              <SelectField
+                label="管路级别"
+                aria-label="管路级别"
+                hint={connectionCount > 1
+                  ? `同时应用到 ${connectionCount} 条所选冷却子线`
+                  : '辅助线路使用更细、更低对比视觉，不代表真实管径或流量能力'}
+                value={mixedCoolingLineRole ? 'mixed' : selectionCoolingLineRole}
+                onChange={(event) => {
+                  const value = event.currentTarget.value
+                  if (value === 'mixed') return
+                  const patch: Partial<ConnectionEdge> = {
+                    coolingLineRole: value === 'primary' ? undefined : 'auxiliary',
+                  }
+                  const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
+                  if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
+                  else onPatchConnectionEdges(edgeIds, patch)
+                }}
+              >
+                {mixedCoolingLineRole ? <option value="mixed" disabled>多种级别</option> : null}
+                <option value="primary">主要线路</option>
+                <option value="auxiliary">辅助线路</option>
+              </SelectField>
+            ) : null
           ) : null}
           {connectionCount > 0 && busbarCount === 0 ? (
             <SelectField
@@ -804,6 +893,10 @@ export function PropertiesPanel({
   const stateOn = onOffStates[element.id] ?? false
   const symbolColor = normalizeSymbolColor(element.properties.color)
   const hasCustomColor = typeof element.properties.color === 'string'
+  const genericBackgroundColor = resolvedGenericSymbolBackgroundColor(element)
+  const hasCustomGenericBackgroundColor = typeof element.properties[
+    GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY
+  ] === 'string'
   const stateColorProperties = (
     slot: Extract<SymbolColorSlot, 'switch-off' | 'switch-on'>,
     color: string | null,
@@ -936,6 +1029,24 @@ export function PropertiesPanel({
             onRestore={() => {
               const properties = { ...element.properties }
               delete properties.color
+              onPatch(element.id, { properties })
+            }}
+          />
+        ) : null}
+        {isGeneric ? (
+          <CommittedColorField
+            selectionKey={`${element.id}:generic-background`}
+            label="背景颜色"
+            value={genericBackgroundColor}
+            fallback={GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR}
+            hasCustomColor={hasCustomGenericBackgroundColor}
+            onPreview={(color) => onColorPreview(element.id, color, 'generic-background')}
+            onCommit={(genericBackgroundColor) => onPatch(element.id, {
+              properties: { ...element.properties, genericBackgroundColor },
+            })}
+            onRestore={() => {
+              const properties = { ...element.properties }
+              delete properties[GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY]
               onPatch(element.id, { properties })
             }}
           />

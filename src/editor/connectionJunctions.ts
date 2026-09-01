@@ -570,7 +570,9 @@ export function deleteConnectionJunctions(
       edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId
     ))
     if (endpointEdges.length !== 2 || interiorEdges.length) return null
-    const base = endpointEdges.find((edge) => edge.label) ?? endpointEdges[0]
+    const base = endpointEdges.find((edge) => (
+      edge.label || edge.monitorMetrics?.length
+    )) ?? endpointEdges[0]
     const other = endpointEdges.find((edge) => edge.id !== base.id)!
     const baseReversed = base.sourceNodeId === nodeId
     const baseChain = baseReversed ? edgeChain(base).reverse() : edgeChain(base)
@@ -579,11 +581,17 @@ export function deleteConnectionJunctions(
       : edgeChain(other).reverse()
     const mergedChain = [...baseChain.slice(0, -1), ...otherChain.slice(1)]
     const orientedBase = baseReversed ? reverseEdgeProperties(base) : base
-    const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteNodes } = orientedBase
+    const allAuxiliary = endpointEdges.every((edge) => edge.coolingLineRole === 'auxiliary')
+    const {
+      routeNodeIds: _routeNodeIds,
+      coolingLineRole: _coolingLineRole,
+      ...edgeWithoutRouteNodes
+    } = orientedBase
     const mergedEdge: ConnectionEdge = {
       ...edgeWithoutRouteNodes,
       sourceNodeId: mergedChain[0],
       targetNodeId: mergedChain.at(-1)!,
+      ...(allAuxiliary ? { coolingLineRole: 'auxiliary' as const } : {}),
       ...(mergedChain.length > 2 ? { routeNodeIds: mergedChain.slice(1, -1) } : {}),
     }
     const removedEdgeIds = new Set(endpointEdges.map((edge) => edge.id))

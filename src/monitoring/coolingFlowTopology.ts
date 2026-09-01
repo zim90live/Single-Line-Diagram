@@ -292,12 +292,27 @@ export function deriveCoolingFlowTopology({
   const hydraulicLinks: CoolingHydraulicLink[] = []
   const lineLinks: CoolingLineLink[] = []
   const lineLinksByEdgeId = new Map<string, CoolingLineLink[]>()
+  const intervalCountByLogicalConnection = new Map<string, number>()
 
   for (const network of coolingNetworks) {
     for (const edge of network.edges) {
       const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
         .filter((nodeId) => nodesById.has(nodeId))
-      const intervalCount = Math.max(1, chain.length - 1)
+      const key = `${network.id}:${edge.logicalConnectionId ?? edge.id}`
+      intervalCountByLogicalConnection.set(
+        key,
+        (intervalCountByLogicalConnection.get(key) ?? 0) + Math.max(1, chain.length - 1),
+      )
+    }
+  }
+
+  for (const network of coolingNetworks) {
+    for (const edge of network.edges) {
+      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+        .filter((nodeId) => nodesById.has(nodeId))
+      const intervalCount = intervalCountByLogicalConnection.get(
+        `${network.id}:${edge.logicalConnectionId ?? edge.id}`,
+      ) ?? Math.max(1, chain.length - 1)
       for (let index = 1; index < chain.length; index += 1) {
         const startNodeId = chain[index - 1]
         const endNodeId = chain[index]

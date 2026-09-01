@@ -1,5 +1,4 @@
 import type {
-  DiagramElement,
   MonitorAlarmSeverity,
   MonitorMetric,
   MonitorMetricAlarm,
@@ -16,6 +15,11 @@ export interface MonitorMetricReading {
 }
 
 export type MonitorMetricReadings = Record<string, MonitorMetricReading>
+
+export interface MonitorMetricOwner {
+  id: string
+  monitorMetrics?: MonitorMetric[]
+}
 
 const TEXT_SEVERITY_WEIGHT: Record<MonitorAlarmSeverity, number> = {
   normal: 90,
@@ -178,24 +182,24 @@ function createMonitorMetricReading(
 }
 
 export function generateMonitorMetricReadings(
-  elements: DiagramElement[],
+  owners: MonitorMetricOwner[],
   random = Math.random,
 ): MonitorMetricReadings {
-  return Object.fromEntries(elements.flatMap((element) => (
-    (element.monitorMetrics ?? []).map((metric) => [
-      monitorMetricReadingKey(element.id, metric.id),
-      createMonitorMetricReading(element.id, metric, false, random),
+  return Object.fromEntries(owners.flatMap((owner) => (
+    (owner.monitorMetrics ?? []).map((metric) => [
+      monitorMetricReadingKey(owner.id, metric.id),
+      createMonitorMetricReading(owner.id, metric, false, random),
     ] as const)
   )))
 }
 
 export function generateMonitorMetricPreviewReadings(
-  elements: DiagramElement[],
+  owners: MonitorMetricOwner[],
 ): MonitorMetricReadings {
-  return Object.fromEntries(elements.flatMap((element) => (
-    (element.monitorMetrics ?? []).map((metric) => [
-      monitorMetricReadingKey(element.id, metric.id),
-      createMonitorMetricReading(element.id, metric, true, Math.random),
+  return Object.fromEntries(owners.flatMap((owner) => (
+    (owner.monitorMetrics ?? []).map((metric) => [
+      monitorMetricReadingKey(owner.id, metric.id),
+      createMonitorMetricReading(owner.id, metric, true, Math.random),
     ] as const)
   )))
 }

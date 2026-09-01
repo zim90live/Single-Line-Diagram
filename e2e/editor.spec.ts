@@ -12,6 +12,19 @@ const CONNECTED_REAL_SCENE_ELEMENT_IDS = [...new Set(
   ))),
 )]
 
+test('registers and inserts TMU as a 72 by 96 cooling symbol', async ({ page }) => {
+  await page.goto('/')
+
+  const tmu = page.getByTitle('拖动或双击插入TMU')
+  await expect(tmu).toBeVisible()
+  await tmu.dblclick()
+
+  const element = page.locator('.diagram-element[data-asset-key="tmu"]')
+  await expect(element).toHaveCount(1)
+  await expect(element.locator('image')).toHaveAttribute('width', '72')
+  await expect(element.locator('image')).toHaveAttribute('height', '96')
+})
+
 test('registers Cabinet A and Cabinet B as separate insertable symbols', async ({ page }) => {
   await page.goto('/')
 
@@ -44,6 +57,16 @@ test('renders a free-size generic frame with an upright clipped device identifie
   await expect(frame).toHaveAttribute('stroke-opacity', '1')
   await expect(tag).toHaveText('通用图元-01')
   await expect(page.locator('.element-label').filter({ hasText: '通用图元-01' })).toHaveCount(0)
+
+  const backgroundColor = page.getByLabel('背景颜色 HEX')
+  await expect(backgroundColor).toHaveValue('#121316')
+  await backgroundColor.fill('#334455')
+  await expect(frame).toHaveAttribute('fill', '#334455')
+  await backgroundColor.blur()
+  await expect(frame).toHaveAttribute('fill', '#334455')
+  await page.getByRole('button', { name: '恢复默认' }).click()
+  await expect(backgroundColor).toHaveValue('#121316')
+  await expect(frame).toHaveAttribute('fill', '#121316')
 
   const borderVisibility = page.getByRole('switch', { name: '显示虚线框' })
   await expect(borderVisibility).toHaveAttribute('aria-checked', 'true')
@@ -153,6 +176,47 @@ test('uses a flat four-region workspace with transparent canvas HUD', async ({ p
   await expect(canvasFrame.locator('.status-bar')).not.toContainText(/^X\s/)
 })
 
+test('draws free-ended and closed-loop lines until Escape exits the explicit tool', async ({ page }) => {
+  await page.goto('/')
+
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  const startTool = page.getByRole('button', { name: '绘制线路' })
+  await expect(startTool).toHaveAttribute('aria-pressed', 'false')
+  await startTool.click()
+
+  const activeTool = page.getByRole('button', { name: '退出线路绘制 (Esc)' })
+  await expect(activeTool).toHaveAttribute('aria-pressed', 'true')
+  await canvas.click({ position: { x: 280, y: 280 } })
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+
+  await canvas.click({ position: { x: 400, y: 280 } })
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+
+  await canvas.click({ position: { x: 400, y: 400 } })
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await expect(page.locator('.connection-edge__line[d*="A 8 8"]')).toHaveCount(2)
+  await page.locator('.connection-junction-handle').first().click({ force: true })
+
+  await expect(page.locator('.connection-edge')).toHaveCount(3)
+  await expect(page.getByTestId('connection-preview')).toHaveCount(0)
+  await expect(activeTool).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('线路绘制已开启 · 单击起点 · Esc 退出')).toBeVisible()
+
+  await canvas.click({ position: { x: 520, y: 320 } })
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+  await canvas.press('Escape')
+
+  await expect(page.getByRole('button', { name: '绘制线路' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+  await expect(page.getByTestId('connection-preview')).toHaveCount(0)
+
+  await canvas.press('Control+z')
+  await expect(page.locator('.connection-edge')).toHaveCount(0)
+})
+
 test('collapses and expands the left menu from its graphical edge control', async ({ page }) => {
   await page.goto('/')
 
@@ -195,6 +259,59 @@ test('collapses and expands the left menu from its graphical edge control', asyn
   expect(restoredCanvasBox.width).toBeCloseTo(initialCanvasBox.width, 0)
 })
 
+test('creates, renames, and reparents diagrams from the hierarchy tree', async ({ page }) => {
+  await page.goto('/')
+
+  const hierarchy = page.locator('.hierarchy-section')
+  const coolingLine = hierarchy.locator('.tree-line').filter({ hasText: '冷却线路' })
+  const savedStatus = page.locator('.workspace-header').getByText('已保存', { exact: true })
+  await expect(savedStatus).toBeVisible()
+
+  const coolingRoot = coolingLine.locator('.tree-row-shell').first()
+  await coolingRoot.locator('.tree-row').click()
+  await hierarchy.getByRole('button', { name: '新增下级图纸' }).click()
+  const renameInput = hierarchy.getByRole('textbox', { name: /重命名新楼宇/ })
+  await renameInput.fill('2 号楼')
+  await renameInput.press('Enter')
+  await expect(coolingLine.getByText('2 号楼', { exact: true })).toBeVisible()
+  await expect(hierarchy).toContainText('9 张')
+  await expect(page.locator('.workspace-header').getByText('未保存', { exact: true })).toBeVisible()
+
+  const podRow = coolingLine.locator('.tree-row-shell').filter({ hasText: 'POD A' })
+  const secondBuildingRow = coolingLine.locator('.tree-row-shell').filter({ hasText: '2 号楼' })
+  await podRow.locator('.tree-row').dragTo(secondBuildingRow)
+  await expect(page.getByText('图纸层级已更新')).toBeVisible()
+
+  await coolingLine.getByText('POD A', { exact: true }).click()
+  await expect(page.locator('.breadcrumbs')).toContainText('园区总图/2 号楼/POD A')
+})
+
+test('collapses hierarchy line systems and diagram branches without dirtying the project', async ({ page }) => {
+  await page.goto('/')
+
+  const hierarchy = page.locator('.hierarchy-section')
+  const coolingLine = hierarchy.locator('.tree-line').filter({ hasText: '冷却线路' })
+  const savedStatus = page.locator('.workspace-header').getByText('已保存', { exact: true })
+  await expect(savedStatus).toBeVisible()
+
+  await coolingLine.getByRole('button', { name: '收起冷却线路' }).click()
+  await expect(coolingLine.getByText('园区总图', { exact: true })).not.toBeVisible()
+  await expect(coolingLine.getByRole('button', { name: '展开冷却线路' }))
+    .toHaveAttribute('aria-expanded', 'false')
+  await expect(savedStatus).toBeVisible()
+
+  await coolingLine.getByRole('button', { name: '展开冷却线路' }).click()
+  const buildingRow = coolingLine.locator('.tree-row-shell').filter({ hasText: '1 号楼' })
+  await buildingRow.locator('.tree-row__branch-slot').click()
+  await expect(coolingLine.getByText('POD A', { exact: true })).not.toBeVisible()
+  await expect(buildingRow.locator('.tree-row')).toHaveAttribute('aria-expanded', 'false')
+  await expect(savedStatus).toBeVisible()
+
+  await buildingRow.locator('.tree-row').press('ArrowRight')
+  await expect(coolingLine.getByText('POD A', { exact: true })).toBeVisible()
+  await expect(savedStatus).toBeVisible()
+})
+
 test('keeps zoom and pan as unsaved session-only view state', async ({ page }) => {
   await page.goto('/')
 
@@ -215,8 +332,34 @@ test('keeps zoom and pan as unsaved session-only view state', async ({ page }) =
     y: canvasBox.y + canvasBox.height / 2,
   }
   await page.mouse.move(center.x, center.y)
+
+  const macMouseZoomBefore = Number(await stage.getAttribute('data-grid-zoom'))
+  const pageScrollBefore = await page.evaluate(() => window.scrollY)
+  const macMouseWheelWasCanceled = await canvas.evaluate((element, point) => {
+    const event = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: point.x,
+      clientY: point.y,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+      deltaX: 0,
+      deltaY: 4,
+    })
+    Object.defineProperties(event, {
+      wheelDelta: { value: -120 / window.devicePixelRatio },
+      wheelDeltaY: { value: -120 / window.devicePixelRatio },
+    })
+    return !element.dispatchEvent(event)
+  }, center)
+  expect(macMouseWheelWasCanceled).toBe(true)
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom')))
+    .not.toBe(macMouseZoomBefore)
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBefore)
+
+  const standardMouseZoomBefore = Number(await stage.getAttribute('data-grid-zoom'))
   await page.mouse.wheel(0, 120)
-  await expect(zoomReadout).not.toHaveText('120%')
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom')))
+    .not.toBe(standardMouseZoomBefore)
   await expect(savedStatus).toBeVisible()
 
   const beforeTrackpadPanX = Number(await stage.getAttribute('data-grid-translation-x'))
@@ -517,7 +660,7 @@ test('derives an automatic corner node only when dragging or completing a branch
   ).click({ force: true })
   await expect(page.getByTestId('connection-preview')).toHaveCount(0)
   await expect(page.locator('.connection-junction-handle')).toHaveCount(1)
-  await expect(page.locator('.connection-edge')).toHaveCount(2)
+  await expect(page.locator('.connection-edge')).toHaveCount(3)
 
   await page.keyboard.press('Control+z')
   await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
@@ -553,7 +696,7 @@ test('derives an automatic corner node only when dragging or completing a branch
   await expect(materializedNode).toHaveCount(1)
   await expect(materializedNode).toHaveAttribute('cx', String(candidateDrag.world.x))
   await expect(materializedNode).toHaveAttribute('cy', String(candidateDrag.world.y))
-  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
 })
 
 test('moves an unrelated element when a pre-existing manual route is already invalid', async ({ page }) => {
@@ -689,7 +832,7 @@ test('moves an unrelated element when a pre-existing manual route is already inv
     'true',
     { timeout: 15_000 },
   )
-  await expect(page.locator('.connection-edge')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(2)
 })
 
 test('removes endpoint nodes when a dragged child line returns to its anchors', async ({ page }) => {
@@ -807,13 +950,21 @@ test('removes endpoint nodes when a dragged child line returns to its anchors', 
     'true',
     { timeout: 15_000 },
   )
-  const edge = page.locator('.connection-edge[data-edge-id="anchor-merge-edge"]')
-  await expect(edge.locator('.connection-edge__line')).toHaveAttribute(
-    'd',
-    'M 360 240 L 364 240 A 4 4 0 0 1 368 244 L 368 296 A 8 8 0 0 0 376 304 L 544 304 A 8 8 0 0 0 552 296 L 552 244 A 4 4 0 0 1 556 240 L 560 240',
-  )
-
-  const movedEdgeClick = await edge
+  await expect(page.locator('.connection-edge')).toHaveCount(3)
+  const renderedEdges = page.locator('.connection-edge')
+  const middleEdgeIndex = await renderedEdges.evaluateAll((groups) => groups.findIndex((group) => {
+    const path = group.querySelector<SVGPathElement>('.connection-edge__line')
+    if (!path) return false
+    const length = path.getTotalLength()
+    for (let distance = 0; distance <= length; distance += 2) {
+      const point = path.getPointAtLength(distance)
+      if (Math.hypot(point.x - 460, point.y - 304) <= 2) return true
+    }
+    return false
+  }))
+  expect(middleEdgeIndex).toBeGreaterThanOrEqual(0)
+  const middleEdge = renderedEdges.nth(middleEdgeIndex)
+  const movedEdgeClick = await middleEdge
     .locator('.connection-edge__hit:not(.connection-edge__hit--world)')
     .evaluate((path) => {
       const matrix = (path as SVGPathElement).getScreenCTM()
@@ -860,6 +1011,125 @@ test('removes endpoint nodes when a dragged child line returns to its anchors', 
 
   await expect(page.locator('.connection-junction-handle')).toHaveCount(0)
   await expect(page.locator('.connection-edge')).toHaveCount(1)
+})
+
+test('moves a mixed element and node selection with one relative translation', async ({ page }) => {
+  const document = createDefaultProject('图元节点混合移动', [{
+    key: 'chwp',
+    name: 'CHWP',
+    category: '冷却',
+    source: 'src/assets/symbols/CHWP.svg',
+    intrinsicWidth: 200,
+    intrinsicHeight: 80,
+    anchors: [
+      {
+        id: 'left-cold',
+        name: '左侧冷水',
+        x: 0,
+        y: 40,
+        direction: 'left',
+        type: 'cooling-primary-cold',
+      },
+      {
+        id: 'right-cold',
+        name: '右侧冷水',
+        x: 200,
+        y: 40,
+        direction: 'right',
+        type: 'cooling-primary-cold',
+      },
+    ],
+  }])
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.elements = [
+    {
+      id: 'source-element',
+      diagramId,
+      assetKey: 'chwp',
+      name: 'CHWP-01',
+      x: 160,
+      y: 200,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'target-element',
+      diagramId,
+      assetKey: 'chwp',
+      name: 'CHWP-02',
+      x: 560,
+      y: 200,
+      width: 200,
+      height: 80,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'mixed-move-network',
+    diagramId,
+    type: 'cooling-primary-cold',
+    nodes: [
+      {
+        id: 'source-anchor-node',
+        kind: 'element-anchor',
+        elementId: 'source-element',
+        anchorId: 'right-cold',
+      },
+      { id: 'middle-node', kind: 'node', x: 464, y: 320 },
+      {
+        id: 'target-anchor-node',
+        kind: 'element-anchor',
+        elementId: 'target-element',
+        anchorId: 'left-cold',
+      },
+    ],
+    edges: [
+      {
+        id: 'source-span',
+        sourceNodeId: 'source-anchor-node',
+        targetNodeId: 'middle-node',
+        logicalConnectionId: 'mixed-logical-line',
+      },
+      {
+        id: 'target-span',
+        sourceNodeId: 'middle-node',
+        targetNodeId: 'target-anchor-node',
+        logicalConnectionId: 'mixed-logical-line',
+      },
+    ],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'mixed-element-node-move.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 mixed-element-node-move.json')).toBeVisible()
+
+  const sourceElement = page.locator('.diagram-element[data-element-id="source-element"]')
+  const targetElement = page.locator('.diagram-element[data-element-id="target-element"]')
+  const middleNode = page.locator('.connection-junction-handle')
+  await sourceElement.click()
+  await middleNode.click({ modifiers: ['Shift'] })
+  await expect(sourceElement).toHaveAttribute('data-selected', 'true')
+  await expect(middleNode).toHaveAttribute('data-selected', 'true')
+
+  const sourceX = Number(await sourceElement.locator('image').getAttribute('x'))
+  const targetX = Number(await targetElement.locator('image').getAttribute('x'))
+  const nodeX = Number(await middleNode.getAttribute('cx'))
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+
+  await expect.poll(() => sourceElement.locator('image').getAttribute('x'))
+    .toBe(String(sourceX + 16))
+  await expect.poll(() => middleNode.getAttribute('cx')).toBe(String(nodeX + 16))
+  await expect.poll(() => targetElement.locator('image').getAttribute('x')).toBe(String(targetX))
 })
 
 test('removes a folded segment after it returns to an element anchor', async ({ page }) => {
@@ -1145,6 +1415,7 @@ test('previews numeric and text metrics in edit mode and refreshes them in monit
   const textMetricEditor = page.locator('.monitor-metric-editor__item').filter({ hasText: '指标 2' })
   await textMetricEditor.locator('summary').click()
   await textMetricEditor.getByLabel('数据类型').selectOption('text')
+  await textMetricEditor.getByLabel('状态等级').first().selectOption('critical')
 
   const editPreviewLabel = page.locator('.element-label').filter({ hasText: 'CHWP-01' })
   await expect(editPreviewLabel.locator('.element-metric-row')).toHaveCount(2)
@@ -1152,17 +1423,26 @@ test('previews numeric and text metrics in edit mode and refreshes them in monit
   await expect(editPreviewLabel.locator('.element-metric-row__value').nth(0)).toHaveText('50.0')
   await expect(editPreviewLabel.locator('.element-metric-row__label').nth(1)).toHaveText('指标 2')
   await expect(editPreviewLabel.locator('.element-metric-row__value').nth(1)).toHaveText('运行')
+  await expect(editPreviewLabel.locator('.element-metric-row__alarm-background')).toHaveCount(1)
+  const editAlarmRow = editPreviewLabel.locator('.element-metric-row').nth(1)
+  await expect(editAlarmRow.locator('.element-metric-row__label')).not.toHaveCSS('fill', 'rgb(0, 0, 0)')
+  await expect(editAlarmRow.locator('.element-metric-row__reading')).toHaveCSS('fill', 'rgb(0, 0, 0)')
+  expect(Number(await editAlarmRow.locator('.element-metric-row__alarm-background').getAttribute('x')))
+    .toBeGreaterThan(Number(await editAlarmRow.locator('.element-metric-row__label').getAttribute('x')))
 
   await page.getByRole('switch', { name: '显示指标名称与单位' }).click()
   await expect(editPreviewLabel.locator('.element-metric-row__label')).toHaveCount(0)
   await expect(editPreviewLabel.locator('.element-metric-row__value')).toHaveCount(2)
   await expect(editPreviewLabel.locator('.element-metric-row__value').nth(0)).toHaveText('50.0')
   await expect(editPreviewLabel.locator('.element-metric-row__value').nth(1)).toHaveText('运行')
+  await expect(editPreviewLabel.locator('.element-metric-row__alarm-background')).toHaveCount(1)
+
+  await page.getByRole('switch', { name: '显示指标名称与单位' }).click()
 
   await page.getByRole('tab', { name: '监控模式' }).click()
   const combinedLabel = page.locator('.element-label').filter({ hasText: 'CHWP-01' })
   await expect(combinedLabel).toHaveCount(1)
-  await expect(combinedLabel.locator('.element-metric-row__label')).toHaveCount(0)
+  await expect(combinedLabel.locator('.element-metric-row__label')).toHaveCount(2)
   await expect(combinedLabel.locator('.element-metric-row__value').nth(0)).toHaveText(/^\d+\.\d$/)
   await expect(combinedLabel.locator('.element-metric-row__value').nth(0))
     .toHaveAttribute('data-severity', /^(normal|minor|major|critical)$/)
@@ -1170,9 +1450,83 @@ test('previews numeric and text metrics in edit mode and refreshes them in monit
     .toHaveText(/^(运行|停机|离线)$/)
   await expect(combinedLabel.locator('.element-metric-row__value').nth(1))
     .toHaveAttribute('data-severity', /^(normal|minor|major|critical)$/)
+  const monitorRows = combinedLabel.locator('.element-metric-row')
+  for (let index = 0; index < await monitorRows.count(); index += 1) {
+    const row = monitorRows.nth(index)
+    const severity = await row.getAttribute('data-severity')
+    const background = row.locator('.element-metric-row__alarm-background')
+    await expect(background).toHaveCount(severity === 'normal' ? 0 : 1)
+    if (severity !== 'normal') {
+      await expect(background).toHaveAttribute('data-severity', severity!)
+      await expect(row.locator('.element-metric-row__label')).not.toHaveCSS('fill', 'rgb(0, 0, 0)')
+      await expect(row.locator('.element-metric-row__reading')).toHaveCSS('fill', 'rgb(0, 0, 0)')
+      expect(Number(await background.getAttribute('x')))
+        .toBeGreaterThan(Number(await row.locator('.element-metric-row__label').getAttribute('x')))
+    }
+  }
   await expect(combinedLabel).not.toContainText('紧急')
   await expect(combinedLabel).not.toContainText('重要')
   await expect(combinedLabel).not.toContainText('次要')
+})
+
+test('configures monitoring metrics on one child-line label', async ({ page }) => {
+  const document = createDefaultProject('子线运行指标')
+  const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+  document.connections = [{
+    id: 'metric-line-network',
+    diagramId,
+    type: 'cooling-general',
+    nodes: [
+      { id: 'metric-line-start', kind: 'node', x: 320, y: 320 },
+      { id: 'metric-line-end', kind: 'node', x: 640, y: 320 },
+    ],
+    edges: [{
+      id: 'metric-line-edge',
+      sourceNodeId: 'metric-line-start',
+      targetNodeId: 'metric-line-end',
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'child-line-metrics.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 child-line-metrics.json')).toBeVisible()
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)').click({ force: true })
+
+  await expect(page.getByRole('switch', { name: '显示子线标签' }))
+    .toHaveAttribute('aria-checked', 'true')
+  const childLineLabelInput = page.getByRole('textbox', { name: '子线标签' })
+  await childLineLabelInput.fill('冷却支路 01')
+  await childLineLabelInput.press('Enter')
+  await page.getByRole('switch', { name: '显示运行数据' }).click()
+  await page.getByRole('button', { name: '添加' }).click()
+  const metricEditor = page.locator('.monitor-metric-editor__item').filter({ hasText: '指标 1' })
+  await metricEditor.locator('summary').click()
+  await metricEditor.getByLabel('单位').fill('m³/h')
+  await metricEditor.getByLabel('单位').press('Enter')
+
+  const editLabel = page.locator('.connection-label[data-edge-id="metric-line-edge"]')
+  await expect(editLabel).toContainText('冷却支路 01')
+  await expect(editLabel.locator('.element-metric-row')).toHaveCount(1)
+  await expect(editLabel.locator('.element-metric-row__label')).toHaveText('指标 1(m³/h)')
+  await expect(editLabel.locator('.element-metric-row__value')).toHaveText('50.0')
+
+  await page.getByRole('switch', { name: '显示子线标签' }).click()
+  await expect(editLabel).not.toContainText('冷却支路 01')
+  await expect(editLabel.locator('.element-metric-row__value')).toHaveText('50.0')
+  await page.getByRole('switch', { name: '显示指标名称与单位' }).click()
+  await expect(editLabel.locator('.element-metric-row__label')).toHaveCount(0)
+  await expect(editLabel.locator('.element-metric-row__value')).toHaveText('50.0')
+
+  await page.getByRole('tab', { name: '监控模式' }).click()
+  const monitorLabel = page.locator('.connection-label[data-edge-id="metric-line-edge"]')
+  await expect(monitorLabel).toHaveCount(1)
+  await expect(monitorLabel).not.toContainText('冷却支路 01')
+  await expect(monitorLabel.locator('.element-metric-row__label')).toHaveCount(0)
+  await expect(monitorLabel.locator('.element-metric-row__value')).toHaveText(/^\d+\.\d$/)
 })
 
 test('loads the hybrid editor and completes the phase-one editing path', async ({ page }) => {
@@ -1980,7 +2334,10 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await expect(page.locator('.busbar')).toHaveAttribute('data-orientation', 'vertical')
   await page.getByRole('button', { name: '撤销' }).click()
   await expect(page.locator('.busbar')).toHaveAttribute('data-orientation', 'horizontal')
-  await page.mouse.click(canvasBox.x + canvasBox.width - 180, canvasBox.y + 24)
+  await page.mouse.click(
+    canvasBox.x + canvasBox.width - 60,
+    canvasBox.y + canvasBox.height / 2,
+  )
 
   const busbarQuarterPoint = await busbarHit.evaluate((node) => {
     const path = node as SVGPathElement

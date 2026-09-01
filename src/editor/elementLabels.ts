@@ -3,6 +3,7 @@ import type {
   DiagramElement,
   ElementLabelPlacement,
   MonitorAlarmSeverity,
+  MonitorMetric,
 } from '../domain/project'
 import {
   formatMonitorMetricValue,
@@ -18,6 +19,7 @@ export const ELEMENT_LABEL_FONT_SIZE = 10
 export const ELEMENT_LABEL_LINE_HEIGHT = 16
 export const ELEMENT_LABEL_GAP = 2
 export const ELEMENT_LABEL_AVOIDANCE_STEP = 2
+export const ELEMENT_METRIC_COLUMN_GAP = 0
 
 export interface ElementLabelLayout {
   elementId: string
@@ -39,10 +41,16 @@ export interface ElementMetricLabelRow {
   unit: string
   severity: MonitorAlarmSeverity
   ariaLabel: string
+  valueBounds: Rect
   labelX: number
   valueX: number
   textY: number
 }
+
+export type MonitorMetricLabelLine = Omit<
+  ElementMetricLabelRow,
+  'valueBounds' | 'labelX' | 'valueX' | 'textY'
+>
 
 export interface ElementLabelLayoutOptions {
   readings?: MonitorMetricReadings
@@ -103,6 +111,65 @@ export function estimateLabelTextWidth(text: string) {
     else width += ELEMENT_LABEL_FONT_SIZE
   }
   return Math.max(16, Math.ceil(width + 4))
+}
+
+export function resolveMonitorMetricLabelLines(
+  ownerId: string,
+  metrics: MonitorMetric[] = [],
+  dataVisible = false,
+  labelsVisible = true,
+  readings: MonitorMetricReadings = {},
+): MonitorMetricLabelLine[] {
+  if (!dataVisible) return []
+  return metrics.flatMap((metric) => {
+    const reading = readings[monitorMetricReadingKey(ownerId, metric.id)]
+    if (!reading) return []
+    const valueText = formatMonitorMetricValue(metric, reading.value)
+    const unit = metric.valueType === 'number' ? metric.unit?.trim() ?? '' : ''
+    const labelText = unit ? `${metric.name}(${unit})` : metric.name
+    return [{
+      metricId: metric.id,
+      label: metric.name,
+      labelText,
+      labelVisible: labelsVisible,
+      valueText,
+      unit,
+      severity: reading.severity,
+      ariaLabel: `${labelText} ${valueText}，${monitorAlarmSeverityLabel[reading.severity]}`,
+    }]
+  })
+}
+
+export function monitorMetricLabelWidth(lines: MonitorMetricLabelLine[]) {
+  return lines.reduce((width, line) => Math.max(
+    width,
+    estimateLabelTextWidth(line.valueText) + (line.labelVisible
+      ? estimateLabelTextWidth(line.labelText) + ELEMENT_METRIC_COLUMN_GAP
+      : 0),
+  ), 0)
+}
+
+export function positionMonitorMetricLabelRows(
+  lines: MonitorMetricLabelLine[],
+  bounds: Rect,
+  leadingLineCount: number,
+): ElementMetricLabelRow[] {
+  return lines.map((line, index) => {
+    const y = bounds.y + (index + leadingLineCount) * ELEMENT_LABEL_LINE_HEIGHT
+    const valueWidth = estimateLabelTextWidth(line.valueText)
+    return {
+      ...line,
+      valueBounds: {
+        x: bounds.x + bounds.width - valueWidth,
+        y,
+        width: valueWidth,
+        height: ELEMENT_LABEL_LINE_HEIGHT,
+      },
+      labelX: bounds.x + 2,
+      valueX: bounds.x + bounds.width - 2,
+      textY: y + 11,
+    }
+  })
 }
 
 function intersectionArea(left: Rect, right: Rect) {
@@ -232,26 +299,13 @@ export function layoutElementLabels(
     const nameText = element.labelVisible === false || isGenericSymbolKey(element.assetKey)
       ? null
       : elementDeviceIdentifier(element)
-    const metricLabelsVisible = element.monitorMetricLabelsVisible !== false
-    const metricLines = element.monitorDataVisible === true
-      ? (element.monitorMetrics ?? []).flatMap((metric) => {
-          const reading = readings[monitorMetricReadingKey(element.id, metric.id)]
-          if (!reading) return []
-          const valueText = formatMonitorMetricValue(metric, reading.value)
-          const unit = metric.valueType === 'number' ? metric.unit?.trim() ?? '' : ''
-          const labelText = unit ? `${metric.name}(${unit})` : metric.name
-          return [{
-            metricId: metric.id,
-            label: metric.name,
-            labelText,
-            labelVisible: metricLabelsVisible,
-            valueText,
-            unit,
-            severity: reading.severity,
-            ariaLabel: `${labelText} ${valueText}，${monitorAlarmSeverityLabel[reading.severity]}`,
-          }]
-        })
-      : []
+    const metricLines = resolveMonitorMetricLabelLines(
+      element.id,
+      element.monitorMetrics,
+      element.monitorDataVisible === true,
+      element.monitorMetricLabelsVisible !== false,
+      readings,
+    )
     if (!nameText && metricLines.length === 0) return []
     const elementBounds = elementRects.get(element.id)
     if (!elementBounds) return []
@@ -262,12 +316,7 @@ export function layoutElementLabels(
         : line.valueText),
     ].join('\n')
     const nameWidth = nameText ? estimateLabelTextWidth(nameText) : 0
-    const metricWidth = metricLines.reduce((width, line) => Math.max(
-      width,
-      estimateLabelTextWidth(line.valueText) + (line.labelVisible
-        ? estimateLabelTextWidth(line.labelText) + 8
-        : 0),
-    ), 0)
+    const metricWidth = monitorMetricLabelWidth(metricLines)
     const labelWidth = Math.max(nameWidth, metricWidth)
     const labelHeight = (Number(Boolean(nameText)) + metricLines.length) * ELEMENT_LABEL_LINE_HEIGHT
     const corridors = anchorCorridors(element, assetsByKey.get(element.assetKey))
@@ -323,13 +372,11 @@ export function layoutElementLabels(
       textX: best.bounds.x + 2,
       textY: best.bounds.y + 11,
       nameText,
-      metricRows: metricLines.map((line, index) => ({
-        ...line,
-        labelX: best.bounds.x + 2,
-        valueX: best.bounds.x + best.bounds.width - 2,
-        textY: best.bounds.y +
-          (index + Number(Boolean(nameText))) * ELEMENT_LABEL_LINE_HEIGHT + 11,
-      })),
+      metricRows: positionMonitorMetricLabelRows(
+        metricLines,
+        best.bounds,
+        Number(Boolean(nameText)),
+      ),
     }]
   })
 }

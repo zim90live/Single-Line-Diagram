@@ -22,6 +22,7 @@ import type {
   ConnectionEdge,
   ConnectionFlowDirection,
   ConnectionNetwork,
+  CoolingLineRole,
   DiagramElement,
   DiagramViewport,
   LineSystemType,
@@ -67,19 +68,22 @@ import {
 } from './connectionLabels'
 import {
   COOLING_DIRECTION_ARROW_INSET_SCREEN,
-  COOLING_PIPE_CORE_WIDTH,
   COOLING_PIPE_INNER_SHADOW_BLUR,
   COOLING_PIPE_INNER_SHADOW_COLOR,
   COOLING_PIPE_INNER_SHADOW_DX,
   COOLING_PIPE_INNER_SHADOW_DY,
-  COOLING_PIPE_INNER_SHADOW_OPACITY,
   COOLING_PIPE_BRIDGE_RADIUS,
   COOLING_PIPE_CORNER_RADIUS,
   COOLING_PIPE_SHELL_ENDPOINT_INSET,
   coolingPipeFilterRegion,
+  coolingPipeCoreWidth,
+  coolingPipeInnerShadowOpacity,
+  coolingLineRoleRenderPriority,
   insetPolylineEndpoints,
   isCoolingConnectionType,
+  resolvedCoolingLineColor,
   routeHitWorldWidthForConnectionType,
+  sortByCoolingLineRenderPriority,
 } from './connectionAppearance'
 import {
   connectTerminalToRouteJunction,
@@ -93,6 +97,7 @@ import {
   bridgedPathData,
   bridgedPolylinePoints,
   connectTerminals,
+  connectedRouteEndpointGeometry,
   connectionRouteBranchPointKeys,
   connectionTerminalArrowPath,
   connectionTypesCompatible,
@@ -109,6 +114,8 @@ import {
   routeConnectionNetworksForDirtyNetworks,
   routeConnectionNetworksIncrementally,
   routeConnectionPreviewWithContext,
+  segmentConnectionEdgesAtNodes,
+  type ConnectedRouteDisplayGeometry,
   type ConnectionTerminal,
   type RoutedConnectionEdge,
 } from './connections'
@@ -122,8 +129,10 @@ import {
   elementsEqual,
   normalizedRect,
   rotatePoint,
+  rotatePointOnGrid,
   screenToWorld,
   snap,
+  translateDiagramSelection,
   worldDeltaToLocal,
   zoomAroundPoint,
   type Point,
@@ -148,6 +157,8 @@ import {
   genericSymbolDisplayedWidth,
   getSnappedGenericSymbolSize,
   isGenericSymbolKey,
+  normalizeGenericSymbolBackgroundColor,
+  resolvedGenericSymbolBackgroundColor,
 } from './genericSymbol'
 import { DEFAULT_BUSBAR_COLOR, defaultConnectionColor, normalizeHexColor } from './objectColors'
 import {
@@ -215,6 +226,7 @@ export interface EditorCommandState {
   selectedRouteWaypointMaxReferenceCount: number
   selectedJunctionCount: number
   wiringType: AnchorType | null
+  directLineToolActive: boolean
 }
 
 export interface DiagramCanvasHandle {
@@ -229,6 +241,7 @@ export interface DiagramCanvasHandle {
   zoomIn: () => void
   zoomOut: () => void
   zoomReset: () => void
+  toggleDirectLineTool: () => void
   insertSymbol: (symbolKey: string) => void
   insertBusbar: () => void
   previewElementColor: (
@@ -323,6 +336,55 @@ interface ElementLabelItemProps {
   ) => void>
 }
 
+const MetricLabelRows = memo(function MetricLabelRows({
+  rows,
+}: {
+  rows: ElementLabelLayout['metricRows']
+}) {
+  return rows.map((row) => (
+    <g
+      className="element-metric-row"
+      data-severity={row.severity}
+      key={row.metricId}
+    >
+      {row.severity !== 'normal' ? (
+        <rect
+          className="element-metric-row__alarm-background"
+          data-severity={row.severity}
+          x={row.valueBounds.x}
+          y={row.valueBounds.y}
+          width={row.valueBounds.width}
+          height={row.valueBounds.height}
+          rx={2}
+        />
+      ) : null}
+      {row.labelVisible ? (
+        <text
+          className="element-metric-row__label"
+          x={row.labelX}
+          y={row.textY}
+        >
+          {row.labelText}
+        </text>
+      ) : null}
+      <text
+        className="element-metric-row__reading"
+        x={row.valueX}
+        y={row.textY}
+        textAnchor="end"
+        aria-label={row.ariaLabel}
+      >
+        <tspan
+          className="element-metric-row__value"
+          data-severity={row.severity}
+        >
+          {row.valueText}
+        </tspan>
+      </text>
+    </g>
+  ))
+})
+
 const ElementLabelItem = memo(function ElementLabelItem({
   layout,
   interactive,
@@ -356,33 +418,7 @@ const ElementLabelItem = memo(function ElementLabelItem({
           {layout.nameText}
         </text>
       ) : null}
-      {layout.metricRows.map((row) => (
-        <g className="element-metric-row" key={row.metricId}>
-          {row.labelVisible ? (
-            <text
-              className="element-metric-row__label"
-              x={row.labelX}
-              y={row.textY}
-            >
-              {row.labelText}
-            </text>
-          ) : null}
-          <text
-            className="element-metric-row__reading"
-            x={row.valueX}
-            y={row.textY}
-            textAnchor="end"
-            aria-label={row.ariaLabel}
-          >
-            <tspan
-              className="element-metric-row__value"
-              data-severity={row.severity}
-            >
-              {row.valueText}
-            </tspan>
-          </text>
-        </g>
-      ))}
+      <MetricLabelRows rows={layout.metricRows} />
     </g>
   )
 })
@@ -469,14 +505,17 @@ const ConnectionLabelItem = memo(function ConnectionLabelItem({
           ? (event) => startDrag.current(event, layout.edgeId)
           : undefined}
       />
-      <text
-        className="element-label__text"
-        x={layout.textX}
-        y={layout.textY}
-        textAnchor={layout.textAnchor}
-      >
-        {layout.text}
-      </text>
+      {layout.nameText ? (
+        <text
+          className="element-label__text"
+          x={layout.textX}
+          y={layout.textY}
+          textAnchor={layout.textAnchor}
+        >
+          {layout.nameText}
+        </text>
+      ) : null}
+      <MetricLabelRows rows={layout.metricRows} />
     </g>
   )
 })
@@ -487,6 +526,7 @@ interface DiagramElementItemProps {
   asset?: AssetDefinition
   symbol?: SymbolDefinition
   symbolColor?: string
+  genericBackgroundColor?: string
   selected: boolean
   anchorsVisible: boolean
   wiringType: AnchorType | null
@@ -515,6 +555,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
   asset,
   symbol,
   symbolColor,
+  genericBackgroundColor,
   selected,
   anchorsVisible,
   wiringType,
@@ -626,7 +667,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
               y={element.y}
               width={element.width}
               height={element.height}
-              fill="#121316"
+              fill={genericBackgroundColor}
               stroke={symbolColor ?? DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
               strokeOpacity={element.properties.genericBorderVisible === false ? 0 : 1}
               onPointerDown={handlePointerDown}
@@ -688,6 +729,7 @@ interface ConnectionEdgeItemProps {
   interactive: boolean
   linePath: string
   flowDirection?: ConnectionFlowDirection
+  coolingLineRole?: CoolingLineRole
   directionArrowPath: string
   pressEdge: HandlerRef<(
     event: PointerEvent<SVGPathElement>,
@@ -712,6 +754,7 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
   interactive,
   linePath,
   flowDirection,
+  coolingLineRole,
   directionArrowPath,
   pressEdge,
   moveEdge,
@@ -729,10 +772,16 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
       data-network-id={networkId}
       data-connection-type={type}
       data-flow-direction={flowDirection}
+      data-cooling-line-role={isCoolingConnectionType(type)
+        ? coolingLineRole ?? 'primary'
+        : undefined}
       data-selected={selected || undefined}
       data-interactive={interactive || undefined}
       style={color ? { '--connection-color': color } as CSSProperties : undefined}
     >
+      {selected && isCoolingConnectionType(type) ? (
+        <path className="connection-edge__cooling-selection" d={linePath} />
+      ) : null}
       <path className="connection-edge__line" d={linePath} />
       {directionArrowPath ? (
         <>
@@ -772,11 +821,13 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
 interface CoolingPipeInnerShadowFilterProps {
   id: string
   points: Point[]
+  role?: CoolingLineRole
 }
 
 function CoolingPipeInnerShadowFilter({
   id,
   points,
+  role,
 }: CoolingPipeInnerShadowFilterProps) {
   const region = coolingPipeFilterRegion(points)
   return (
@@ -809,7 +860,7 @@ function CoolingPipeInnerShadowFilter({
       />
       <feFlood
         floodColor={COOLING_PIPE_INNER_SHADOW_COLOR}
-        floodOpacity={COOLING_PIPE_INNER_SHADOW_OPACITY}
+        floodOpacity={coolingPipeInnerShadowOpacity(role)}
         result="cooling-pipe-inner-shadow-color"
       />
       <feComposite
@@ -1030,6 +1081,35 @@ function polylineIntersectsViewport(points: Point[], rect: Rect) {
   return false
 }
 
+function connectedRouteDisplayGeometryKey(geometry: ConnectedRouteDisplayGeometry) {
+  const endpointArcKey = (
+    arc: ConnectedRouteDisplayGeometry['sourceEndpointArc'],
+  ) => arc
+    ? [
+        arc.entry.x,
+        arc.entry.y,
+        arc.midpoint.x,
+        arc.midpoint.y,
+        arc.center.x,
+        arc.center.y,
+        arc.radius,
+        arc.sweep,
+      ].join(',')
+    : ''
+  const route = geometry.route
+  return [
+    route.networkId,
+    route.edgeId,
+    route.type,
+    route.sourceNodeId,
+    route.targetNodeId,
+    route.order,
+    route.points.map((point) => `${point.x},${point.y}`).join(';'),
+    endpointArcKey(geometry.sourceEndpointArc),
+    endpointArcKey(geometry.targetEndpointArc),
+  ].join('|')
+}
+
 function projectedDistanceAlongPolyline(points: Point[], target: Point) {
   let accumulated = 0
   let best = { distanceAlong: 0, squaredDistance: Number.POSITIVE_INFINITY }
@@ -1090,10 +1170,6 @@ function slicePolylineBetween(points: Point[], start: Point, end: Point) {
     accumulated = segmentEnd
   }
   return startDistance <= endDistance ? sliced : sliced.reverse()
-}
-
-function networkSelectionToken(networkId: string) {
-  return `${NETWORK_SELECTION_PREFIX}${networkId}`
 }
 
 function selectedNetworkId(selection: string | null) {
@@ -1434,7 +1510,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     },
     ref,
   ) {
-    const monitorMetricReadings = useMonitorMetricReadings(mode === 'monitor', elements)
+    const monitorMetricOwners = useMemo(() => [
+      ...elements,
+      ...connections.flatMap((network) => network.edges),
+    ], [connections, elements])
+    const monitorMetricReadings = useMonitorMetricReadings(
+      mode === 'monitor',
+      monitorMetricOwners,
+    )
     const coolingRuntimeProviderRef = useRef(new MockCoolingRuntimeProvider())
     const canvasRenderRevisionRef = useRef(0)
     canvasRenderRevisionRef.current += 1
@@ -1463,6 +1546,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const selectedRouteWaypointIdsRef = useRef<string[]>([])
     const selectedJunctionIdsRef = useRef<string[]>([])
     const wiringRef = useRef<WiringState | null>(null)
+    const directLineToolActiveRef = useRef(false)
+    const directLineHistoryStartedRef = useRef(false)
     const hoveredWiringTargetRef = useRef<ConnectionTerminal | null>(null)
     const historyRef = useRef<HistoryState>({ past: [], future: [] })
     const clipboardRef = useRef<DiagramSelectionClipboard>(createEmptySelectionClipboard())
@@ -1510,6 +1595,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       cornerRadius: number
       squareCornerPointKeys?: ReadonlySet<string>
       rendered: ReturnType<typeof bridgedPathData>
+    }>())
+    const connectedCoolingRouteGeometryCacheRef = useRef(new Map<string, {
+      key: string
+      geometry: ConnectedRouteDisplayGeometry
     }>())
     const startElementMoveRef = useRef<
       (event: PointerEvent<SVGElement>, elementId: string) => void
@@ -1561,6 +1650,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const [selectedLabelBusbarId, setSelectedLabelBusbarId] = useState<string | null>(null)
     const [selectedLabelConnectionEdgeId, setSelectedLabelConnectionEdgeId] = useState<string | null>(null)
     const [wiring, setWiringState] = useState<WiringState | null>(null)
+    const [directLineToolActive, setDirectLineToolActiveState] = useState(false)
     const [hoveredWiringTarget, setHoveredWiringTarget] = useState<ConnectionTerminal | null>(null)
     const [busbarCandidate, setBusbarCandidate] = useState<BusbarCandidate | null>(null)
     const [routeJunctionCandidate, setRouteJunctionCandidate] = useState<
@@ -1750,6 +1840,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         ),
         selectedJunctionCount: selectedJunctionIdsRef.current.length,
         wiringType: wiringRef.current?.source.type ?? null,
+        directLineToolActive: directLineToolActiveRef.current,
       })
     }
 
@@ -1946,6 +2037,32 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       if (previousType !== nextType) queueMicrotask(emitCommandState)
     }
 
+    const stopDirectLineTool = () => {
+      if (!directLineToolActiveRef.current) return
+      directLineToolActiveRef.current = false
+      directLineHistoryStartedRef.current = false
+      setDirectLineToolActiveState(false)
+      setWiring(null)
+      queueMicrotask(emitCommandState)
+    }
+
+    const toggleDirectLineTool = () => {
+      if (mode !== 'edit') return
+      if (directLineToolActiveRef.current) {
+        stopDirectLineTool()
+        return
+      }
+      directLineToolActiveRef.current = true
+      directLineHistoryStartedRef.current = false
+      setDirectLineToolActiveState(true)
+      setWiring(null)
+      setSelection([])
+      selectConnection(null)
+      selectBusbar(null)
+      viewportElementRef.current?.focus()
+      queueMicrotask(emitCommandState)
+    }
+
     const setPreview = (next: DiagramElement[] | null) => {
       diagramPreviewScheduler.cancel()
       previewElementsRef.current = next
@@ -2045,9 +2162,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       nextBusbars: Busbar[],
       nextConnections: ConnectionNetwork[],
       nextRouteWaypoints: RouteWaypoint[] = committedRouteWaypointsRef.current,
+      recordHistory = true,
     ) => {
       if (mode !== 'edit') return false
-      const syncedConnections = syncRouteWaypointsToNetworks(nextConnections, nextRouteWaypoints)
+      const syncedConnections = segmentConnectionEdgesAtNodes(
+        syncRouteWaypointsToNetworks(nextConnections, nextRouteWaypoints),
+      )
       const retainedRouteWaypoints = routeWaypointsForNetworks(syncedConnections)
       const current: EditorSnapshot = {
         elements: committedElementsRef.current,
@@ -2067,8 +2187,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         setRouteWaypointPreview(null)
         return false
       }
-      historyRef.current.past = [...historyRef.current.past.slice(-(HISTORY_LIMIT - 1)), current]
-      historyRef.current.future = []
+      if (recordHistory) {
+        historyRef.current.past = [...historyRef.current.past.slice(-(HISTORY_LIMIT - 1)), current]
+        historyRef.current.future = []
+      }
       committedElementsRef.current = nextElements
       committedBusbarsRef.current = nextBusbars
       committedConnectionsRef.current = syncedConnections
@@ -2555,12 +2677,58 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           routes: [route],
         })
       })
-      return [...groups.values()]
-    }, [visibleRoutes])
+      return [...groups.values()].map((group) => ({
+        ...group,
+        routes: group.routes.sort((left, right) => (
+          coolingLineRoleRenderPriority(
+            displayedConnectionEdgesById.get(left.edgeId)?.coolingLineRole,
+          ) - coolingLineRoleRenderPriority(
+            displayedConnectionEdgesById.get(right.edgeId)?.coolingLineRole,
+          )
+        )),
+      }))
+    }, [displayedConnectionEdgesById, visibleRoutes])
+    const visibleRouteRenderGroups = useMemo(() => {
+      const renderGroups: Array<{
+        networkId: string
+        type: AnchorType
+        routes: RoutedConnectionEdge[]
+        renderKey: string
+        coolingLineRole?: CoolingLineRole
+      }> = []
+      visibleRouteGroups.forEach((group) => {
+        if (!isCoolingConnectionType(group.type)) {
+          renderGroups.push({
+            ...group,
+            renderKey: group.networkId,
+          })
+          return
+        }
+        for (const role of ['auxiliary', 'primary'] as const) {
+          const routes = group.routes.filter((route) => (
+            (displayedConnectionEdgesById.get(route.edgeId)?.coolingLineRole ?? 'primary') === role
+          ))
+          if (!routes.length) continue
+          renderGroups.push({
+            ...group,
+            routes,
+            renderKey: `${group.networkId}:${role}`,
+            coolingLineRole: role,
+          })
+        }
+      })
+      return sortByCoolingLineRenderPriority(
+        renderGroups,
+        (group) => group.coolingLineRole,
+      )
+    }, [displayedConnectionEdgesById, visibleRouteGroups])
     const coolingPipeFilterIdsByNetworkId = useMemo(() => new Map(
       visibleRouteGroups.flatMap((group, index) => (
         isCoolingConnectionType(group.type)
-          ? [[group.networkId, `cooling-pipe-inner-shadow-${index}`] as const]
+          ? [[group.networkId, {
+              auxiliary: `cooling-pipe-inner-shadow-${index}-auxiliary`,
+              primary: `cooling-pipe-inner-shadow-${index}-primary`,
+            }] as const]
           : []
       )),
     ), [visibleRouteGroups])
@@ -2607,6 +2775,43 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       () => connectionRouteBranchPointKeys(renderedRoutedConnections.edges),
       [renderedRoutedConnections.edges],
     )
+    const roundableCoolingNodeIdsByNetworkId = useMemo(() => new Map(
+      displayedConnections.flatMap((network) => (
+        isCoolingConnectionType(network.type)
+          ? [[network.id, new Set(network.nodes.flatMap((node) => (
+              node.kind === 'node' ? [node.id] : []
+            )))] as const]
+          : []
+      )),
+    ), [displayedConnections])
+    const connectedCoolingRouteGeometryByEdgeId = useMemo(() => {
+      const next = connectedRouteEndpointGeometry(
+        visibleRoutes.filter((route) => (
+          isCoolingConnectionType(route.type)
+        )),
+        roundableCoolingNodeIdsByNetworkId,
+        crossingsByEdgeId,
+        COOLING_PIPE_CORNER_RADIUS,
+        branchPointKeysByNetworkId,
+      )
+      const cache = connectedCoolingRouteGeometryCacheRef.current
+      const activeEdgeIds = new Set(next.keys())
+      cache.forEach((_, edgeId) => {
+        if (!activeEdgeIds.has(edgeId)) cache.delete(edgeId)
+      })
+      next.forEach((geometry, edgeId) => {
+        const key = connectedRouteDisplayGeometryKey(geometry)
+        const cached = cache.get(edgeId)
+        if (cached?.key === key) next.set(edgeId, cached.geometry)
+        else cache.set(edgeId, { key, geometry })
+      })
+      return next
+    }, [
+      branchPointKeysByNetworkId,
+      crossingsByEdgeId,
+      roundableCoolingNodeIdsByNetworkId,
+      visibleRoutes,
+    ])
     const renderedConnectionPaths = useMemo(() => {
       const cache = renderedConnectionPathCacheRef.current
       const activeEdgeIds = new Set(renderedRoutedConnections.edges.map((route) => route.edgeId))
@@ -2615,6 +2820,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       })
       return new Map(visibleRoutes.map((route) => {
         const roundedCoolingPipe = isCoolingConnectionType(route.type)
+        const endpointGeometry = roundedCoolingPipe
+          ? connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
+          : undefined
+        const displayRoute = endpointGeometry?.route ?? route
         const bridgeRadius = roundedCoolingPipe ? COOLING_PIPE_BRIDGE_RADIUS : gridSize * 0.5
         const cornerRadius = roundedCoolingPipe ? COOLING_PIPE_CORNER_RADIUS : 0
         const squareCornerPointKeys = roundedCoolingPipe
@@ -2626,20 +2835,22 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         )).join('|')
         const cached = cache.get(route.edgeId)
         if (
-          cached?.route === route &&
+          cached?.route === displayRoute &&
           cached.gridSize === gridSize &&
           cached.bridgeRadius === bridgeRadius &&
           cached.cornerRadius === cornerRadius &&
           cached.squareCornerPointKeys === squareCornerPointKeys &&
           cached.crossingKey === crossingKey
         ) return [route.edgeId, cached.rendered] as const
-        const rendered = bridgedPathData(route, crossingsByEdgeId, gridSize, {
+        const rendered = bridgedPathData(displayRoute, crossingsByEdgeId, gridSize, {
           bridgeRadius,
           cornerRadius,
           squareCornerPointKeys,
+          sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
+          targetEndpointArc: endpointGeometry?.targetEndpointArc,
         })
         cache.set(route.edgeId, {
-          route,
+          route: displayRoute,
           crossingKey,
           gridSize,
           bridgeRadius,
@@ -2651,6 +2862,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       }))
     }, [
       branchPointKeysByNetworkId,
+      connectedCoolingRouteGeometryByEdgeId,
       crossingsByEdgeId,
       gridSize,
       mode,
@@ -2664,36 +2876,60 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           displayedConnectionsById.get(group.networkId)?.nodes.map((node) => [node.id, node]) ?? [],
         )
         const shellRoutes = group.routes.map((route) => {
+          const endpointGeometry = connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
+          const displayRoute = endpointGeometry?.route ?? route
           const sourceNode = nodesById.get(route.sourceNodeId)
           const targetNode = nodesById.get(route.targetNodeId)
+          const role = displayedConnectionEdgesById.get(route.edgeId)?.coolingLineRole ===
+            'auxiliary' ? 'auxiliary' as const : 'primary' as const
           const points = insetPolylineEndpoints(
-            route.points,
+            displayRoute.points,
             sourceNode?.kind === 'element-anchor' ? COOLING_PIPE_SHELL_ENDPOINT_INSET : 0,
             targetNode?.kind === 'element-anchor' ? COOLING_PIPE_SHELL_ENDPOINT_INSET : 0,
           )
           return {
+            role,
             path: bridgedPathData(
-              { ...route, points },
+              { ...displayRoute, points },
               crossingsByEdgeId,
               gridSize,
               {
                 bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
                 cornerRadius: COOLING_PIPE_CORNER_RADIUS,
                 squareCornerPointKeys: branchPointKeysByNetworkId.get(route.networkId),
+                sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
+                targetEndpointArc: endpointGeometry?.targetEndpointArc,
               },
             ).linePath,
-            points,
+            points: [
+              ...points,
+              ...(endpointGeometry?.sourceEndpointArc
+                ? [endpointGeometry.sourceEndpointArc.midpoint]
+                : []),
+              ...(endpointGeometry?.targetEndpointArc
+                ? [endpointGeometry.targetEndpointArc.midpoint]
+                : []),
+            ],
           }
         })
+        const shellForRole = (role: 'primary' | 'auxiliary') => {
+          const routes = shellRoutes.filter((route) => route.role === role)
+          return routes.length ? {
+            path: routes.map((route) => route.path).join(' '),
+            points: routes.flatMap((route) => route.points),
+          } : undefined
+        }
         return [[group.networkId, {
-          path: shellRoutes.map((route) => route.path).join(' '),
-          points: shellRoutes.flatMap((route) => route.points),
+          auxiliary: shellForRole('auxiliary'),
+          primary: shellForRole('primary'),
         }] as const]
       }),
     ), [
       crossingsByEdgeId,
       branchPointKeysByNetworkId,
+      connectedCoolingRouteGeometryByEdgeId,
       displayedConnectionsById,
+      displayedConnectionEdgesById,
       gridSize,
       visibleRouteGroups,
     ])
@@ -2791,19 +3027,32 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     ])
     const monitorDisplayedRoutePaths = useMemo(() => new Map(visibleRoutes.map((route) => {
       const coolingRoute = isCoolingConnectionType(route.type)
+      const endpointGeometry = coolingRoute
+        ? connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
+        : undefined
+      const displayRoute = endpointGeometry?.route ?? route
+      const edge = displayedConnectionEdgesById.get(route.edgeId)
+      const lineColor = edge?.color ?? defaultConnectionColor(route.type)
       const path: MonitorFlowPath = {
         id: `edge-display:${route.edgeId}`,
-        points: bridgedPolylinePoints(route, crossingsByEdgeId, gridSize, coolingRoute
+        connectionEdgeId: route.edgeId,
+        points: bridgedPolylinePoints(displayRoute, crossingsByEdgeId, gridSize, coolingRoute
           ? {
               bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
               cornerRadius: COOLING_PIPE_CORNER_RADIUS,
               squareCornerPointKeys: branchPointKeysByNetworkId.get(route.networkId),
+              sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
+              targetEndpointArc: endpointGeometry?.targetEndpointArc,
             }
           : {}),
-        worldWidth: coolingRoute ? COOLING_PIPE_CORE_WIDTH : undefined,
+        worldWidth: coolingRoute ? coolingPipeCoreWidth(edge?.coolingLineRole) : undefined,
         style: coolingRoute ? 'cooling' : 'power',
-        baseColor: displayedConnectionEdgesById.get(route.edgeId)?.color ??
-          defaultConnectionColor(route.type),
+        renderPriority: coolingRoute
+          ? coolingLineRoleRenderPriority(edge?.coolingLineRole)
+          : 1,
+        baseColor: coolingRoute
+          ? resolvedCoolingLineColor(lineColor, edge?.coolingLineRole)
+          : lineColor,
       }
       return [route.edgeId, {
         route,
@@ -2811,6 +3060,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       }] as const
     })), [
       branchPointKeysByNetworkId,
+      connectedCoolingRouteGeometryByEdgeId,
       crossingsByEdgeId,
       displayedConnectionEdgesById,
       gridSize,
@@ -2878,12 +3128,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           if (flow.direction === 'reverse') flowPoints = [...flowPoints].reverse()
           return flowPoints.length > 1 ? [{
             id: `edge-flow:${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}`,
+            connectionEdgeId: route.edgeId,
             points: flowPoints,
             worldWidth: displayedPath?.worldWidth,
             speedMultiplier: flow.speedMultiplier,
             style: coolingRoute ? 'cooling' as const : 'power' as const,
             animated: true,
             baseColor: displayedPath?.baseColor,
+            renderPriority: displayedPath?.renderPriority,
           }] : []
         })
       })
@@ -2926,6 +3178,28 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         monitorInactiveFlowPaths,
       )
     ), [monitorActiveFlowPaths, monitorInactiveFlowPaths])
+    const monitorStaticConnectionGroupsByRenderKey = useMemo(() => {
+      const activeByEdgeId = new Map<string, MonitorFlowPath[]>()
+      const inactiveByEdgeId = new Map<string, MonitorFlowPath[]>()
+      const append = (
+        groups: Map<string, MonitorFlowPath[]>,
+        path: MonitorFlowPath,
+      ) => {
+        if (!path.connectionEdgeId) return
+        const paths = groups.get(path.connectionEdgeId) ?? []
+        paths.push(path)
+        groups.set(path.connectionEdgeId, paths)
+      }
+      monitorActiveFlowPaths.forEach((path) => append(activeByEdgeId, path))
+      monitorInactiveFlowPaths.forEach((path) => append(inactiveByEdgeId, path))
+      return new Map(visibleRouteRenderGroups.map((group) => [
+        group.renderKey,
+        buildMonitorStaticFlowLineGroups(
+          group.routes.flatMap((route) => activeByEdgeId.get(route.edgeId) ?? []),
+          group.routes.flatMap((route) => inactiveByEdgeId.get(route.edgeId) ?? []),
+        ).filter((staticGroup) => staticGroup.kind === 'connection'),
+      ] as const))
+    }, [monitorActiveFlowPaths, monitorInactiveFlowPaths, visibleRouteRenderGroups])
     const monitorFlowPaths = useMemo(() => (
       animationPlaying ? monitorActiveFlowPaths : []
     ), [animationPlaying, monitorActiveFlowPaths])
@@ -2945,7 +3219,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           previous.bounds.x === layout.bounds.x &&
           previous.bounds.y === layout.bounds.y &&
           previous.bounds.width === layout.bounds.width &&
-          previous.bounds.height === layout.bounds.height
+          previous.bounds.height === layout.bounds.height &&
+          previous.metricRows.length === layout.metricRows.length &&
+          previous.metricRows.every((row, index) => (
+            row.severity === layout.metricRows[index]?.severity
+          ))
           ? previous
           : layout
         nextCache.set(layout.elementId, stable)
@@ -2963,8 +3241,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         visibleRoutes,
         displayedConnections,
         connectionLabelPlacementPreview,
+        { readings: resolvedMonitorMetricReadings },
       ),
-      [connectionLabelPlacementPreview, displayedConnections, visibleRoutes],
+      [
+        connectionLabelPlacementPreview,
+        displayedConnections,
+        resolvedMonitorMetricReadings,
+        visibleRoutes,
+      ],
     )
     const wiringPreviewContext = useMemo(() => wiring
       ? prepareConnectionPreview(
@@ -3063,7 +3347,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       }
     }
 
-    const finishWiring = (target: ConnectionTerminal) => {
+    const commitWiringToTerminal = (
+      target: ConnectionTerminal,
+      continueFromTarget = false,
+    ) => {
       const active = wiringRef.current
       if (!active || !connectionTypesCompatible(active.source.type, target.type)) return false
       if (
@@ -3115,17 +3402,38 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           provisional,
         ])
       }
+      const directSession = directLineToolActiveRef.current
       if (!commitDiagram(
         committedElementsRef.current,
         committedBusbarsRef.current,
         next,
         materialized.routeWaypoints,
+        !directSession || !directLineHistoryStartedRef.current,
       )) return false
-      setWiring(null)
+      if (directSession) directLineHistoryStartedRef.current = true
+      if (continueFromTarget && target.kind === 'node') {
+        const targetNetwork = committedConnectionsRef.current.find((network) => (
+          network.nodes.some((node) => node.id === target.nodeId)
+        ))
+        setWiring({
+          source: {
+            ...target,
+            networkId: targetNetwork?.id ?? target.networkId,
+            type: targetNetwork?.type ?? target.type,
+          },
+          pointer: target.point,
+        })
+      } else {
+        setWiring(null)
+      }
       selectConnection(null)
       selectBusbar(null)
       return true
     }
+
+    const finishWiring = (target: ConnectionTerminal) => (
+      commitWiringToTerminal(target)
+    )
 
     const finishWiringToRoute = (target: RouteJunctionCandidate) => {
       const active = wiringRef.current
@@ -3177,12 +3485,15 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           provisional,
         ])
       }
+      const directSession = directLineToolActiveRef.current
       if (!commitDiagram(
         committedElementsRef.current,
         committedBusbarsRef.current,
         result.networks,
         result.routeWaypoints,
+        !directSession || !directLineHistoryStartedRef.current,
       )) return false
+      if (directSession) directLineHistoryStartedRef.current = true
       setRouteJunctionCandidate(null)
       setWiring(null)
       selectConnection(null)
@@ -3251,9 +3562,52 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       return element && asset && anchor ? resolveElementAnchor(element, asset, anchor).point : null
     }
 
-    const startWiringFromRouteCorner = (
+    const startDirectWiringAtPoint = (point: Point) => {
+      const snappedPoint = { x: snap(point.x, gridSize), y: snap(point.y, gridSize) }
+      const type: AnchorType = lineSystemType === 'power' ? 'electrical' : 'cooling-general'
+      setSelection([])
+      selectConnection(null)
+      selectBusbar(null)
+      setWiring({
+        source: {
+          kind: 'node',
+          networkId: `pending-direct-network-${crypto.randomUUID()}`,
+          nodeId: `connection-node-${crypto.randomUUID()}`,
+          point: snappedPoint,
+          type,
+        },
+        pointer: snappedPoint,
+      })
+    }
+
+    const extendDirectWiringAtPoint = (point: Point) => {
+      const active = wiringRef.current
+      if (!active) {
+        startDirectWiringAtPoint(point)
+        return true
+      }
+      const snappedPoint = { x: snap(point.x, gridSize), y: snap(point.y, gridSize) }
+      if (
+        active.source.kind === 'node' &&
+        active.source.point.x === snappedPoint.x &&
+        active.source.point.y === snappedPoint.y
+      ) return false
+      const connected = commitWiringToTerminal({
+        kind: 'node',
+        networkId: active.source.kind === 'node'
+          ? active.source.networkId
+          : `pending-direct-network-${crypto.randomUUID()}`,
+        nodeId: `connection-node-${crypto.randomUUID()}`,
+        point: snappedPoint,
+        type: active.source.type,
+      }, true)
+      if (!connected) callbacksRef.current.onActionMessage('当前位置无法生成有效线路。', 'danger')
+      return connected
+    }
+
+    const startWiringFromRouteCandidate = (
       event: PointerEvent<SVGElement> | MouseEvent<SVGElement>,
-      candidate: DerivedRouteCornerCandidate,
+      candidate: RouteJunctionCandidate,
     ) => {
       if (mode !== 'edit' || event.button !== 0 || wiringRef.current) return
       event.preventDefault()
@@ -3302,16 +3656,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             clientY: event.clientY,
           }
       if (isDoublePress) {
-        startWiringFromRouteCorner(event, candidate)
+        startWiringFromRouteCandidate(event, candidate)
         return true
       }
 
       event.preventDefault()
       event.stopPropagation()
       viewportElementRef.current?.focus()
-      selectConnection(candidate.edgeIds.length > 1
-        ? networkSelectionToken(candidate.networkId)
-        : candidate.edgeIds[0])
+      selectConnection(connectionSelectionToken(candidate.edgeIds))
       interactionRef.current = {
         kind: 'route-corner',
         pointerId: event.pointerId,
@@ -3346,15 +3698,25 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         ) finishWiringToRoute(candidate)
         return
       }
+      if (directLineToolActiveRef.current) {
+        const candidate = routeJunctionCandidateAtPointer(
+          route.networkId,
+          route.edgeId,
+          event.clientX,
+          event.clientY,
+        )
+        if (candidate) startWiringFromRouteCandidate(event, candidate)
+        return
+      }
       if (hoveredCorner && startRouteCornerInteraction(event, hoveredCorner)) return
       const point = worldPoint(event.clientX, event.clientY)
-      const sharedRouteCount = renderedRoutedConnections.edges.filter((candidate) => (
+      const clickedEdgeIdsAtPoint = renderedRoutedConnections.edges.flatMap((candidate) => (
         candidate.networkId === route.networkId &&
         routeContainsGridPoint(candidate, point, gridSize)
-      )).length
-      const clickedSelection = sharedRouteCount > 1
-        ? networkSelectionToken(route.networkId)
-        : route.edgeId
+          ? [candidate.edgeId]
+          : []
+      ))
+      const clickedSelection = connectionSelectionToken(clickedEdgeIdsAtPoint) ?? route.edgeId
       const additive = event.shiftKey || event.ctrlKey || event.metaKey
       if (!additive) {
         selectConnection(clickedSelection)
@@ -3409,36 +3771,27 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       ))
     }
 
-    const handleConnectionPointerMove = (
-      event: PointerEvent<SVGPathElement>,
+    const routeJunctionCandidateAtPointer = (
       networkId: string,
       edgeId: string,
-    ) => {
-      const active = wiringRef.current
-      if (!active) {
-        updateDerivedRouteCornerCandidate(networkId, edgeId, event.clientX, event.clientY)
-        return
-      }
+      clientX: number,
+      clientY: number,
+    ): RouteJunctionCandidate | null => {
       const network = displayedConnections.find((candidate) => candidate.id === networkId)
-      if (!network || !connectionTypesCompatible(active.source.type, network.type)) {
-        setRouteJunctionCandidate(null)
-        return
-      }
-      const point = worldPoint(event.clientX, event.clientY)
+      const active = wiringRef.current
+      if (
+        !network ||
+        active && !connectionTypesCompatible(active.source.type, network.type)
+      ) return null
+      const point = worldPoint(clientX, clientY)
       const candidatePoint = { x: snap(point.x, gridSize), y: snap(point.y, gridSize) }
-      if (forbiddenCrossings.has(`${candidatePoint.x},${candidatePoint.y}`)) {
-        setRouteJunctionCandidate(null)
-        return
-      }
+      if (forbiddenCrossings.has(`${candidatePoint.x},${candidatePoint.y}`)) return null
       const segment = routeSegments.find((candidate) => (
         candidate.networkId === networkId &&
         candidate.edgeIds.includes(edgeId) &&
         pointOnRouteSegment(candidate, candidatePoint)
       ))
-      if (!segment) {
-        setRouteJunctionCandidate(null)
-        return
-      }
+      if (!segment) return null
       const existingJunction = network.nodes.some((node) => (
         node.kind === 'node' && node.x === candidatePoint.x && node.y === candidatePoint.y
       ))
@@ -3450,26 +3803,55 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         const first = route.points[0]
         const last = route.points.at(-1)!
         return !(
-          (first.x === candidatePoint.x && first.y === candidatePoint.y) ||
-          (last.x === candidatePoint.x && last.y === candidatePoint.y)
+          first.x === candidatePoint.x && first.y === candidatePoint.y ||
+          last.x === candidatePoint.x && last.y === candidatePoint.y
         )
       })
-      if (!existingJunction && !interiorParticipant) {
+      if (!existingJunction && !interiorParticipant) return null
+      return {
+        networkId,
+        point: candidatePoint,
+        edgeIds: segment.edgeIds,
+        type: network.type,
+      }
+    }
+
+    const handleConnectionPointerMove = (
+      event: PointerEvent<SVGPathElement>,
+      networkId: string,
+      edgeId: string,
+    ) => {
+      const active = wiringRef.current
+      if (!active) {
+        if (directLineToolActiveRef.current) {
+          setRouteJunctionCandidate(routeJunctionCandidateAtPointer(
+            networkId,
+            edgeId,
+            event.clientX,
+            event.clientY,
+          ))
+        } else {
+          updateDerivedRouteCornerCandidate(networkId, edgeId, event.clientX, event.clientY)
+        }
+        return
+      }
+      const candidate = routeJunctionCandidateAtPointer(
+        networkId,
+        edgeId,
+        event.clientX,
+        event.clientY,
+      )
+      if (!candidate) {
         setRouteJunctionCandidate(null)
         return
       }
       setRouteJunctionCandidate((current) => (
         current?.networkId === networkId &&
-        current.point.x === candidatePoint.x &&
-        current.point.y === candidatePoint.y &&
-        current.edgeIds.join(',') === segment.edgeIds.join(',')
+        current.point.x === candidate.point.x &&
+        current.point.y === candidate.point.y &&
+        current.edgeIds.join(',') === candidate.edgeIds.join(',')
           ? current
-          : {
-              networkId,
-              point: candidatePoint,
-              edgeIds: segment.edgeIds,
-              type: network.type,
-            }
+          : candidate
       ))
     }
 
@@ -3480,6 +3862,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         if (activeWiring.source.kind === 'busbar' && activeWiring.source.busbarId === busbar.id) {
           return null
         }
+      } else if (directLineToolActiveRef.current) {
+        if (lineSystemType !== 'power') return null
       } else if (
         selectedBusbarIdsRef.current.length !== 1 ||
         selectedBusbarIdsRef.current[0] !== busbar.id ||
@@ -3544,6 +3928,25 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           point: candidate.point,
           type: 'electrical',
         })
+        return
+      }
+      if (directLineToolActiveRef.current) {
+        const candidate = candidateForBusbar(busbar, worldPoint(event.clientX, event.clientY))
+        if (candidate) {
+          setSelection([])
+          selectConnection(null)
+          selectBusbar(null)
+          setWiring({
+            source: {
+              kind: 'busbar',
+              busbarId: busbar.id,
+              offset: candidate.offset,
+              point: candidate.point,
+              type: 'electrical',
+            },
+            pointer: candidate.point,
+          })
+        }
         return
       }
       setSelectedLabelElementId(null)
@@ -3945,6 +4348,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     const undo = () => {
       if (mode !== 'edit') return
+      if (directLineToolActiveRef.current) stopDirectLineTool()
       const previous = historyRef.current.past.at(-1)
       if (!previous) return
       const current: EditorSnapshot = {
@@ -3979,6 +4383,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     const redo = () => {
       if (mode !== 'edit') return
+      if (directLineToolActiveRef.current) stopDirectLineTool()
       const next = historyRef.current.future[0]
       if (!next) return
       const current: EditorSnapshot = {
@@ -4082,6 +4487,16 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       image.setAttribute('filter', `url(#${filterId})`)
     }
 
+    const paintGenericElementBackgroundColor = (elementId: string, color: string) => {
+      const frame = elementNodeRefs.current.get(elementId)?.querySelector<SVGRectElement>(
+        '.diagram-element__generic-frame',
+      )
+      if (!frame) return
+      const normalizedColor = normalizeGenericSymbolBackgroundColor(color)
+      frame.dataset.backgroundColor = normalizedColor
+      frame.setAttribute('fill', normalizedColor)
+    }
+
     const previewElementColor = (
       elementId: string,
       color: string | null,
@@ -4096,11 +4511,24 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const slot = requestedSlot ?? activeSlot
       if (color === null) {
         previewElementColorsRef.current.delete(elementId)
+        if (slot === 'generic-background') {
+          paintGenericElementBackgroundColor(
+            elementId,
+            resolvedGenericSymbolBackgroundColor(element),
+          )
+          return
+        }
         paintElementColor(elementId, resolvedSymbolColor(element, visualState))
         return
       }
-      const normalizedColor = normalizeSymbolColor(color)
+      const normalizedColor = slot === 'generic-background'
+        ? normalizeGenericSymbolBackgroundColor(color)
+        : normalizeSymbolColor(color)
       previewElementColorsRef.current.set(elementId, { slot, color: normalizedColor })
+      if (slot === 'generic-background') {
+        paintGenericElementBackgroundColor(elementId, normalizedColor)
+        return
+      }
       if (slot === activeSlot) paintElementColor(elementId, normalizedColor)
     }
 
@@ -4197,6 +4625,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       const edgeIdSet = new Set(edgeIds)
       const patchesLabel = Object.prototype.hasOwnProperty.call(patch, 'label')
       const patchesFlowDirection = Object.prototype.hasOwnProperty.call(patch, 'flowDirection')
+      const patchesCoolingLineRole = Object.prototype.hasOwnProperty.call(
+        patch,
+        'coolingLineRole',
+      )
       const next = committedConnectionsRef.current.map((network) => ({
         ...network,
         edges: network.edges.map((edge) => {
@@ -4205,6 +4637,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           if (patchesFlowDirection && patch.flowDirection === undefined) {
             const { flowDirection: _flowDirection, ...withoutFlowDirection } = updated
             updated = withoutFlowDirection
+          }
+          if (patchesCoolingLineRole && patch.coolingLineRole === undefined) {
+            const { coolingLineRole: _coolingLineRole, ...withoutCoolingLineRole } = updated
+            updated = withoutCoolingLineRole
           }
           if (!patchesLabel) return updated
           const label = patch.label?.trim()
@@ -4368,23 +4804,54 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const resetSelectedConnectionRouting = () => {
-      const edgeIds = new Set(selectedConnectionEdges(
+      const selectedEdges = selectedConnectionEdges(
         selectedConnectionIdRef.current,
         committedConnectionsRef.current,
-      ).map((edge) => edge.id))
+      )
+      const edgeIds = new Set(selectedEdges.map((edge) => edge.id))
       if (!edgeIds.size) return
-      const next = clearRouteWaypointsForEdges(
+      const legacyReset = clearRouteWaypointsForEdges(
         committedConnectionsRef.current,
         committedRouteWaypointsRef.current,
         edgeIds,
       )
+      const selectedLogicalConnectionIds = new Set(selectedEdges.flatMap((edge) => (
+        edge.logicalConnectionId ? [edge.logicalConnectionId] : []
+      )))
+      const resettableNodeIds = new Set(legacyReset.networks.flatMap((network) => (
+        network.nodes.flatMap((node) => {
+          if (node.kind !== 'node') return []
+          const incidentEdges = network.edges.filter((edge) => (
+            edge.sourceNodeId === node.id || edge.targetNodeId === node.id
+          ))
+          if (
+            incidentEdges.length !== 2 ||
+            !incidentEdges[0].logicalConnectionId ||
+            incidentEdges[0].logicalConnectionId !== incidentEdges[1].logicalConnectionId ||
+            !selectedLogicalConnectionIds.has(incidentEdges[0].logicalConnectionId)
+          ) return []
+          return [node.id]
+        })
+      )))
+      const next = resettableNodeIds.size
+        ? deleteConnectionJunctions(
+            legacyReset.networks,
+            resettableNodeIds,
+            committedElementsRef.current,
+            assets,
+            committedBusbarsRef.current,
+            legacyReset.routeWaypoints,
+          )
+        : legacyReset
       if (commitDiagram(
         committedElementsRef.current,
         committedBusbarsRef.current,
         next.networks,
         next.routeWaypoints,
       )) {
+        selectConnection(null)
         setRouteWaypointSelection([], true, true)
+        setJunctionSelection([], true, true)
         callbacksRef.current.onActionMessage('已恢复所选子线的自动布线。', 'success')
       }
     }
@@ -4425,6 +4892,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
         applyViewport(zoomAroundPoint(viewportValueRef.current, center, 1))
       },
+      toggleDirectLineTool,
       insertSymbol,
       insertBusbar,
       previewElementColor,
@@ -4509,6 +4977,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       setConnectionLabelPlacementPreview(null)
       selectConnection(null)
       selectBusbar(null)
+      directLineToolActiveRef.current = false
+      directLineHistoryStartedRef.current = false
+      setDirectLineToolActiveState(false)
       setWiring(null)
       setSelection([])
       emitCommandState()
@@ -4531,6 +5002,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       setActiveMoveElementIds([])
       setHoveredElementId(null)
       setLibraryDragTarget(null)
+      directLineToolActiveRef.current = false
+      directLineHistoryStartedRef.current = false
+      setDirectLineToolActiveState(false)
       setWiring(null)
       selectConnection(null)
       setObjectSelection([], [])
@@ -4751,6 +5225,19 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       type: AnchorType,
     ) => {
       if (mode !== 'edit' || event.button !== 0) return
+      if (directLineToolActiveRef.current && !wiringRef.current) {
+        event.preventDefault()
+        event.stopPropagation()
+        viewportElementRef.current?.focus()
+        setSelection([])
+        selectConnection(null)
+        selectBusbar(null)
+        setWiring({
+          source: { kind: 'node', networkId, nodeId: junctionId, point, type },
+          pointer: point,
+        })
+        return
+      }
       const previousPress = lastJunctionPressRef.current
       const isDoublePress = previousPress?.junctionId === junctionId &&
         event.timeStamp - previousPress.timeStamp <= 500 &&
@@ -5008,6 +5495,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         return
       }
       if (mode !== 'edit') return
+      if (directLineToolActiveRef.current) {
+        if (event.button !== 0) return
+        event.preventDefault()
+        const point = worldPoint(event.clientX, event.clientY)
+        if (wiringRef.current) extendDirectWiringAtPoint(point)
+        else startDirectWiringAtPoint(point)
+        return
+      }
       if (wiringRef.current) return
       if (event.button !== 0) return
       const startWorld = worldPoint(event.clientX, event.clientY)
@@ -5165,6 +5660,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           interaction.routedEdges,
           rawDelta,
           gridSize,
+          interaction.baseConnections,
         )
         const nextStart = interaction.segment.orientation === 'horizontal'
           ? { x: interaction.segment.start.x, y: interaction.segment.start.y + delta }
@@ -5300,29 +5796,27 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         const selectedBusbars = new Set(interaction.selectedBusbarIds)
         const selectedRouteWaypoints = new Set(interaction.selectedRouteWaypointIds)
         const selectedJunctions = new Set(interaction.selectedJunctionIds)
+        const translated = translateDiagramSelection(
+          interaction.baseElements,
+          interaction.baseBusbars,
+          interaction.baseConnections,
+          interaction.baseRouteWaypoints,
+          {
+            elementIds: selected,
+            busbarIds: selectedBusbars,
+            nodeIds: selectedJunctions,
+            routeWaypointIds: selectedRouteWaypoints,
+          },
+          { x: dx, y: dy },
+        )
         scheduleDiagramPreview(
-          interaction.baseElements.map((element) => selected.has(element.id)
-            ? { ...element, x: element.x + dx, y: element.y + dy }
-            : element),
-          interaction.baseBusbars.map((busbar) => selectedBusbars.has(busbar.id)
-            ? { ...busbar, x: busbar.x + dx, y: busbar.y + dy }
-            : busbar),
+          translated.elements,
+          translated.busbars,
           selectedJunctions.size
-            ? interaction.baseConnections.map((network) => ({
-                ...network,
-                nodes: network.nodes.map((node) => (
-                  node.kind === 'node' && selectedJunctions.has(node.id)
-                    ? { ...node, x: node.x + dx, y: node.y + dy }
-                    : node
-                )),
-              }))
+            ? translated.connections
             : null,
           selectedRouteWaypoints.size
-            ? interaction.baseRouteWaypoints.map((waypoint) => (
-                selectedRouteWaypoints.has(waypoint.id)
-                  ? { ...waypoint, x: waypoint.x + dx, y: waypoint.y + dy }
-                  : waypoint
-              ))
+            ? translated.routeWaypoints
             : null,
         )
         return
@@ -5408,7 +5902,15 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           ...network,
           nodes: network.nodes.map((node) => (
             node.kind === 'node' && interaction.selectedJunctionIds.includes(node.id)
-              ? { ...node, ...rotatePoint(node, interaction.center, rotationDelta) }
+              ? {
+                  ...node,
+                  ...rotatePointOnGrid(
+                    node,
+                    interaction.center,
+                    rotationDelta,
+                    gridSize,
+                  ),
+                }
               : node
           )),
         })),
@@ -5416,7 +5918,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           interaction.selectedRouteWaypointIds.includes(waypoint.id)
             ? {
                 ...waypoint,
-                ...rotatePoint(waypoint, interaction.center, rotationDelta),
+                ...rotatePointOnGrid(
+                  waypoint,
+                  interaction.center,
+                  rotationDelta,
+                  gridSize,
+                ),
               }
             : waypoint
         )),
@@ -5461,11 +5968,19 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         )) ? [network.id] : []
       )))
       if (!dirtyNetworkIds.size) return 0
-      const constrainedEdgeIds = new Set(nextConnections.flatMap((network) => (
-        dirtyNetworkIds.has(network.id)
-          ? network.edges.flatMap((edge) => edge.routeNodeIds?.length ? [edge.id] : [])
-          : []
-      )))
+      const constrainedEdgeIds = new Set(nextConnections.flatMap((network) => {
+        if (!dirtyNetworkIds.has(network.id)) return []
+        const freeNodeIds = new Set(network.nodes.flatMap((node) => (
+          node.kind === 'node' ? [node.id] : []
+        )))
+        return network.edges.flatMap((edge) => (
+          edge.routeNodeIds?.length ||
+          freeNodeIds.has(edge.sourceNodeId) ||
+          freeNodeIds.has(edge.targetNodeId)
+            ? [edge.id]
+            : []
+        ))
+      }))
       const previouslyInvalidEdgeIds = new Set(
         committedRoutedConnections.invalidEdgeIds,
       )
@@ -5623,6 +6138,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             elements: committedElementsRef.current,
             assets,
             movedWaypointIds: new Set(candidate.waypointIds),
+            movedJunctionIds: new Set(candidate.waypointIds),
           })
           if (!merged) {
             callbacksRef.current.onActionMessage('无法合并：线路类型不兼容。', 'danger')
@@ -5636,12 +6152,36 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             interaction.segment,
             interaction.routedEdges,
             routeSegmentDelta,
+            interaction.baseConnections,
           )
-          const endpointNodeIds = new Set(merged.networks.flatMap((network) => (
+          const restoredJunctionIds = restoresExistingRoute
+            ? new Set(merged.networks.flatMap((network) => network.nodes.flatMap((node) => {
+                if (node.kind !== 'node' || !candidate.waypointIds.includes(node.id)) return []
+                const incidentEdges = network.edges.filter((edge) => (
+                  edge.sourceNodeId === node.id || edge.targetNodeId === node.id
+                ))
+                const logicalConnectionId = incidentEdges[0]?.logicalConnectionId
+                return incidentEdges.length === 2 && logicalConnectionId &&
+                  incidentEdges[1].logicalConnectionId === logicalConnectionId
+                  ? [node.id]
+                  : []
+              })))
+            : new Set<string>()
+          const contracted = restoredJunctionIds.size
+            ? deleteConnectionJunctions(
+                merged.networks,
+                restoredJunctionIds,
+                committedElementsRef.current,
+                assets,
+                committedBusbarsRef.current,
+                merged.routeWaypoints,
+              )
+            : { networks: merged.networks, routeWaypoints: merged.routeWaypoints }
+          const endpointNodeIds = new Set(contracted.networks.flatMap((network) => (
             network.edges.flatMap((edge) => [edge.sourceNodeId, edge.targetNodeId])
           )))
           const mergedRouteWaypointIds = new Set(
-            merged.routeWaypoints.map((waypoint) => waypoint.id),
+            contracted.routeWaypoints.map((waypoint) => waypoint.id),
           )
           const restoredWaypointIds = restoresExistingRoute
             ? new Set(candidate.waypointIds.filter((id) => (
@@ -5650,14 +6190,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             : new Set<string>()
           const restored = restoredWaypointIds.size
             ? deleteRouteWaypoints(
-                merged.networks,
-                merged.routeWaypoints,
+                contracted.networks,
+                contracted.routeWaypoints,
                 restoredWaypointIds,
               )
-            : { networks: merged.networks, routeWaypoints: merged.routeWaypoints }
+            : contracted
           let cleaned = {
             ...restored,
-            removedWaypointIds: [...restoredWaypointIds],
+            removedWaypointIds: [...restoredWaypointIds, ...restoredJunctionIds],
           }
           for (
             let pass = 0;
@@ -5909,7 +6449,19 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       event.preventDefault()
       if (event.deltaX === 0 && event.deltaY === 0) return
 
-      const inferredKind = inferWheelGestureKind(event)
+      const legacyEvent = event as globalThis.WheelEvent & {
+        readonly wheelDelta?: number
+        readonly wheelDeltaY?: number
+      }
+      const inferredKind = inferWheelGestureKind({
+        ctrlKey: event.ctrlKey,
+        deltaMode: event.deltaMode,
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        devicePixelRatio: globalThis.devicePixelRatio,
+        wheelDelta: legacyEvent.wheelDelta,
+        wheelDeltaY: legacyEvent.wheelDeltaY,
+      })
       const gesture = wheelGestureRef.current
       const changesPinchMode = gesture.kind !== null &&
         (gesture.kind === 'pinch-zoom') !== (inferredKind === 'pinch-zoom')
@@ -5961,38 +6513,32 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       ) return false
       const currentElements = previewElementsRef.current ?? committedElementsRef.current
       const currentBusbars = previewBusbarsRef.current ?? committedBusbarsRef.current
+      const currentConnections = previewConnectionsRef.current ?? committedConnectionsRef.current
+      const currentRouteWaypoints = previewRouteWaypointsRef.current ??
+        committedRouteWaypointsRef.current
+      const translated = translateDiagramSelection(
+        currentElements,
+        currentBusbars,
+        currentConnections,
+        currentRouteWaypoints,
+        {
+          elementIds: selected,
+          busbarIds: selectedBusbars,
+          nodeIds: selectedJunctions,
+          routeWaypointIds: selectedRouteWaypoints,
+        },
+        { x, y },
+        gridSize,
+      )
       nudgeSessionActiveRef.current = true
       scheduleDiagramPreview(
-        currentElements.map((element) => selected.has(element.id)
-          ? { ...element, x: snap(element.x + x, gridSize), y: snap(element.y + y, gridSize) }
-          : element),
-        currentBusbars.map((busbar) => selectedBusbars.has(busbar.id)
-          ? { ...busbar, x: snap(busbar.x + x, gridSize), y: snap(busbar.y + y, gridSize) }
-          : busbar),
+        translated.elements,
+        translated.busbars,
         selectedJunctions.size
-          ? (previewConnectionsRef.current ?? committedConnectionsRef.current).map((network) => ({
-              ...network,
-              nodes: network.nodes.map((node) => (
-                node.kind === 'node' && selectedJunctions.has(node.id)
-                  ? {
-                      ...node,
-                      x: snap(node.x + x, gridSize),
-                      y: snap(node.y + y, gridSize),
-                    }
-                  : node
-              )),
-            }))
+          ? translated.connections
           : null,
         selectedRouteWaypoints.size
-          ? (previewRouteWaypointsRef.current ?? committedRouteWaypointsRef.current).map((waypoint) => (
-              selectedRouteWaypoints.has(waypoint.id)
-                ? {
-                    ...waypoint,
-                    x: snap(waypoint.x + x, gridSize),
-                    y: snap(waypoint.y + y, gridSize),
-                  }
-                : waypoint
-            ))
+          ? translated.routeWaypoints
           : null,
       )
       return true
@@ -6016,6 +6562,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       else flushPendingNudge()
       if (event.key === 'Escape') {
         event.preventDefault()
+        const exitDirectLineTool = directLineToolActiveRef.current
         const activeInteraction = interactionRef.current
         if (activeInteraction) {
           interactionRef.current = null
@@ -6041,6 +6588,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           if (viewportElement?.hasPointerCapture(activeInteraction.pointerId)) {
             viewportElement.releasePointerCapture(activeInteraction.pointerId)
           }
+          if (exitDirectLineTool) stopDirectLineTool()
+          return
+        }
+        if (exitDirectLineTool) {
+          stopDirectLineTool()
           return
         }
         setWiring(null)
@@ -6260,7 +6812,12 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           ? colorPreview.color
           : resolvedSymbolColor(element, visualState)
         : undefined
-      return { element, symbol, visualState, symbolColor }
+      const genericBackgroundColor = symbol?.renderMode === 'generic-frame'
+        ? colorPreview?.slot === 'generic-background'
+          ? colorPreview.color
+          : resolvedGenericSymbolBackgroundColor(element)
+        : undefined
+      return { element, symbol, visualState, symbolColor, genericBackgroundColor }
     })
     const visibleSymbolColors = [...new Set(visibleElementPresentations.flatMap(({ symbolColor }) => (
       symbolColor ? [symbolColor] : []
@@ -6302,6 +6859,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         data-monitor-flow-path-count={mode === 'monitor' ? monitorFlowPaths.length : undefined}
         data-canvas-render-revision={canvasRenderRevisionRef.current}
         data-mode={mode}
+        data-direct-line-tool={directLineToolActive || undefined}
       >
         <div
           ref={viewportElementRef}
@@ -6358,15 +6916,20 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           >
             <defs ref={symbolColorDefsRef}>
               {visibleRouteGroups.flatMap((group) => {
-                const filterId = coolingPipeFilterIdsByNetworkId.get(group.networkId)
+                const filterIds = coolingPipeFilterIdsByNetworkId.get(group.networkId)
                 const shell = coolingPipeShellsByNetworkId.get(group.networkId)
-                return filterId && shell ? [(
-                  <CoolingPipeInnerShadowFilter
-                    key={filterId}
-                    id={filterId}
-                    points={shell.points}
-                  />
-                )] : []
+                if (!filterIds || !shell) return []
+                return (['auxiliary', 'primary'] as const).flatMap((role) => {
+                  const roleShell = shell[role]
+                  return roleShell ? [(
+                    <CoolingPipeInnerShadowFilter
+                      key={filterIds[role]}
+                      id={filterIds[role]}
+                      points={roleShell.points}
+                      role={role}
+                    />
+                  )] : []
+                })
               })}
               {mode === 'edit' && coolingPipeShellPreview && wiring?.source.type &&
               isCoolingConnectionType(wiring.source.type) ? (
@@ -6457,40 +7020,54 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               ) : null}
               <g className="connection-layer" data-testid="connection-layer">
-                {visibleRouteGroups.map((group) => {
+                {visibleRouteRenderGroups.map((group) => {
                   const pipeShell = coolingPipeShellsByNetworkId.get(group.networkId)
-                  const pipeFilterId = coolingPipeFilterIdsByNetworkId.get(group.networkId)
+                  const pipeFilterIds = coolingPipeFilterIdsByNetworkId.get(group.networkId)
+                  const roleShell = group.coolingLineRole
+                    ? pipeShell?.[group.coolingLineRole]
+                    : undefined
                   return (
                     <g
-                      key={`connection-network:${group.networkId}`}
+                      key={`connection-network:${group.renderKey}`}
                       className="connection-network"
                       data-network-id={group.networkId}
                       data-connection-type={group.type}
+                      data-cooling-line-role={group.coolingLineRole}
                     >
                       {group.routes.flatMap((route) => {
                         const bridgeCasingPath = renderedConnectionPaths
                           .get(route.edgeId)?.bridgeCasingPath
+                        const coolingLineRole = displayedConnectionEdgesById
+                          .get(route.edgeId)?.coolingLineRole ?? 'primary'
                         return bridgeCasingPath ? [(
                           <g key={`connection-bridge:${route.edgeId}`}>
                             <path
                               className="connection-edge__bridge-casing"
                               data-connection-type={route.type}
+                              data-cooling-line-role={isCoolingConnectionType(route.type)
+                                ? coolingLineRole
+                                : undefined}
                               d={bridgeCasingPath}
                             />
                             <path
                               className="connection-edge__bridge-casing connection-edge__bridge-casing--world"
                               data-connection-type={route.type}
+                              data-cooling-line-role={isCoolingConnectionType(route.type)
+                                ? coolingLineRole
+                                : undefined}
                               d={bridgeCasingPath}
                             />
                           </g>
                         )] : []
                       })}
-                      {pipeShell && pipeFilterId ? (
+                      {roleShell && pipeFilterIds && group.coolingLineRole ? (
                         <path
+                          key={`connection-pipe-shell:${group.renderKey}`}
                           className="connection-edge__pipe-shell"
                           data-connection-type={group.type}
-                          d={pipeShell.path}
-                          filter={`url(#${pipeFilterId})`}
+                          data-cooling-line-role={group.coolingLineRole}
+                          d={roleShell.path}
+                          filter={`url(#${pipeFilterIds[group.coolingLineRole]})`}
                         />
                       ) : null}
                       {group.routes.map((route) => {
@@ -6506,6 +7083,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                             type={route.type}
                             color={edge?.color}
                             flowDirection={flowDirection}
+                            coolingLineRole={edge?.coolingLineRole}
                             directionArrowPath={flowDirection
                               ? connectionTerminalArrowPath(
                                   route.points,
@@ -6536,25 +7114,78 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     data-testid="monitor-static-connection-layer"
                     aria-hidden="true"
                   >
-                    {monitorStaticFlowLineGroups
-                      .filter((group) => group.kind === 'connection')
-                      .map((group) => (
-                        <path
-                          key={group.id}
-                          className="monitor-static-flow-line"
-                          d={group.paths.map((points) => pathData(points)).join(' ')}
-                          stroke={group.color}
-                          strokeWidth={group.lineWidth}
-                          strokeLinecap={group.lineCap}
-                          strokeLinejoin={group.lineJoin}
-                          vectorEffect={group.widthSpace === 'screen'
-                            ? 'non-scaling-stroke'
-                            : undefined}
-                        />
-                      ))}
+                    {visibleRouteRenderGroups.map((group) => {
+                      const pipeShell = coolingPipeShellsByNetworkId.get(group.networkId)
+                      const pipeFilterIds = coolingPipeFilterIdsByNetworkId.get(group.networkId)
+                      const roleShell = group.coolingLineRole
+                        ? pipeShell?.[group.coolingLineRole]
+                        : undefined
+                      const staticGroups = monitorStaticConnectionGroupsByRenderKey
+                        .get(group.renderKey) ?? []
+                      return (
+                        <g
+                          key={`monitor-static-connection-group:${group.renderKey}`}
+                          data-network-id={group.networkId}
+                          data-render-priority={coolingLineRoleRenderPriority(
+                            group.coolingLineRole,
+                          )}
+                        >
+                          {group.routes.flatMap((route) => {
+                            const bridgeCasingPath = renderedConnectionPaths
+                              .get(route.edgeId)?.bridgeCasingPath
+                            const coolingLineRole = displayedConnectionEdgesById
+                              .get(route.edgeId)?.coolingLineRole ?? 'primary'
+                            return bridgeCasingPath ? [(
+                              <g key={`monitor-connection-bridge:${route.edgeId}`}>
+                                <path
+                                  className="connection-edge__bridge-casing"
+                                  data-connection-type={route.type}
+                                  data-cooling-line-role={isCoolingConnectionType(route.type)
+                                    ? coolingLineRole
+                                    : undefined}
+                                  d={bridgeCasingPath}
+                                />
+                                <path
+                                  className="connection-edge__bridge-casing connection-edge__bridge-casing--world"
+                                  data-connection-type={route.type}
+                                  data-cooling-line-role={isCoolingConnectionType(route.type)
+                                    ? coolingLineRole
+                                    : undefined}
+                                  d={bridgeCasingPath}
+                                />
+                              </g>
+                            )] : []
+                          })}
+                          {roleShell && pipeFilterIds && group.coolingLineRole ? (
+                            <path
+                              className="connection-edge__pipe-shell"
+                              data-monitor-pipe-shell-replay="true"
+                              data-connection-type={group.type}
+                              data-cooling-line-role={group.coolingLineRole}
+                              d={roleShell.path}
+                              filter={`url(#${pipeFilterIds[group.coolingLineRole]})`}
+                            />
+                          ) : null}
+                          {staticGroups.map((staticGroup) => (
+                            <path
+                              key={staticGroup.id}
+                              className="monitor-static-flow-line"
+                              d={staticGroup.paths.map((points) => pathData(points)).join(' ')}
+                              stroke={staticGroup.color}
+                              strokeWidth={staticGroup.lineWidth}
+                              strokeLinecap={staticGroup.lineCap}
+                              strokeLinejoin={staticGroup.lineJoin}
+                              vectorEffect={staticGroup.widthSpace === 'screen'
+                                ? 'non-scaling-stroke'
+                                : undefined}
+                            />
+                          ))}
+                        </g>
+                      )
+                    })}
                   </g>
                 ) : null}
-                {mode === 'edit' ? draggableRouteSegments.map((segment) => {
+                {mode === 'edit' && !directLineToolActive ? draggableRouteSegments.map((segment) => {
                   const type = segment.edgeIds
                     .map((edgeId) => renderedRouteTypesByEdgeId.get(edgeId))
                     .find((candidate): candidate is AnchorType => Boolean(candidate)) ?? 'electrical'
@@ -6602,7 +7233,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                         )
                       : undefined}
                     onDoubleClick={routeJunctionCandidate.derivedCorner
-                      ? (event) => startWiringFromRouteCorner(
+                      ? (event) => startWiringFromRouteCandidate(
                           event,
                           routeJunctionCandidate as DerivedRouteCornerCandidate,
                         )
@@ -6774,7 +7405,13 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 </g>
               ) : null}
 
-              {visibleElementPresentations.map(({ element, symbol, visualState, symbolColor }) => {
+              {visibleElementPresentations.map(({
+                element,
+                symbol,
+                visualState,
+                symbolColor,
+                genericBackgroundColor,
+              }) => {
                 return (
                   <DiagramElementItem
                     key={element.id}
@@ -6783,8 +7420,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     asset={assetsByKey.get(element.assetKey)}
                     symbol={symbol}
                     symbolColor={symbolColor}
+                    genericBackgroundColor={genericBackgroundColor}
                     selected={selectedIdSet.has(element.id)}
-                    anchorsVisible={wiring !== null || hoveredElementId === element.id}
+                    anchorsVisible={
+                      directLineToolActive || wiring !== null || hoveredElementId === element.id
+                    }
                     wiringType={wiring?.source.type ?? null}
                     lineSystemType={lineSystemType}
                     occupiedAnchors={occupiedAnchors}

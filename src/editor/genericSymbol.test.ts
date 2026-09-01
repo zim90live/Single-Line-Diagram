@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest'
 import type { DiagramElement } from '../domain/project'
 import {
   fitGenericSymbolTag,
+  GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR,
   genericSymbolDisplayedWidth,
   getSnappedGenericSymbolSize,
+  normalizeGenericSymbolBackgroundColor,
+  resolvedGenericSymbolBackgroundColor,
 } from './genericSymbol'
 
 function genericElement(rotation = 0): DiagramElement {
@@ -40,5 +43,16 @@ describe('generic symbol geometry and tag fitting', () => {
     expect(fitGenericSymbolTag('这是一个非常长的设备标识', 48)).toMatch(/…$/)
     expect(fitGenericSymbolTag('这是一个非常长的设备标识', 48))
       .not.toBe('这是一个非常长的设备标识')
+  })
+
+  it('normalizes an instance background color and falls back to the default', () => {
+    expect(normalizeGenericSymbolBackgroundColor('#2a3b4c')).toBe('#2A3B4C')
+    expect(normalizeGenericSymbolBackgroundColor('invalid')).toBe(
+      GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR,
+    )
+    expect(resolvedGenericSymbolBackgroundColor({
+      ...genericElement(),
+      properties: { tag: 'GENERIC-01', genericBackgroundColor: '#445566' },
+    })).toBe('#445566')
   })
 })
