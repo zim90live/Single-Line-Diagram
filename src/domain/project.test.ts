@@ -52,6 +52,36 @@ describe('project document', () => {
     )))).toBe(true)
   })
 
+  it('persists manual child-line crossing layers and migrates v28 lines as automatic', () => {
+    expect(connectionEdgeSchema.parse({
+      id: 'upper-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      crossingLayer: 'upper',
+    }).crossingLayer).toBe('upper')
+    expect(connectionEdgeSchema.parse({
+      id: 'automatic-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+    }).crossingLayer).toBeUndefined()
+    expect(() => connectionEdgeSchema.parse({
+      id: 'invalid-edge',
+      sourceNodeId: 'source',
+      targetNodeId: 'target',
+      crossingLayer: 'middle',
+    })).toThrow()
+
+    const legacy = createDefaultProject('v28 跨线层级兼容', [asset]) as unknown as {
+      schemaVersion: number
+    }
+    legacy.schemaVersion = 28
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.connections.every((network) => network.edges.every((edge) => (
+      edge.crossingLayer === undefined
+    )))).toBe(true)
+  })
+
   it('creates two independent four-level line trees', () => {
     const document = createDefaultProject('测试项目', [asset])
 
@@ -1066,21 +1096,42 @@ describe('project document', () => {
         type: 'electrical' as const,
       }],
     }
-    const cabinetA = {
+    const legacyCabinetB = {
       ...legacyCabinet,
-      name: 'Cabinet A',
+      key: 'cabinet-b',
+      name: 'Cabinet B',
+      source: 'src/assets/symbols/Cabinet B.svg',
+      anchors: [],
+    }
+    const tapUnitA = {
+      ...legacyCabinet,
+      name: 'Tap-off Unit A',
       category: '电力',
       source: 'src/assets/symbols/Cabinet A.svg',
       anchors: [],
     }
-    const cabinetB = {
-      ...cabinetA,
+    const tapUnitB = {
+      ...tapUnitA,
       key: 'cabinet-b',
-      name: 'Cabinet B',
+      name: 'Tap-off Unit B',
       source: 'src/assets/symbols/Cabinet B.svg',
     }
+    const cabinet = {
+      ...tapUnitA,
+      key: 'cabinet-device',
+      name: 'Cabinet',
+      source: 'src/assets/symbols/Cabinet.svg',
+    }
+    const tapOffUnit = {
+      ...tapUnitA,
+      key: 'tap-off-unit',
+      name: 'Tap-off Unit',
+      source: 'src/assets/symbols/Tap-off Unit.svg',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+    }
     const generic = {
-      ...cabinetA,
+      ...tapUnitA,
       key: 'generic',
       name: '通用图元',
       category: '通用',
@@ -1089,15 +1140,15 @@ describe('project document', () => {
       intrinsicHeight: 48,
     }
     const tmu = {
-      ...cabinetA,
+      ...tapUnitA,
       key: 'tmu',
       name: 'TMU',
       category: '冷却',
       source: 'src/assets/symbols/TMU.png',
-      intrinsicWidth: 72,
+      intrinsicWidth: 64,
       intrinsicHeight: 96,
     }
-    const document = createDefaultProject('Cabinet 素材同步', [legacyCabinet])
+    const document = createDefaultProject('Cabinet 素材同步', [legacyCabinet, legacyCabinetB])
     document.elements.push(
       {
         id: 'default-cabinet-name',
@@ -1125,23 +1176,58 @@ describe('project document', () => {
         properties: {},
         extensions: {},
       },
+      {
+        id: 'released-cabinet-a-name',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cabinet',
+        name: 'Cabinet A',
+        x: 112,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'released-cabinet-b-name',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cabinet-b',
+        name: 'Cabinet B',
+        x: 168,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
     )
 
-    const parsed = parseProjectDocument(document, [cabinetA, cabinetB, generic, tmu])
+    const installedAssets = [tapUnitA, tapUnitB, cabinet, tapOffUnit, generic, tmu]
+    const parsed = parseProjectDocument(document, installedAssets)
 
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
-      name: 'Cabinet A',
+      name: 'Tap-off Unit A',
       category: '电力',
       source: 'src/assets/symbols/Cabinet A.svg',
       anchors: legacyCabinet.anchors,
     })
-    expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(cabinetB)
+    expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(tapUnitB)
+    expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-device')).toEqual(cabinet)
+    expect(parsed.assets.find((candidate) => candidate.key === 'tap-off-unit')).toEqual(tapOffUnit)
     expect(parsed.assets.find((candidate) => candidate.key === 'generic')).toEqual(generic)
     expect(parsed.assets.find((candidate) => candidate.key === 'tmu')).toEqual(tmu)
-    expect(parsed.elements.map((element) => element.name)).toEqual(['Cabinet A', '东侧机柜'])
+    expect(parsed.elements.map((element) => element.name)).toEqual([
+      'Tap-off Unit A',
+      '东侧机柜',
+      'Tap-off Unit A',
+      'Tap-off Unit B',
+    ])
+    expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)
   })
 
-  it('migrates the old TMU default size and edge anchors to 72 by 96 once', () => {
+  it('migrates the initial TMU default size and edge anchors to 64 by 96 once', () => {
     const legacyTmu = {
       ...asset,
       key: 'tmu',
@@ -1171,7 +1257,7 @@ describe('project document', () => {
     }
     const currentTmu = {
       ...legacyTmu,
-      intrinsicWidth: 72,
+      intrinsicWidth: 64,
       intrinsicHeight: 96,
       anchors: [],
     }
@@ -1208,16 +1294,174 @@ describe('project document', () => {
     const parsed = parseProjectDocument(document, [currentTmu])
     const parsedTmu = parsed.assets.find((candidate) => candidate.key === 'tmu')
 
-    expect(parsedTmu).toMatchObject({ intrinsicWidth: 72, intrinsicHeight: 96 })
+    expect(parsedTmu).toMatchObject({ intrinsicWidth: 64, intrinsicHeight: 96 })
     expect(parsedTmu?.anchors).toEqual([
-      expect.objectContaining({ id: 'top-port', x: 40, y: 0, direction: 'top' }),
-      expect.objectContaining({ id: 'right-port', x: 72, y: 48, direction: 'right' }),
+      expect.objectContaining({ id: 'top-port', x: 32, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 64, y: 48, direction: 'right' }),
     ])
     expect(parsed.elements.find((element) => element.id === 'legacy-default-tmu'))
-      .toMatchObject({ width: 72, height: 96 })
+      .toMatchObject({ width: 64, height: 96 })
     expect(parsed.elements.find((element) => element.id === 'resized-tmu'))
       .toMatchObject({ width: 96, height: 128 })
     expect(parseProjectDocument(parsed, [currentTmu])).toEqual(parsed)
+  })
+
+  it('migrates the released 72 by 96 TMU default without resizing custom instances', () => {
+    const releasedTmu = {
+      ...asset,
+      key: 'tmu',
+      name: 'TMU',
+      category: '冷却',
+      source: 'src/assets/symbols/TMU.png',
+      intrinsicWidth: 72,
+      intrinsicHeight: 96,
+      anchors: [
+        {
+          id: 'top-port',
+          name: '顶部接口',
+          x: 32,
+          y: 0,
+          direction: 'top' as const,
+          type: 'cooling-general' as const,
+        },
+        {
+          id: 'right-port',
+          name: '右侧接口',
+          x: 72,
+          y: 48,
+          direction: 'right' as const,
+          type: 'cooling-general' as const,
+        },
+      ],
+    }
+    const currentTmu = {
+      ...releasedTmu,
+      intrinsicWidth: 64,
+      intrinsicHeight: 96,
+      anchors: [],
+    }
+    const document = createDefaultProject('TMU 已发布尺寸兼容', [releasedTmu])
+    document.elements.push(
+      {
+        id: 'released-default-tmu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'tmu',
+        name: 'TMU-01',
+        x: 0,
+        y: 0,
+        width: 72,
+        height: 96,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'custom-tmu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'tmu',
+        name: 'TMU-02',
+        x: 152,
+        y: 0,
+        width: 144,
+        height: 192,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+    )
+
+    const parsed = parseProjectDocument(document, [currentTmu])
+    const parsedTmu = parsed.assets.find((candidate) => candidate.key === 'tmu')
+
+    expect(parsedTmu).toMatchObject({ intrinsicWidth: 64, intrinsicHeight: 96 })
+    expect(parsedTmu?.anchors).toEqual([
+      expect.objectContaining({ id: 'top-port', x: 32, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 64, y: 48, direction: 'right' }),
+    ])
+    expect(parsed.elements.find((element) => element.id === 'released-default-tmu'))
+      .toMatchObject({ width: 64, height: 96 })
+    expect(parsed.elements.find((element) => element.id === 'custom-tmu'))
+      .toMatchObject({ width: 144, height: 192 })
+    expect(parseProjectDocument(parsed, [currentTmu])).toEqual(parsed)
+  })
+
+  it('migrates legacy 96 by 96 CDU assets, anchors, and scaled instances to 192 by 96 once', () => {
+    const legacyCdu = {
+      ...asset,
+      key: 'cdu',
+      name: 'CDU',
+      category: '冷却',
+      source: 'src/assets/symbols/CDU.svg',
+      intrinsicWidth: 96,
+      intrinsicHeight: 96,
+      anchors: [
+        {
+          id: 'top-port',
+          name: '顶部接口',
+          x: 48,
+          y: 0,
+          direction: 'top' as const,
+          type: 'cooling-general' as const,
+        },
+        {
+          id: 'right-port',
+          name: '右侧接口',
+          x: 96,
+          y: 48,
+          direction: 'right' as const,
+          type: 'cooling-general' as const,
+        },
+      ],
+    }
+    const currentCdu = {
+      ...legacyCdu,
+      intrinsicWidth: 192,
+      intrinsicHeight: 96,
+      anchors: [],
+    }
+    const document = createDefaultProject('CDU 横版迁移', [legacyCdu])
+    document.elements.push(
+      {
+        id: 'legacy-default-cdu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cdu',
+        name: 'CDU-01',
+        x: 40,
+        y: 56,
+        width: 96,
+        height: 96,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'legacy-scaled-rotated-cdu',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'cdu',
+        name: 'CDU-02',
+        x: 200,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 90,
+        properties: {},
+        extensions: {},
+      },
+    )
+
+    const parsed = parseProjectDocument(document, [currentCdu])
+    const parsedCdu = parsed.assets.find((candidate) => candidate.key === 'cdu')
+
+    expect(parsedCdu).toMatchObject({ intrinsicWidth: 192, intrinsicHeight: 96 })
+    expect(parsedCdu?.anchors).toEqual([
+      expect.objectContaining({ id: 'top-port', x: 96, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 192, y: 48, direction: 'right' }),
+    ])
+    expect(parsed.elements.find((element) => element.id === 'legacy-default-cdu'))
+      .toMatchObject({ x: 40, y: 56, width: 192, height: 96, rotation: 0 })
+    expect(parsed.elements.find((element) => element.id === 'legacy-scaled-rotated-cdu'))
+      .toMatchObject({ x: 176, y: 24, width: 96, height: 48, rotation: 90 })
+    expect(parseProjectDocument(parsed, [currentCdu])).toEqual(parsed)
   })
 
   it('migrates legacy portrait PHE assets and instances to the PNG landscape layout', () => {

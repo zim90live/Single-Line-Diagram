@@ -25,6 +25,48 @@ export interface DiagramObjectSelection {
   routeWaypointIds: ReadonlySet<string>
 }
 
+export function constrainSelectionTranslationToBusbarNodes(
+  busbars: Busbar[],
+  connections: ConnectionNetwork[],
+  selection: DiagramObjectSelection,
+  delta: Point,
+  gridSize?: number,
+) {
+  const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
+  let constrainX = false
+  let constrainY = false
+  let minimumX = Number.NEGATIVE_INFINITY
+  let maximumX = Number.POSITIVE_INFINITY
+  let minimumY = Number.NEGATIVE_INFINITY
+  let maximumY = Number.POSITIVE_INFINITY
+
+  connections.forEach((network) => network.nodes.forEach((node) => {
+    if (
+      node.kind !== 'busbar-tap' ||
+      !selection.nodeIds.has(node.id) ||
+      selection.busbarIds.has(node.busbarId)
+    ) return
+    const busbar = busbarsById.get(node.busbarId)
+    if (!busbar) return
+    if (busbar.orientation === 'horizontal') {
+      constrainY = true
+      minimumX = Math.max(minimumX, -node.offset)
+      maximumX = Math.min(maximumX, busbar.length - node.offset)
+    } else {
+      constrainX = true
+      minimumY = Math.max(minimumY, -node.offset)
+      maximumY = Math.min(maximumY, busbar.length - node.offset)
+    }
+  }))
+
+  const snappedX = gridSize === undefined ? delta.x : snap(delta.x, gridSize)
+  const snappedY = gridSize === undefined ? delta.y : snap(delta.y, gridSize)
+  return {
+    x: constrainX ? 0 : Math.max(minimumX, Math.min(maximumX, snappedX)),
+    y: constrainY ? 0 : Math.max(minimumY, Math.min(maximumY, snappedY)),
+  }
+}
+
 export function translateDiagramSelection(
   elements: DiagramElement[],
   busbars: Busbar[],
@@ -34,6 +76,14 @@ export function translateDiagramSelection(
   delta: Point,
   gridSize?: number,
 ) {
+  const effectiveDelta = constrainSelectionTranslationToBusbarNodes(
+    busbars,
+    connections,
+    selection,
+    delta,
+    gridSize,
+  )
+  const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
   const translated = (value: number, offset: number) => (
     gridSize === undefined ? value + offset : snap(value + offset, gridSize)
   )
@@ -41,35 +91,43 @@ export function translateDiagramSelection(
     elements: elements.map((element) => selection.elementIds.has(element.id)
       ? {
           ...element,
-          x: translated(element.x, delta.x),
-          y: translated(element.y, delta.y),
+          x: translated(element.x, effectiveDelta.x),
+          y: translated(element.y, effectiveDelta.y),
         }
       : element),
     busbars: busbars.map((busbar) => selection.busbarIds.has(busbar.id)
       ? {
           ...busbar,
-          x: translated(busbar.x, delta.x),
-          y: translated(busbar.y, delta.y),
+          x: translated(busbar.x, effectiveDelta.x),
+          y: translated(busbar.y, effectiveDelta.y),
         }
       : busbar),
     connections: connections.map((network) => ({
       ...network,
-      nodes: network.nodes.map((node) => (
-        node.kind === 'node' && selection.nodeIds.has(node.id)
-          ? {
-              ...node,
-              x: translated(node.x, delta.x),
-              y: translated(node.y, delta.y),
-            }
-          : node
-      )),
+      nodes: network.nodes.map((node) => {
+        if (!selection.nodeIds.has(node.id)) return node
+        if (node.kind === 'node') {
+          return {
+            ...node,
+            x: translated(node.x, effectiveDelta.x),
+            y: translated(node.y, effectiveDelta.y),
+          }
+        }
+        if (node.kind !== 'busbar-tap' || selection.busbarIds.has(node.busbarId)) return node
+        const busbar = busbarsById.get(node.busbarId)
+        if (!busbar) return node
+        const axisDelta = busbar.orientation === 'horizontal'
+          ? effectiveDelta.x
+          : effectiveDelta.y
+        return { ...node, offset: translated(node.offset, axisDelta) }
+      }),
     })),
     routeWaypoints: routeWaypoints.map((waypoint) => (
       selection.routeWaypointIds.has(waypoint.id)
         ? {
             ...waypoint,
-            x: translated(waypoint.x, delta.x),
-            y: translated(waypoint.y, delta.y),
+            x: translated(waypoint.x, effectiveDelta.x),
+            y: translated(waypoint.y, effectiveDelta.y),
           }
         : waypoint
     )),
@@ -79,8 +137,8 @@ export function translateDiagramSelection(
 export const MIN_ZOOM = 0.25
 export const MAX_ZOOM = 4
 
-export function clampZoom(zoom: number) {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+export function clampZoom(zoom: number, minimumZoom = MIN_ZOOM) {
+  return Math.min(MAX_ZOOM, Math.max(minimumZoom, zoom))
 }
 
 export function screenToWorld(point: Point, viewport: DiagramViewport): Point {
@@ -101,9 +159,10 @@ export function zoomAroundPoint(
   viewport: DiagramViewport,
   screenPoint: Point,
   nextZoom: number,
+  minimumZoom = MIN_ZOOM,
 ): DiagramViewport {
   const worldPoint = screenToWorld(screenPoint, viewport)
-  const zoom = clampZoom(nextZoom)
+  const zoom = clampZoom(nextZoom, minimumZoom)
   return {
     zoom,
     tx: screenPoint.x - worldPoint.x * zoom,
@@ -200,6 +259,53 @@ export function diagramObjectsBounds(elements: DiagramElement[], busbars: Busbar
   const right = Math.max(...points.map((point) => point.x))
   const bottom = Math.max(...points.map((point) => point.y))
   return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
+export function diagramContentBounds(
+  elements: DiagramElement[],
+  busbars: Busbar[],
+  connections: ConnectionNetwork[],
+): Rect | null {
+  const points = [
+    ...elements.flatMap(elementCorners),
+    ...busbars.flatMap(busbarPoints),
+    ...connections.flatMap((network) => network.nodes.flatMap((node) => (
+      node.kind === 'node' ? [{ x: node.x, y: node.y }] : []
+    ))),
+  ]
+  if (!points.length) return null
+  const left = Math.min(...points.map((point) => point.x))
+  const top = Math.min(...points.map((point) => point.y))
+  const right = Math.max(...points.map((point) => point.x))
+  const bottom = Math.max(...points.map((point) => point.y))
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
+export function fitViewportToBounds(
+  bounds: Rect,
+  viewportSize: { width: number; height: number },
+  padding = 48,
+  maximumZoom = 1,
+): DiagramViewport {
+  const width = Math.max(1, viewportSize.width)
+  const height = Math.max(1, viewportSize.height)
+  const safePadding = Math.max(0, padding)
+  const availableWidth = Math.max(1, width - safePadding * 2)
+  const availableHeight = Math.max(1, height - safePadding * 2)
+  const contentWidth = Math.max(1, bounds.width)
+  const contentHeight = Math.max(1, bounds.height)
+  const zoom = Math.min(
+    maximumZoom,
+    availableWidth / contentWidth,
+    availableHeight / contentHeight,
+  )
+  const centerX = bounds.x + bounds.width / 2
+  const centerY = bounds.y + bounds.height / 2
+  return {
+    zoom,
+    tx: width / 2 - centerX * zoom,
+    ty: height / 2 - centerY * zoom,
+  }
 }
 
 export function elementInsideRect(element: DiagramElement, rect: Rect) {

@@ -14,6 +14,7 @@ export interface DiagramHierarchyMutationResult {
   changed: boolean
   diagrams?: Diagram[]
   diagramId?: string
+  removedDiagramIds?: string[]
   message?: string
 }
 
@@ -149,6 +150,40 @@ export function createChildDiagram(
   return ordered
     ? { ok: true, changed: true, diagrams: ordered, diagramId: diagram.id }
     : failure('当前图纸层级无效，无法新增图纸')
+}
+
+export function deleteDiagram(
+  document: ProjectDocument,
+  diagramId: string,
+): DiagramHierarchyMutationResult {
+  const diagramsById = new Map(document.diagrams.map((diagram) => [diagram.id, diagram]))
+  const diagram = diagramsById.get(diagramId)
+  if (!diagram) return failure('找不到要删除的图纸')
+  if (diagram.parentId === null) return failure('线路根图纸不能删除')
+
+  const childrenByParent = childIdsByParent(document.diagrams)
+  const removedDiagramIdSet = collectSubtreeIds(childrenByParent, diagramId)
+  const removedDiagramIds = document.diagrams
+    .filter((candidate) => removedDiagramIdSet.has(candidate.id))
+    .map((candidate) => candidate.id)
+  const remainingDiagrams = document.diagrams.filter(
+    (candidate) => !removedDiagramIdSet.has(candidate.id),
+  )
+  const remainingById = new Map(remainingDiagrams.map((candidate) => [candidate.id, candidate]))
+  const ordered = orderAndNormalizeLevels(
+    { ...document, diagrams: remainingDiagrams },
+    remainingById,
+    childIdsByParent(remainingDiagrams),
+  )
+  if (!ordered) return failure('删除后的图纸层级无效')
+
+  return {
+    ok: true,
+    changed: true,
+    diagrams: ordered,
+    diagramId: diagram.parentId,
+    removedDiagramIds,
+  }
 }
 
 export function moveDiagram(

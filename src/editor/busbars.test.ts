@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ConnectionNetwork } from '../domain/project'
+import type { Busbar, ConnectionNetwork } from '../domain/project'
 import {
   busbarTapCount,
-  compressBusbarTapOffsets,
-  minimumBusbarLengthForConnections,
+  resizeBusbarPreservingTapPositions,
 } from './busbars'
+
+const busbar: Busbar = {
+  id: 'busbar-1',
+  diagramId: 'diagram-1',
+  type: 'electrical',
+  orientation: 'horizontal',
+  x: 64,
+  y: 80,
+  length: 160,
+}
 
 function networkWithTapOffsets(offsets: number[]): ConnectionNetwork[] {
   return [{
@@ -29,17 +38,6 @@ function tapOffsets(connections: ConnectionNetwork[]) {
 }
 
 describe('busbar resizing constraints', () => {
-  it('derives the minimum length from distinct tap nodes', () => {
-    expect(minimumBusbarLengthForConnections([], 'busbar-1', 8)).toBe(8)
-    expect(minimumBusbarLengthForConnections(networkWithTapOffsets([80]), 'busbar-1', 8)).toBe(8)
-    expect(minimumBusbarLengthForConnections(networkWithTapOffsets([32, 80]), 'busbar-1', 8)).toBe(8)
-    expect(minimumBusbarLengthForConnections(
-      networkWithTapOffsets([0, 40, 80, 120, 160]),
-      'busbar-1',
-      8,
-    )).toBe(32)
-  })
-
   it('counts a shared tap once even when several edges reference it', () => {
     const connections = networkWithTapOffsets([80])
     connections[0].nodes.push(
@@ -52,31 +50,64 @@ describe('busbar resizing constraints', () => {
     )
 
     expect(busbarTapCount(connections, 'busbar-1')).toBe(1)
-    expect(minimumBusbarLengthForConnections(connections, 'busbar-1', 8)).toBe(8)
   })
 
-  it('compresses taps proportionally while preserving order and an 8px gap', () => {
-    const connections = networkWithTapOffsets([0, 40, 80, 120, 160])
-    const compressed = compressBusbarTapOffsets(connections, 'busbar-1', 160, 32, 8)
-
-    expect(tapOffsets(compressed)).toEqual([0, 8, 16, 24, 32])
-    expect(compressed).not.toBe(connections)
-  })
-
-  it('resolves snap collisions without merging tap nodes', () => {
-    const compressed = compressBusbarTapOffsets(
-      networkWithTapOffsets([0, 8, 16]),
-      'busbar-1',
-      160,
-      16,
+  it('blocks an end resize before the furthest tap without moving tap offsets', () => {
+    const connections = networkWithTapOffsets([32, 120])
+    const result = resizeBusbarPreservingTapPositions(
+      connections,
+      busbar,
+      'end',
+      144,
       8,
     )
 
-    expect(tapOffsets(compressed)).toEqual([0, 8, 16])
+    expect(result.blocked).toBe(true)
+    expect(result.busbar.length).toBe(120)
+    expect(result.connections).toBe(connections)
+    expect(tapOffsets(result.connections)).toEqual([32, 120])
   })
 
-  it('does not spread compressed taps when the busbar grows', () => {
-    const connections = networkWithTapOffsets([0, 8, 16])
-    expect(compressBusbarTapOffsets(connections, 'busbar-1', 16, 160, 8)).toBe(connections)
+  it('keeps tap world positions fixed when moving the start endpoint', () => {
+    const result = resizeBusbarPreservingTapPositions(
+      networkWithTapOffsets([32, 120]),
+      busbar,
+      'start',
+      80,
+      8,
+    )
+
+    expect(result.blocked).toBe(false)
+    expect(result.busbar).toMatchObject({ x: 80, length: 144 })
+    expect(tapOffsets(result.connections)).toEqual([16, 104])
+    expect(result.busbar.x + tapOffsets(result.connections)[0]).toBe(96)
+    expect(result.busbar.x + tapOffsets(result.connections)[1]).toBe(184)
+  })
+
+  it('blocks a start resize that would move past the nearest tap', () => {
+    const result = resizeBusbarPreservingTapPositions(
+      networkWithTapOffsets([32, 120]),
+      busbar,
+      'start',
+      120,
+      8,
+    )
+
+    expect(result.blocked).toBe(true)
+    expect(result.busbar).toMatchObject({ x: 96, length: 128 })
+    expect(tapOffsets(result.connections)).toEqual([0, 88])
+  })
+
+  it('applies the same position-preserving rule to vertical busbars', () => {
+    const result = resizeBusbarPreservingTapPositions(
+      networkWithTapOffsets([80]),
+      { ...busbar, orientation: 'vertical', x: 80, y: 64 },
+      'start',
+      88,
+      8,
+    )
+
+    expect(result.busbar).toMatchObject({ y: 88, length: 136 })
+    expect(tapOffsets(result.connections)).toEqual([56])
   })
 })

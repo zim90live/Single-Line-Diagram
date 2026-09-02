@@ -481,6 +481,44 @@ button:focus-visible,
   min-width: 0;
 }
 
+.tree-row-shell[data-deletable='true'] > .tree-row {
+  padding-inline-end: 34px;
+}
+
+.tree-row__delete {
+  position: absolute;
+  z-index: 1;
+  top: 2px;
+  inset-inline-end: 2px;
+  width: 24px;
+  height: 24px;
+  color: var(--error);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-standard) var(--ease-out-quart),
+    color var(--duration-standard) var(--ease-out-quart),
+    background var(--duration-standard) var(--ease-out-quart);
+}
+
+.tree-row-shell:hover > .tree-row__delete,
+.tree-row-shell:focus-within > .tree-row__delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tree-row__delete:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--error);
+  background: var(--error-soft);
+}
+
+@media (hover: none) {
+  .tree-row__delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .tree-row-shell[data-dragging='true'] {
   opacity: 0.42;
 }

@@ -183,6 +183,41 @@ describe('incremental connection routing', () => {
     }])
   })
 
+  it('updates manual crossing layers without rerouting geometry', () => {
+    const previous = coolingCrossingFixture()
+    const routed = routeConnectionNetworks(
+      previous.networks,
+      previous.elements,
+      previous.assets,
+      previous.gridSize,
+    )
+    const next = {
+      ...previous,
+      networks: previous.networks.map((network) => (
+        network.id === 'cooling-horizontal-network'
+          ? {
+              ...network,
+              edges: network.edges.map((edge) => ({
+                ...edge,
+                crossingLayer: 'upper' as const,
+              })),
+            }
+          : network
+      )),
+    }
+
+    const result = routeConnectionNetworksIncrementally(previous, routed, next)
+
+    expect(result.mode).toBe('reused')
+    expect(result.dirtyNetworkCount).toBe(0)
+    expect(result.routed.edges[0]).toBe(routed.edges[0])
+    expect(result.routed.edges[1]).toBe(routed.edges[1])
+    expect(result.routed.crossings[0]).toMatchObject({
+      bridgeEdgeId: 'cooling-horizontal-edge',
+      underEdgeId: 'cooling-vertical-edge',
+    })
+  })
+
   it('reroutes only the locally affected network and retains distant edge objects', () => {
     const previous = fixture()
     const routed = routeConnectionNetworks(

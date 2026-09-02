@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { createDefaultProject, getFirstDiagramId } from '../domain/project'
+import { createDefaultProject, getFirstDiagramId, projectDocumentSchema } from '../domain/project'
 import { symbolAssets } from '../editor/symbolCatalog'
 import { useAppStore } from './useAppStore'
 
@@ -132,5 +132,73 @@ describe('app document state', () => {
       useAppStore.getState().document.diagrams.find((diagram) => diagram.id === originalPod.id),
     ).toMatchObject({ parentId: created.diagramId, level: 'pod' })
     expect(useAppStore.getState().document.diagrams).not.toBe(initial.diagrams)
+  })
+
+  it('deletes a diagram subtree and all of its drawing content atomically', () => {
+    const initial = useAppStore.getState().document
+    const coolingRoot = initial.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    const building = initial.diagrams.find((diagram) => diagram.parentId === coolingRoot)!
+    const pod = initial.diagrams.find((diagram) => diagram.parentId === building.id)!
+    const device = initial.diagrams.find((diagram) => diagram.parentId === pod.id)!
+    useAppStore.setState({
+      document: {
+        ...initial,
+        elements: [{
+          id: 'deleted-element',
+          diagramId: device.id,
+          assetKey: 'chwp',
+          name: 'CHWP',
+          x: 0,
+          y: 0,
+          width: 64,
+          height: 64,
+          rotation: 0,
+          properties: {},
+          extensions: {},
+        }],
+        busbars: [{
+          id: 'deleted-busbar',
+          diagramId: device.id,
+          type: 'electrical',
+          orientation: 'horizontal',
+          x: 0,
+          y: 80,
+          length: 8,
+        }],
+        connections: [{
+          id: 'deleted-network',
+          diagramId: device.id,
+          type: 'cooling-general',
+          nodes: [
+            { id: 'deleted-node-a', kind: 'node', x: 0, y: 0 },
+            { id: 'deleted-node-b', kind: 'node', x: 8, y: 0 },
+          ],
+          edges: [{
+            id: 'deleted-edge',
+            sourceNodeId: 'deleted-node-a',
+            targetNodeId: 'deleted-node-b',
+          }],
+        }],
+      },
+      currentDiagramId: device.id,
+      selectedElementIds: ['deleted-element'],
+    })
+
+    const result = useAppStore.getState().deleteDiagram(building.id)
+    const state = useAppStore.getState()
+
+    expect(result).toMatchObject({
+      ok: true,
+      changed: true,
+      diagramId: coolingRoot,
+      removedDiagramIds: [building.id, pod.id, device.id],
+    })
+    expect(state.currentDiagramId).toBe(coolingRoot)
+    expect(state.selectedElementIds).toEqual([])
+    expect(state.document.elements).toEqual([])
+    expect(state.document.busbars).toEqual([])
+    expect(state.document.connections).toEqual([])
+    expect(state.dirty).toBe(true)
+    expect(projectDocumentSchema.safeParse(state.document).success).toBe(true)
   })
 })

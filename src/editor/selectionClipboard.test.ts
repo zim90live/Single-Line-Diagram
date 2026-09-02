@@ -209,6 +209,7 @@ describe('selection clipboard topology', () => {
           sourceNodeId: 'a',
           targetNodeId: 'j',
           logicalConnectionId: 'trunk-logical-edge',
+          crossingLayer: 'upper',
         },
         {
           id: 'j-b',
@@ -241,6 +242,7 @@ describe('selection clipboard topology', () => {
     expect(instantiated[0].nodes.find((node) => node.kind === 'node'))
       .toMatchObject({ x: 96, y: 88 })
     expect(instantiated[0].edges).toHaveLength(2)
+    expect(instantiated[0].edges.find((edge) => edge.crossingLayer === 'upper')).toBeDefined()
     expect(new Set(instantiated[0].edges.map((edge) => edge.logicalConnectionId)).size).toBe(1)
     expect(instantiated[0].edges[0].logicalConnectionId).not.toBe('trunk-logical-edge')
   })

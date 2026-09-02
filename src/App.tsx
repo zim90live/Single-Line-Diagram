@@ -195,6 +195,7 @@ export default function App() {
     replaceAssetDefinition,
     createDiagram,
     renameDiagram,
+    deleteDiagram,
     moveDiagram,
     renameProject,
     markSaved,
@@ -350,6 +351,19 @@ export default function App() {
     if (result.changed) showToast('图纸名称已更新')
     return true
   }, [renameDiagram, showToast])
+
+  const handleDeleteDiagram = useCallback((diagramId: string) => {
+    const diagramName = document.diagrams.find((diagram) => diagram.id === diagramId)?.name
+    const result = deleteDiagram(diagramId)
+    if (!result.ok) {
+      showToast(result.message ?? '无法删除图纸', 'danger')
+      return
+    }
+    const childCount = Math.max(0, (result.removedDiagramIds?.length ?? 1) - 1)
+    showToast(childCount > 0
+      ? `已删除“${diagramName ?? '图纸'}”及 ${childCount} 张下级图纸`
+      : `已删除“${diagramName ?? '图纸'}”`)
+  }, [deleteDiagram, document.diagrams, showToast])
 
   const handleMoveDiagram = useCallback((
     sourceId: string,
@@ -694,6 +708,7 @@ export default function App() {
             onSelectDiagram={setCurrentDiagram}
             onCreateDiagram={handleCreateDiagram}
             onRenameDiagram={handleRenameDiagram}
+            onDeleteDiagram={handleDeleteDiagram}
             onMoveDiagram={handleMoveDiagram}
           />
           {workspaceMode === 'edit' ? (

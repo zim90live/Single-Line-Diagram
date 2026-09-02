@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 28 as const
+export const SCHEMA_VERSION = 29 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -23,6 +23,7 @@ export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'le
 export const elementOnOffStateSchema = z.enum(['off', 'on'])
 export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
 export const coolingLineRoleSchema = z.enum(['primary', 'auxiliary'])
+export const connectionCrossingLayerSchema = z.enum(['lower', 'upper'])
 export const connectionPointSchema = z.object({
   id: z.string().min(1),
   x: z.number().finite(),
@@ -229,6 +230,7 @@ export const connectionEdgeSchema = z.object({
   logicalConnectionId: z.string().min(1).optional(),
   flowDirection: connectionFlowDirectionSchema.optional(),
   coolingLineRole: coolingLineRoleSchema.optional(),
+  crossingLayer: connectionCrossingLayerSchema.optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
   label: z.string().trim().min(1).optional(),
   labelVisible: z.boolean().optional(),
@@ -855,6 +857,7 @@ export type ConnectionNode = z.infer<typeof connectionNodeSchema>
 export type ConnectionEdge = z.infer<typeof connectionEdgeSchema>
 export type ConnectionFlowDirection = NonNullable<ConnectionEdge['flowDirection']>
 export type CoolingLineRole = NonNullable<ConnectionEdge['coolingLineRole']>
+export type ConnectionCrossingLayer = NonNullable<ConnectionEdge['crossingLayer']>
 export type ConnectionLabelEndpoint = NonNullable<ConnectionEdge['labelEndpoint']>
 export type ConnectionLabelSide = NonNullable<ConnectionEdge['labelSide']>
 export type ConnectionNetwork = z.infer<typeof connectionNetworkSchema>
@@ -1478,7 +1481,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 
@@ -1616,10 +1619,21 @@ const LEGACY_PHE_HEIGHT = 160
 const CURRENT_PHE_WIDTH = 200
 const CURRENT_PHE_HEIGHT = 80
 const CURRENT_PHE_SCALE_STEP = 0.2
-const LEGACY_TMU_WIDTH = 48
-const LEGACY_TMU_HEIGHT = 64
-const CURRENT_TMU_WIDTH = 72
+const LEGACY_CDU_WIDTH = 96
+const LEGACY_CDU_HEIGHT = 96
+const CURRENT_CDU_WIDTH = 192
+const CURRENT_CDU_HEIGHT = 96
+const LEGACY_TMU_LAYOUTS = [
+  { width: 48, height: 64 },
+  { width: 72, height: 96 },
+] as const
+const CURRENT_TMU_WIDTH = 64
 const CURRENT_TMU_HEIGHT = 96
+
+interface LegacyTmuLayout {
+  width: number
+  height: number
+}
 
 function normalizeRotation(value: number) {
   return ((value % 360) + 360) % 360
@@ -1687,22 +1701,56 @@ function migrateLegacyPheElement(element: DiagramElement): DiagramElement {
   }
 }
 
-function migrateLegacyTmuAnchor(anchor: SymbolAnchor): SymbolAnchor {
+function migrateLegacyCduAnchor(anchor: SymbolAnchor): SymbolAnchor {
   return {
     ...anchor,
     x: Math.min(
-      CURRENT_TMU_WIDTH,
-      Math.max(0, snapToGrid(CURRENT_TMU_WIDTH * anchor.x / LEGACY_TMU_WIDTH)),
+      CURRENT_CDU_WIDTH,
+      Math.max(0, snapToGrid(CURRENT_CDU_WIDTH * anchor.x / LEGACY_CDU_WIDTH)),
     ),
     y: Math.min(
-      CURRENT_TMU_HEIGHT,
-      Math.max(0, snapToGrid(CURRENT_TMU_HEIGHT * anchor.y / LEGACY_TMU_HEIGHT)),
+      CURRENT_CDU_HEIGHT,
+      Math.max(0, snapToGrid(CURRENT_CDU_HEIGHT * anchor.y / LEGACY_CDU_HEIGHT)),
     ),
   }
 }
 
-function migrateLegacyTmuElement(element: DiagramElement): DiagramElement {
-  if (element.width !== LEGACY_TMU_WIDTH || element.height !== LEGACY_TMU_HEIGHT) {
+function migrateLegacyCduElement(element: DiagramElement): DiagramElement {
+  const width = element.width * CURRENT_CDU_WIDTH / LEGACY_CDU_WIDTH
+  const height = element.height * CURRENT_CDU_HEIGHT / LEGACY_CDU_HEIGHT
+  const oldOffset = rotatedBoundsOffset(element.width, element.height, element.rotation)
+  const newOffset = rotatedBoundsOffset(width, height, element.rotation)
+  return {
+    ...element,
+    x: Number((element.x + oldOffset.x - newOffset.x).toFixed(8)),
+    y: Number((element.y + oldOffset.y - newOffset.y).toFixed(8)),
+    width,
+    height,
+  }
+}
+
+function migrateLegacyTmuAnchor(
+  anchor: SymbolAnchor,
+  legacyLayout: LegacyTmuLayout,
+): SymbolAnchor {
+  return {
+    ...anchor,
+    x: Math.min(
+      CURRENT_TMU_WIDTH,
+      Math.max(0, snapToGrid(CURRENT_TMU_WIDTH * anchor.x / legacyLayout.width)),
+    ),
+    y: Math.min(
+      CURRENT_TMU_HEIGHT,
+      Math.max(0, snapToGrid(CURRENT_TMU_HEIGHT * anchor.y / legacyLayout.height)),
+    ),
+  }
+}
+
+function migrateLegacyTmuElement(
+  element: DiagramElement,
+  legacyLayout: LegacyTmuLayout,
+): DiagramElement {
+  if (element.width !== legacyLayout.width || element.height !== legacyLayout.height) {
     return element
   }
   return {
@@ -1730,15 +1778,28 @@ export function parseProjectDocument(
       ? [asset.key]
       : []
   }))
-  const legacyTmuAssetKeys = new Set(document.assets.flatMap((asset) => {
+  const legacyCduAssetKeys = new Set(document.assets.flatMap((asset) => {
     const installed = installedByKey.get(asset.key)
+    return asset.key === 'cdu' &&
+      asset.intrinsicWidth === LEGACY_CDU_WIDTH &&
+      asset.intrinsicHeight === LEGACY_CDU_HEIGHT &&
+      installed?.source.endsWith('/CDU.svg') &&
+      installed.intrinsicWidth === CURRENT_CDU_WIDTH &&
+      installed.intrinsicHeight === CURRENT_CDU_HEIGHT
+      ? [asset.key]
+      : []
+  }))
+  const legacyTmuLayoutsByKey = new Map<string, LegacyTmuLayout>(document.assets.flatMap((asset) => {
+    const installed = installedByKey.get(asset.key)
+    const legacyLayout = LEGACY_TMU_LAYOUTS.find((layout) => (
+      asset.intrinsicWidth === layout.width && asset.intrinsicHeight === layout.height
+    ))
     return asset.key === 'tmu' &&
-      asset.intrinsicWidth === LEGACY_TMU_WIDTH &&
-      asset.intrinsicHeight === LEGACY_TMU_HEIGHT &&
+      legacyLayout &&
       installed?.source.endsWith('/TMU.png') &&
       installed.intrinsicWidth === CURRENT_TMU_WIDTH &&
       installed.intrinsicHeight === CURRENT_TMU_HEIGHT
-      ? [asset.key]
+      ? [[asset.key, legacyLayout] as [string, LegacyTmuLayout]]
       : []
   }))
   const synchronized = {
@@ -1762,8 +1823,14 @@ export function parseProjectDocument(
         ...(legacyPheAssetKeys.has(asset.key) ? {
           anchors: asset.anchors.map(migrateLegacyPheAnchor),
         } : {}),
-        ...(legacyTmuAssetKeys.has(asset.key) ? {
-          anchors: asset.anchors.map(migrateLegacyTmuAnchor),
+        ...(legacyCduAssetKeys.has(asset.key) ? {
+          anchors: asset.anchors.map(migrateLegacyCduAnchor),
+        } : {}),
+        ...(legacyTmuLayoutsByKey.has(asset.key) ? {
+          anchors: asset.anchors.map((anchor) => migrateLegacyTmuAnchor(
+            anchor,
+            legacyTmuLayoutsByKey.get(asset.key)!,
+          )),
         } : {}),
         ...(asset.key === 'cv' ? { coolingDeviceRole: 'check-valve' as const } : {}),
       }
@@ -1779,11 +1846,22 @@ export function parseProjectDocument(
       const withCurrentPheLayout = legacyPheAssetKeys.has(element.assetKey)
         ? migrateLegacyPheElement(element)
         : element
-      const withCurrentTmuLayout = legacyTmuAssetKeys.has(withCurrentPheLayout.assetKey)
-        ? migrateLegacyTmuElement(withCurrentPheLayout)
+      const withCurrentCduLayout = legacyCduAssetKeys.has(withCurrentPheLayout.assetKey)
+        ? migrateLegacyCduElement(withCurrentPheLayout)
         : withCurrentPheLayout
-      return withCurrentTmuLayout.assetKey === 'cabinet' && withCurrentTmuLayout.name === 'Cabinet'
-        ? { ...withCurrentTmuLayout, name: 'Cabinet A' }
+      const legacyTmuLayout = legacyTmuLayoutsByKey.get(withCurrentCduLayout.assetKey)
+      const withCurrentTmuLayout = legacyTmuLayout
+        ? migrateLegacyTmuElement(withCurrentCduLayout, legacyTmuLayout)
+        : withCurrentCduLayout
+      if (
+        withCurrentTmuLayout.assetKey === 'cabinet' &&
+        ['Cabinet', 'Cabinet A'].includes(withCurrentTmuLayout.name)
+      ) {
+        return { ...withCurrentTmuLayout, name: 'Tap-off Unit A' }
+      }
+      return withCurrentTmuLayout.assetKey === 'cabinet-b' &&
+        withCurrentTmuLayout.name === 'Cabinet B'
+        ? { ...withCurrentTmuLayout, name: 'Tap-off Unit B' }
         : withCurrentTmuLayout
     }),
     diagrams: document.diagrams.map((diagram) => ({

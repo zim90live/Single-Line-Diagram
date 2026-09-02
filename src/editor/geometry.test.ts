@@ -8,10 +8,12 @@ import type {
 } from '../domain/project'
 import {
   busbarInsideRect,
+  diagramContentBounds,
   diagramObjectsBounds,
   elementInsideRect,
   elementsBounds,
   elementsEqual,
+  fitViewportToBounds,
   rotatePointOnGrid,
   screenToWorld,
   snap,
@@ -136,6 +138,53 @@ describe('editor geometry', () => {
     })
   })
 
+  it('includes free connection nodes in complete diagram bounds', () => {
+    const network: ConnectionNetwork = {
+      id: 'network-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      nodes: [
+        { id: 'node-1', kind: 'node', x: -80, y: 120 },
+        { id: 'node-2', kind: 'node', x: 240, y: 360 },
+      ],
+      edges: [{
+        id: 'edge-1',
+        sourceNodeId: 'node-1',
+        targetNodeId: 'node-2',
+      }],
+    }
+
+    expect(diagramContentBounds([], [], [network])).toEqual({
+      x: -80,
+      y: 120,
+      width: 320,
+      height: 240,
+    })
+  })
+
+  it('fits and centers complete diagram bounds with screen-space padding', () => {
+    expect(fitViewportToBounds(
+      { x: 100, y: 200, width: 1000, height: 500 },
+      { width: 500, height: 300 },
+      50,
+    )).toEqual({
+      zoom: 0.4,
+      tx: 10,
+      ty: -30,
+    })
+  })
+
+  it('does not enlarge small diagrams beyond 100%', () => {
+    expect(fitViewportToBounds(
+      { x: 100, y: 200, width: 40, height: 20 },
+      { width: 500, height: 300 },
+    )).toEqual({
+      zoom: 1,
+      tx: 130,
+      ty: -60,
+    })
+  })
+
   it('keeps selected elements, busbars and nodes in one relative translation', () => {
     const element = createElement({ x: 16, y: 24 })
     const busbar: Busbar = {
@@ -178,6 +227,86 @@ describe('editor geometry', () => {
       expect.objectContaining({ id: 'node-1', x: 120, y: 104 }),
       expect.objectContaining({ id: 'node-2', x: 160, y: 112 }),
     ])
+  })
+
+  it('moves a selected busbar node only along its host while preserving a mixed selection', () => {
+    const element = createElement({ x: 16, y: 24 })
+    const busbar: Busbar = {
+      id: 'busbar-1', diagramId: 'diagram-1', type: 'electrical',
+      orientation: 'horizontal', x: 64, y: 80, length: 96,
+    }
+    const network: ConnectionNetwork = {
+      id: 'network-1', diagramId: 'diagram-1', type: 'electrical',
+      nodes: [{ id: 'tap-1', kind: 'busbar-tap', busbarId: busbar.id, offset: 32 }],
+      edges: [],
+    }
+    const translated = translateDiagramSelection(
+      [element], [busbar], [network], [],
+      {
+        elementIds: new Set([element.id]),
+        busbarIds: new Set(),
+        nodeIds: new Set(['tap-1']),
+        routeWaypointIds: new Set(),
+      },
+      { x: 16, y: -8 },
+      8,
+    )
+
+    expect(translated.elements[0]).toMatchObject({ x: 32, y: 24 })
+    expect(translated.connections[0].nodes[0]).toMatchObject({ offset: 48 })
+  })
+
+  it('clamps selected busbar nodes at the host endpoints', () => {
+    const busbar: Busbar = {
+      id: 'busbar-1', diagramId: 'diagram-1', type: 'electrical',
+      orientation: 'horizontal', x: 64, y: 80, length: 96,
+    }
+    const network: ConnectionNetwork = {
+      id: 'network-1', diagramId: 'diagram-1', type: 'electrical',
+      nodes: [{ id: 'tap-1', kind: 'busbar-tap', busbarId: busbar.id, offset: 80 }],
+      edges: [],
+    }
+    const translated = translateDiagramSelection(
+      [], [busbar], [network], [],
+      {
+        elementIds: new Set(),
+        busbarIds: new Set(),
+        nodeIds: new Set(['tap-1']),
+        routeWaypointIds: new Set(),
+      },
+      { x: 40, y: 0 },
+      8,
+    )
+
+    expect(translated.connections[0].nodes[0]).toMatchObject({ offset: 96 })
+  })
+
+  it('lets a selected busbar carry its selected node through a free translation', () => {
+    const element = createElement({ x: 16, y: 24 })
+    const busbar: Busbar = {
+      id: 'busbar-1', diagramId: 'diagram-1', type: 'electrical',
+      orientation: 'horizontal', x: 64, y: 80, length: 96,
+    }
+    const network: ConnectionNetwork = {
+      id: 'network-1', diagramId: 'diagram-1', type: 'electrical',
+      nodes: [{ id: 'tap-1', kind: 'busbar-tap', busbarId: busbar.id, offset: 32 }],
+      edges: [],
+    }
+    const translated = translateDiagramSelection(
+      [element], [busbar], [network], [],
+      {
+        elementIds: new Set([element.id]),
+        busbarIds: new Set([busbar.id]),
+        nodeIds: new Set(['tap-1']),
+        routeWaypointIds: new Set(),
+      },
+      { x: 16, y: -8 },
+      8,
+    )
+
+    expect(translated.elements[0]).toMatchObject({ x: 32, y: 16 })
+    expect(translated.busbars[0]).toMatchObject({ x: 80, y: 72 })
+    expect(translated.connections[0].nodes[0]).toMatchObject({ offset: 32 })
   })
 
   it('converts rotated resize movement into element-local axes', () => {

@@ -406,12 +406,12 @@ describe('PropertiesPanel color property', () => {
     })
   })
 
-  it('shows color editing for a supported symbol and commits the selected color', () => {
+  it('shows color editing for Tap-off Unit and commits the selected color', () => {
     const onPatch = vi.fn()
     const onColorPreview = vi.fn()
     render(
       <PropertiesPanel
-        selectedElements={[element('mp')]}
+        selectedElements={[element('tap-off-unit')]}
         {...emptySelectionProps}
         onPatch={onPatch}
         onColorPreview={onColorPreview}
@@ -431,7 +431,7 @@ describe('PropertiesPanel color property', () => {
     fireEvent.blur(input)
 
     expect(onPatch).toHaveBeenCalledOnce()
-    expect(onPatch).toHaveBeenLastCalledWith('mp-element', {
+    expect(onPatch).toHaveBeenLastCalledWith('tap-off-unit-element', {
       properties: { color: '#77B4BF' },
     })
   })
@@ -909,7 +909,7 @@ describe('PropertiesPanel color property', () => {
 
     const direction = screen.getByRole('combobox', { name: '通行方向' })
     expect(direction).toHaveValue('mixed')
-    expect(screen.getByText('同时应用到 2 条所选子线')).toBeInTheDocument()
+    expect(direction).toHaveAccessibleDescription('同时应用到 2 条所选子线')
 
     await user.selectOptions(direction, 'reverse')
 
@@ -994,6 +994,79 @@ describe('PropertiesPanel color property', () => {
     )
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith('edge-1', {
       coolingLineRole: undefined,
+    })
+  })
+
+  it('configures whole child-line crossing layers and restores automatic order', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdge = vi.fn()
+    const onPatchConnectionEdges = vi.fn()
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:edge-1,edge-2',
+          type: 'cooling-secondary-cold',
+          edges: [
+            {
+              id: 'edge-1',
+              sourceNodeId: 'node-1',
+              targetNodeId: 'node-2',
+              crossingLayer: 'upper',
+            },
+            {
+              id: 'edge-2',
+              sourceNodeId: 'node-3',
+              targetNodeId: 'node-4',
+            },
+          ],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const layer = screen.getByRole('combobox', { name: '跨线层级' })
+    expect(layer).toHaveValue('mixed')
+    expect(layer).toHaveAccessibleDescription('同时应用到 2 条所选子线')
+    await user.selectOptions(layer, 'lower')
+    expect(onPatchConnectionEdges).toHaveBeenCalledWith(
+      ['edge-1', 'edge-2'],
+      { crossingLayer: 'lower' },
+    )
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edge-1',
+          type: 'electrical',
+          edges: [{
+            id: 'edge-1',
+            sourceNodeId: 'node-1',
+            targetNodeId: 'node-2',
+            crossingLayer: 'upper',
+          }],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    await user.selectOptions(screen.getByRole('combobox', { name: '跨线层级' }), 'auto')
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith('edge-1', {
+      crossingLayer: undefined,
     })
   })
 

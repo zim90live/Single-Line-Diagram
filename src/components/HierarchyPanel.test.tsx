@@ -109,11 +109,48 @@ describe('HierarchyPanel', () => {
         document={document}
         currentDiagramId={document.lineSystems[0].rootDiagramId}
         onSelectDiagram={vi.fn()}
+        onDeleteDiagram={vi.fn()}
       />,
     )
 
     expect(screen.queryByRole('button', { name: '新增下级图纸' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '重命名当前图纸' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^删除图纸 / })).not.toBeInTheDocument()
+  })
+
+  it('deletes a non-root row without selecting it and protects line roots', () => {
+    const document = createDefaultProject('层级面板测试')
+    const coolingRootId = document.lineSystems[0].rootDiagramId
+    const coolingRoot = document.diagrams.find((diagram) => diagram.id === coolingRootId)!
+    const building = document.diagrams.find((diagram) => diagram.parentId === coolingRootId)!
+    const onSelectDiagram = vi.fn()
+    const onDeleteDiagram = vi.fn()
+    const { container } = render(
+      <HierarchyPanel
+        document={document}
+        currentDiagramId={coolingRootId}
+        editable
+        onSelectDiagram={onSelectDiagram}
+        onCreateDiagram={vi.fn(() => null)}
+        onRenameDiagram={vi.fn(() => true)}
+        onDeleteDiagram={onDeleteDiagram}
+        onMoveDiagram={vi.fn()}
+      />,
+    )
+    const rootShell = container.querySelector<HTMLElement>(
+      `[data-diagram-id="${coolingRoot.id}"]`,
+    )!
+    const buildingShell = container.querySelector<HTMLElement>(
+      `[data-diagram-id="${building.id}"]`,
+    )!
+
+    expect(within(rootShell).queryByRole('button', { name: `删除图纸 ${coolingRoot.name}` }))
+      .not.toBeInTheDocument()
+    fireEvent.click(within(buildingShell).getByRole('button', {
+      name: `删除图纸 ${building.name}`,
+    }))
+    expect(onDeleteDiagram).toHaveBeenCalledWith(building.id)
+    expect(onSelectDiagram).not.toHaveBeenCalled()
   })
 
   it('collapses and expands an entire line system without selecting a diagram', () => {

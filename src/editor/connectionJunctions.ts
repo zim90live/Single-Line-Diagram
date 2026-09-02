@@ -10,6 +10,7 @@ import {
   type RouteWaypoint,
 } from '../domain/project'
 import {
+  busbarPoint,
   connectTerminals,
   normalizeConnectionNetworks,
   resolveElementAnchor,
@@ -361,6 +362,86 @@ function absorbNodesIntoElementAnchor({
   }
 }
 
+function absorbNodesIntoBusbarTap({
+  networks,
+  routeWaypoints,
+  targetNetworkId,
+  targetTapId,
+  absorbedNodeIds,
+}: {
+  networks: ConnectionNetwork[]
+  routeWaypoints: RouteWaypoint[]
+  targetNetworkId: string
+  targetTapId: string
+  absorbedNodeIds: Set<string>
+}) {
+  const affectedNetworkIds = new Set(networks.flatMap((network) => (
+    network.id === targetNetworkId ||
+    network.nodes.some((node) => absorbedNodeIds.has(node.id)) ||
+    network.edges.some((edge) => (
+      (edge.routeNodeIds ?? []).some((id) => absorbedNodeIds.has(id))
+    ))
+      ? [network.id]
+      : []
+  )))
+  const affectedNetworks = networks.filter((network) => affectedNetworkIds.has(network.id))
+  const resolvedType = resolveConnectionType(affectedNetworks.map((network) => network.type))
+  if (resolvedType !== 'electrical') return null
+
+  let unsupportedInteriorMerge = false
+  const edges = affectedNetworks.flatMap((network) => network.edges.flatMap((edge) => {
+    const sourceNodeId = absorbedNodeIds.has(edge.sourceNodeId) ? targetTapId : edge.sourceNodeId
+    const targetNodeId = absorbedNodeIds.has(edge.targetNodeId) ? targetTapId : edge.targetNodeId
+    const absorbsInteriorNode = (edge.routeNodeIds ?? []).some((id) => absorbedNodeIds.has(id))
+    if (
+      absorbsInteriorNode &&
+      sourceNodeId !== targetTapId &&
+      targetNodeId !== targetTapId
+    ) {
+      unsupportedInteriorMerge = true
+      return [edge]
+    }
+    if (sourceNodeId === targetNodeId) return []
+    const retained = new Set<string>()
+    const routeNodeIds = (edge.routeNodeIds ?? []).filter((id) => {
+      if (
+        absorbedNodeIds.has(id) ||
+        id === sourceNodeId ||
+        id === targetNodeId ||
+        retained.has(id)
+      ) return false
+      retained.add(id)
+      return true
+    })
+    return [withRouteWaypoints({ ...edge, sourceNodeId, targetNodeId }, routeNodeIds)]
+  }))
+  if (unsupportedInteriorMerge) return null
+
+  const targetIndex = networkIndexById(networks, targetNetworkId)
+  if (targetIndex < 0) return null
+  const targetNetwork = networks[targetIndex]
+  const targetTap = targetNetwork.nodes.find((node) => node.id === targetTapId)
+  if (targetTap?.kind !== 'busbar-tap') return null
+  const merged: ConnectionNetwork = {
+    ...targetNetwork,
+    type: resolvedType,
+    nodes: uniqueNodes(affectedNetworks.flatMap((network) => network.nodes))
+      .filter((node) => !absorbedNodeIds.has(node.id)),
+    edges,
+  }
+  const nextNetworks = networks.flatMap((network, index) => {
+    if (index === targetIndex) return [merged]
+    return affectedNetworkIds.has(network.id) ? [] : [network]
+  })
+  return {
+    networks: nextNetworks,
+    routeWaypoints: garbageCollectRouteWaypoints(
+      nextNetworks,
+      routeWaypoints.filter((waypoint) => !absorbedNodeIds.has(waypoint.id)),
+    ),
+  }
+}
+
 /**
  * Promotes coincident route waypoints and junctions to one topological junction.
  * Only coordinates touched by the current edit are considered, so importing an
@@ -373,9 +454,11 @@ export function mergeCollidingConnectionPoints({
   diagramId,
   elements = [],
   assets = [],
+  busbars = [],
   movedWaypointIds = new Set<string>(),
   movedJunctionIds = new Set<string>(),
   movedElementIds = new Set<string>(),
+  movedBusbarIds = new Set<string>(),
   createId = defaultIdFactory,
 }: {
   networks: ConnectionNetwork[]
@@ -384,9 +467,11 @@ export function mergeCollidingConnectionPoints({
   diagramId: string
   elements?: DiagramElement[]
   assets?: AssetDefinition[]
+  busbars?: Busbar[]
   movedWaypointIds?: Set<string>
   movedJunctionIds?: Set<string>
   movedElementIds?: Set<string>
+  movedBusbarIds?: Set<string>
   createId?: IdFactory
 }): MergeConnectionPointsResult | null {
   const candidatePoints = new Map<string, Point>()
@@ -399,6 +484,17 @@ export function mergeCollidingConnectionPoints({
     if (node.kind === 'node' && movedJunctionIds.has(node.id)) {
       candidatePoints.set(`${node.x}:${node.y}`, { x: node.x, y: node.y })
     }
+  }))
+  const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
+  networks.forEach((network) => network.nodes.forEach((node) => {
+    if (
+      node.kind !== 'busbar-tap' ||
+      (!movedJunctionIds.has(node.id) && !movedBusbarIds.has(node.busbarId))
+    ) return
+    const busbar = busbarsById.get(node.busbarId)
+    if (!busbar) return
+    const point = busbarPoint(busbar, node.offset)
+    candidatePoints.set(`${point.x}:${point.y}`, point)
   }))
   const assetsByKey = new Map(assets.map((asset) => [asset.key, asset]))
   const elementsById = new Map(elements.map((element) => [element.id, element]))
@@ -443,7 +539,44 @@ export function mergeCollidingConnectionPoints({
     const distinctAnchorReferences = new Set(collidingAnchors.map(({ node }) => (
       `${node.elementId}:${node.anchorId}`
     )))
+    const collidingTaps = nextNetworks.flatMap((network) => network.nodes.flatMap((node) => {
+      if (node.kind !== 'busbar-tap') return []
+      const busbar = busbarsById.get(node.busbarId)
+      return busbar && pointsEqual(busbarPoint(busbar, node.offset), point)
+        ? [{ network, node }]
+        : []
+    }))
+    const distinctTapHosts = new Set(collidingTaps.map(({ node }) => node.busbarId))
+    if (
+      (collidingNodeIds.size || collidingTaps.length > 1) && distinctTapHosts.size > 1
+    ) return null
+    if (collidingAnchors.length && collidingTaps.length) return null
     if (collidingNodeIds.size && distinctAnchorReferences.size > 1) return null
+    const targetTap = [...collidingTaps].sort((left, right) => (
+      Number(movedJunctionIds.has(left.node.id)) - Number(movedJunctionIds.has(right.node.id)) ||
+      left.node.id.localeCompare(right.node.id)
+    ))[0]
+    if (targetTap) {
+      const absorbedIds = new Set([
+        ...collidingNodeIds,
+        ...collidingTaps.flatMap(({ node }) => node.id === targetTap.node.id ? [] : [node.id]),
+      ])
+      if (absorbedIds.size) {
+        const absorbed = absorbNodesIntoBusbarTap({
+          networks: nextNetworks,
+          routeWaypoints: nextRouteWaypoints,
+          targetNetworkId: targetTap.network.id,
+          targetTapId: targetTap.node.id,
+          absorbedNodeIds: absorbedIds,
+        })
+        if (!absorbed) return null
+        nextNetworks = absorbed.networks
+        nextRouteWaypoints = absorbed.routeWaypoints
+        absorbedNodeIds.push(...absorbedIds)
+        mergedJunctionIds.push(targetTap.node.id)
+      }
+      continue
+    }
     const targetAnchor = collidingAnchors[0]
     if (targetAnchor && collidingNodeIds.size) {
       const absorbed = absorbNodesIntoElementAnchor({
@@ -521,6 +654,9 @@ export function deleteConnectionJunctions(
   busbars: Busbar[],
   routeWaypoints: RouteWaypoint[],
 ) {
+  const busbarTapIds = new Set(networks.flatMap((network) => network.nodes.flatMap((node) => (
+    node.kind === 'busbar-tap' && junctionIds.has(node.id) ? [node.id] : []
+  ))))
   const reverseEdgeProperties = (edge: ConnectionEdge): ConnectionEdge => ({
     ...edge,
     ...(edge.flowDirection === 'forward'
@@ -582,9 +718,15 @@ export function deleteConnectionJunctions(
     const mergedChain = [...baseChain.slice(0, -1), ...otherChain.slice(1)]
     const orientedBase = baseReversed ? reverseEdgeProperties(base) : base
     const allAuxiliary = endpointEdges.every((edge) => edge.coolingLineRole === 'auxiliary')
+    const mergedCrossingLayer = endpointEdges.some((edge) => edge.crossingLayer === 'upper')
+      ? 'upper' as const
+      : endpointEdges.some((edge) => edge.crossingLayer === 'lower')
+        ? 'lower' as const
+        : undefined
     const {
       routeNodeIds: _routeNodeIds,
       coolingLineRole: _coolingLineRole,
+      crossingLayer: _crossingLayer,
       ...edgeWithoutRouteNodes
     } = orientedBase
     const mergedEdge: ConnectionEdge = {
@@ -592,6 +734,7 @@ export function deleteConnectionJunctions(
       sourceNodeId: mergedChain[0],
       targetNodeId: mergedChain.at(-1)!,
       ...(allAuxiliary ? { coolingLineRole: 'auxiliary' as const } : {}),
+      ...(mergedCrossingLayer ? { crossingLayer: mergedCrossingLayer } : {}),
       ...(mergedChain.length > 2 ? { routeNodeIds: mergedChain.slice(1, -1) } : {}),
     }
     const removedEdgeIds = new Set(endpointEdges.map((edge) => edge.id))
@@ -609,7 +752,16 @@ export function deleteConnectionJunctions(
   }
 
   const detached = networks.map((network) => {
-    let next = network
+    let next = busbarTapIds.size
+      ? {
+          ...network,
+          nodes: network.nodes.filter((node) => !busbarTapIds.has(node.id)),
+          edges: network.edges.filter((edge) => (
+            !busbarTapIds.has(edge.sourceNodeId) &&
+            !busbarTapIds.has(edge.targetNodeId)
+          )),
+        }
+      : network
     for (const nodeId of junctionIds) {
       if (!next.nodes.some((node) => node.kind === 'node' && node.id === nodeId)) continue
       const degree = physicalDegree(next, nodeId)

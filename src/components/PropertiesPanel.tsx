@@ -631,6 +631,13 @@ export function PropertiesPanel({
     const mixedFlowDirection = connectionFlowDirections.some((direction) => (
       direction !== selectionFlowDirection
     ))
+    const connectionCrossingLayers = selectedConnection?.edges.map((edge) => (
+      edge.crossingLayer ?? 'auto'
+    )) ?? []
+    const selectionCrossingLayer = connectionCrossingLayers[0] ?? 'auto'
+    const mixedCrossingLayer = connectionCrossingLayers.some((layer) => (
+      layer !== selectionCrossingLayer
+    ))
     const connectionCoolingLineRoles = selectedConnection?.edges.map((edge) => (
       edge.coolingLineRole ?? 'primary'
     )) ?? []
@@ -760,6 +767,33 @@ export function PropertiesPanel({
                 )}
               />
             </>
+          ) : null}
+          {connectionCount > 0 && busbarCount === 0 ? (
+            <SelectField
+              label="跨线层级"
+              aria-label="跨线层级"
+              hint={connectionCount > 1
+                ? `同时应用到 ${connectionCount} 条所选子线`
+                : '控制整条子线在非连接交叉处上跨或下穿'}
+              value={mixedCrossingLayer ? 'mixed' : selectionCrossingLayer}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'mixed') return
+                const patch: Partial<ConnectionEdge> = {
+                  crossingLayer: value === 'auto'
+                    ? undefined
+                    : value as 'lower' | 'upper',
+                }
+                const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
+                if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
+                else onPatchConnectionEdges(edgeIds, patch)
+              }}
+            >
+              {mixedCrossingLayer ? <option value="mixed" disabled>多种层级</option> : null}
+              <option value="lower">下层</option>
+              <option value="auto">自动</option>
+              <option value="upper">上层</option>
+            </SelectField>
           ) : null}
           {connectionCount > 0 && busbarCount === 0 ? (
             allSelectedConnectionsCooling ? (

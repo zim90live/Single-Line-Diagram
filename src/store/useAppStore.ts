@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import {
   createChildDiagram,
+  deleteDiagram as deleteDiagramInHierarchy,
   moveDiagram as moveDiagramInHierarchy,
   type DiagramDropPosition,
   type DiagramHierarchyMutationResult,
@@ -48,6 +49,7 @@ interface AppState {
   ) => void
   createDiagram: (parentId: string) => DiagramHierarchyMutationResult
   renameDiagram: (diagramId: string, name: string) => DiagramHierarchyMutationResult
+  deleteDiagram: (diagramId: string) => DiagramHierarchyMutationResult
   moveDiagram: (
     sourceId: string,
     targetId: string,
@@ -298,6 +300,46 @@ export const useAppStore = create<AppState>((set) => ({
             candidate.id === diagramId ? { ...candidate, name: nextName } : candidate
           )),
         })),
+        dirty: true,
+      }
+    })
+    return result
+  },
+
+  deleteDiagram: (diagramId) => {
+    let result: DiagramHierarchyMutationResult = {
+      ok: false,
+      changed: false,
+      message: '无法删除图纸',
+    }
+    set((state) => {
+      result = deleteDiagramInHierarchy(state.document, diagramId)
+      if (
+        !result.ok ||
+        !result.changed ||
+        !result.diagrams ||
+        !result.diagramId ||
+        !result.removedDiagramIds
+      ) return state
+
+      const removedDiagramIds = new Set(result.removedDiagramIds)
+      const currentDiagramWasRemoved = removedDiagramIds.has(state.currentDiagramId)
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          diagrams: result.diagrams!,
+          elements: document.elements.filter(
+            (element) => !removedDiagramIds.has(element.diagramId),
+          ),
+          busbars: document.busbars.filter(
+            (busbar) => !removedDiagramIds.has(busbar.diagramId),
+          ),
+          connections: document.connections.filter(
+            (network) => !removedDiagramIds.has(network.diagramId),
+          ),
+        })),
+        currentDiagramId: currentDiagramWasRemoved ? result.diagramId : state.currentDiagramId,
+        selectedElementIds: currentDiagramWasRemoved ? [] : state.selectedElementIds,
         dirty: true,
       }
     })

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  COOLING_PUMP_STOPPED_SYMBOL_URL,
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
   getScaledSymbolSize,
+  getSymbolDisplayUrl,
   getSymbolStateUrl,
   getSymbolScaleStep,
   symbolCatalog,
@@ -17,38 +19,77 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every active symbol from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(23)
+    expect(symbolCatalog).toHaveLength(25)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
   })
 
-  it('registers TMU as a 72 by 96 cooling PNG symbol', () => {
+  it('registers TMU as a 64 by 96 cooling PNG symbol', () => {
     const tmu = symbolsByKey.get('tmu')
 
     expect(tmu).toMatchObject({
       name: 'TMU',
       source: 'src/assets/symbols/TMU.png',
       category: '冷却',
-      intrinsicWidth: 72,
+      intrinsicWidth: 64,
       intrinsicHeight: 96,
       renderMode: 'image',
     })
-    expect(getScaledSymbolSize(tmu!, 1, 8)).toEqual({ scale: 1, width: 72, height: 96 })
+    expect(getScaledSymbolSize(tmu!, 1, 8)).toEqual({ scale: 1, width: 64, height: 96 })
   })
 
-  it('keeps Cabinet A on the stable Cabinet key and registers Cabinet B separately', () => {
+  it('registers CDU as a 192 by 96 cooling SVG symbol', () => {
+    const cdu = symbolsByKey.get('cdu')
+
+    expect(cdu).toMatchObject({
+      name: 'CDU',
+      source: 'src/assets/symbols/CDU.svg',
+      category: '冷却',
+      intrinsicWidth: 192,
+      intrinsicHeight: 96,
+      renderMode: 'image',
+    })
+    expect(getScaledSymbolSize(cdu!, 1, 8)).toEqual({ scale: 1, width: 192, height: 96 })
+  })
+
+  it('uses the dedicated stopped image only for a stopped cooling pump presentation', () => {
+    const chwp = symbolsByKey.get('chwp')!
+
+    expect(COOLING_PUMP_STOPPED_SYMBOL_URL).toContain('PumpOff.png')
+    expect(getSymbolDisplayUrl(chwp, 'off', false)).toBe(chwp.url)
+    expect(getSymbolDisplayUrl(chwp, 'off', true)).toBe(COOLING_PUMP_STOPPED_SYMBOL_URL)
+  })
+
+  it('registers Cabinet separately and keeps both renamed Tap-off Units on legacy keys', () => {
+    expect(symbolsByKey.get('cabinet-device')).toMatchObject({
+      name: 'Cabinet',
+      source: 'src/assets/symbols/Cabinet.svg',
+      category: '电力',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+    })
     expect(symbolsByKey.get('cabinet')).toMatchObject({
-      name: 'Cabinet A',
+      name: 'Tap-off Unit A',
       source: 'src/assets/symbols/Cabinet A.svg',
       category: '电力',
       intrinsicWidth: 48,
       intrinsicHeight: 48,
     })
     expect(symbolsByKey.get('cabinet-b')).toMatchObject({
-      name: 'Cabinet B',
+      name: 'Tap-off Unit B',
       source: 'src/assets/symbols/Cabinet B.svg',
       category: '电力',
       intrinsicWidth: 48,
       intrinsicHeight: 48,
+    })
+    expect(symbolsByKey.get('tap-off-unit')).toMatchObject({
+      name: 'Tap-off Unit',
+      source: 'src/assets/symbols/Tap-off Unit.svg',
+      category: '电力',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+      configurableColor: true,
+      defaultColor: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+      anchors: [],
     })
   })
 
@@ -88,7 +129,17 @@ describe('symbol catalog', () => {
 
   it('allows color changes for the requested equipment and the generic frame', () => {
     expect(symbolCatalog.filter((symbol) => symbol.configurableColor).map((symbol) => symbol.key))
-      .toEqual(['2-wv', 'cv', 'mp', 'generator', 'grid', 'switch', 'transformer', 'generic'])
+      .toEqual([
+        '2-wv',
+        'cv',
+        'mp',
+        'generator',
+        'grid',
+        'switch',
+        'transformer',
+        'tap-off-unit',
+        'generic',
+      ])
   })
 
   it('registers the generic symbol with a dedicated frame renderer', () => {

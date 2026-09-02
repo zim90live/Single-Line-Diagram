@@ -194,6 +194,7 @@ describe('connection topology and routing', () => {
         targetNodeId: 'target',
         routeNodeIds: ['middle-a', 'middle-b'],
         flowDirection: 'forward',
+        crossingLayer: 'upper',
         color: '#123456',
         label: '回路 A',
         labelEndpoint: 'target',
@@ -218,6 +219,7 @@ describe('connection topology and routing', () => {
         targetNodeId: 'middle-a',
         logicalConnectionId: 'logical-edge',
         flowDirection: 'forward',
+        crossingLayer: 'upper',
         color: '#123456',
       }),
       expect.objectContaining({
@@ -226,12 +228,14 @@ describe('connection topology and routing', () => {
         targetNodeId: 'middle-b',
         logicalConnectionId: 'logical-edge',
         flowDirection: 'forward',
+        crossingLayer: 'upper',
       }),
       expect.objectContaining({
         id: 'logical-edge',
         sourceNodeId: 'middle-b',
         targetNodeId: 'target',
         logicalConnectionId: 'logical-edge',
+        crossingLayer: 'upper',
         label: '回路 A',
         labelEndpoint: 'target',
         monitorDataVisible: true,
@@ -239,6 +243,7 @@ describe('connection topology and routing', () => {
       }),
     ])
     expect(segmented.edges.every((edge) => !('routeNodeIds' in edge))).toBe(true)
+    expect(segmented.edges.every((edge) => edge.crossingLayer === 'upper')).toBe(true)
     expect(segmented.edges.filter((edge) => edge.label === '回路 A')).toHaveLength(1)
     expect(segmented.edges.filter((edge) => edge.monitorMetrics?.length)).toHaveLength(1)
   })
@@ -883,6 +888,51 @@ describe('connection topology and routing', () => {
       .not.toContain(' A 4 4 0 0 1 ')
   })
 
+  it('lets a whole child line manually override automatic crossing ownership', () => {
+    const networks: ConnectionNetwork[] = [
+      {
+        id: 'primary-network', diagramId: 'diagram-cooling', type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'primary-left', kind: 'node', x: -32, y: 0 },
+          { id: 'primary-right', kind: 'node', x: 32, y: 0 },
+        ],
+        edges: [{
+          id: 'primary-edge',
+          sourceNodeId: 'primary-left',
+          targetNodeId: 'primary-right',
+          crossingLayer: 'lower',
+        }],
+      },
+      {
+        id: 'auxiliary-network', diagramId: 'diagram-cooling', type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'auxiliary-top', kind: 'node', x: 0, y: -32 },
+          { id: 'auxiliary-bottom', kind: 'node', x: 0, y: 32 },
+        ],
+        edges: [{
+          id: 'auxiliary-edge',
+          sourceNodeId: 'auxiliary-top',
+          targetNodeId: 'auxiliary-bottom',
+          coolingLineRole: 'auxiliary',
+        }],
+      },
+    ]
+
+    expect(routeConnectionNetworks(networks, [], [], 8).crossings).toEqual([{
+      x: 0,
+      y: 0,
+      bridgeEdgeId: 'auxiliary-edge',
+      underEdgeId: 'primary-edge',
+    }])
+
+    networks[1].edges[0].crossingLayer = 'upper'
+    networks[0].edges[0].crossingLayer = undefined
+    expect(routeConnectionNetworks(networks, [], [], 8).crossings[0]).toMatchObject({
+      bridgeEdgeId: 'auxiliary-edge',
+      underEdgeId: 'primary-edge',
+    })
+  })
+
   it('compresses adjacent bridge arcs without adding per-crossing topology', () => {
     const route = {
       networkId: 'bridge-network',
@@ -1344,7 +1394,7 @@ describe('connection topology and routing', () => {
     expect(collinear.edges[0].points.some((point) => point.y !== 0)).toBe(true)
   })
 
-  it('slides a busbar tap to the shortest legal grid position by default', () => {
+  it('treats the persisted busbar node offset as its authoritative route endpoint', () => {
     const busbar: Busbar = {
       id: 'busbar-sliding', diagramId: 'diagram-power', type: 'electrical',
       orientation: 'horizontal', x: 0, y: 0, length: 160,
@@ -1374,14 +1424,12 @@ describe('connection topology and routing', () => {
     )
 
     expect(routed.invalidEdgeIds).toEqual([])
-    expect(routed.resolvedBusbarTapOffsets['sliding-tap']).toBe(40)
-    expect(routed.edges[0].points).toEqual([
-      { x: 40, y: 80 },
-      { x: 40, y: 0 },
-    ])
+    expect(routed.resolvedBusbarTapOffsets['sliding-tap']).toBe(120)
+    expect(routed.edges[0].points[0]).toEqual({ x: 40, y: 80 })
+    expect(routed.edges[0].points.at(-1)).toEqual({ x: 120, y: 0 })
   })
 
-  it('lets taps on opposite busbar sides share the same resolved grid point', () => {
+  it('keeps distinct persisted nodes on opposite sides of a horizontal busbar', () => {
     const busbar: Busbar = {
       id: 'opposite-side-busbar', diagramId: 'diagram-power', type: 'electrical',
       orientation: 'horizontal', x: 0, y: 80, length: 160,
@@ -1418,16 +1466,16 @@ describe('connection topology and routing', () => {
 
     expect(routed.invalidEdgeIds).toEqual([])
     expect(routed.resolvedBusbarTapOffsets).toMatchObject({
-      'upper-tap': 40,
-      'lower-tap': 40,
+      'upper-tap': 16,
+      'lower-tap': 120,
     })
-    expect(routed.edges.map((edge) => edge.points)).toEqual([
-      [{ x: 40, y: 64 }, { x: 40, y: 80 }],
-      [{ x: 40, y: 96 }, { x: 40, y: 80 }],
+    expect(routed.edges.map((edge) => edge.points.at(-1))).toEqual([
+      { x: 16, y: 80 },
+      { x: 120, y: 80 },
     ])
   })
 
-  it('applies opposite-side tap sharing to vertical busbars', () => {
+  it('keeps distinct persisted nodes on opposite sides of a vertical busbar', () => {
     const busbar: Busbar = {
       id: 'vertical-opposite-side-busbar', diagramId: 'diagram-power', type: 'electrical',
       orientation: 'vertical', x: 80, y: 0, length: 160,
@@ -1464,16 +1512,16 @@ describe('connection topology and routing', () => {
 
     expect(routed.invalidEdgeIds).toEqual([])
     expect(routed.resolvedBusbarTapOffsets).toMatchObject({
-      'left-tap': 40,
-      'right-tap': 40,
+      'left-tap': 16,
+      'right-tap': 120,
     })
-    expect(routed.edges.map((edge) => edge.points)).toEqual([
-      [{ x: 64, y: 40 }, { x: 80, y: 40 }],
-      [{ x: 96, y: 40 }, { x: 80, y: 40 }],
+    expect(routed.edges.map((edge) => edge.points.at(-1))).toEqual([
+      { x: 80, y: 16 },
+      { x: 80, y: 120 },
     ])
   })
 
-  it('jointly slides both child-line taps to the shortest stable busbar positions', () => {
+  it('routes between two busbars without changing either persisted node', () => {
     const sourceBusbar: Busbar = {
       id: 'joint-source', diagramId: 'diagram-power', type: 'electrical',
       orientation: 'horizontal', x: 0, y: 0, length: 160,
@@ -1501,16 +1549,14 @@ describe('connection topology and routing', () => {
 
     expect(routed.invalidEdgeIds).toEqual([])
     expect(routed.resolvedBusbarTapOffsets).toMatchObject({
-      'joint-source-tap': 40,
+      'joint-source-tap': 120,
       'joint-target-tap': 40,
     })
-    expect(routed.edges[0].points).toEqual([
-      { x: 40, y: 0 },
-      { x: 40, y: 80 },
-    ])
+    expect(routed.edges[0].points[0]).toEqual({ x: 120, y: 0 })
+    expect(routed.edges[0].points.at(-1)).toEqual({ x: 40, y: 80 })
   })
 
-  it('jointly repositions later child lines instead of overlapping an occupied route', () => {
+  it('keeps parallel child-line endpoints at their persisted offsets', () => {
     const sourceBusbar: Busbar = {
       id: 'parallel-source', diagramId: 'diagram-power', type: 'electrical',
       orientation: 'horizontal', x: 0, y: 0, length: 160,
@@ -1543,7 +1589,7 @@ describe('connection topology and routing', () => {
 
     expect(routed.invalidEdgeIds).toEqual([])
     expect(routed.edges[0].points[0].x).toBe(16)
-    expect(routed.edges[1].points[0].x).toBe(24)
+    expect(routed.edges[1].points[0].x).toBe(40)
     expect(routed.edges[0].points[0].x).not.toBe(routed.edges[1].points[0].x)
   })
 
@@ -1569,14 +1615,11 @@ describe('connection topology and routing', () => {
 
     expect(routed.invalidEdgeIds).toEqual([])
     expect(routed.resolvedBusbarTapOffsets).toMatchObject({
-      'horizontal-tap': 152,
-      'vertical-tap': 0,
+      'horizontal-tap': 80,
+      'vertical-tap': 80,
     })
-    expect(routed.edges[0].points).toEqual([
-      { x: 152, y: 0 },
-      { x: 152, y: 80 },
-      { x: 160, y: 80 },
-    ])
+    expect(routed.edges[0].points[0]).toEqual({ x: 80, y: 0 })
+    expect(routed.edges[0].points.at(-1)).toEqual({ x: 160, y: 160 })
   })
 
   it('prefers an equal-length route that follows both anchor directions before meeting', () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type {
   AssetDefinition,
+  Busbar,
   ConnectionNetwork,
   DiagramElement,
   RouteWaypoint,
@@ -81,6 +82,16 @@ const route: RoutedConnectionEdge = {
   targetNodeId: 'right-node',
   points: [{ x: 0, y: 0 }, { x: 80, y: 0 }],
   order: 0,
+}
+
+const electricalBusbar: Busbar = {
+  id: 'busbar',
+  diagramId: 'diagram',
+  type: 'electrical',
+  orientation: 'horizontal',
+  x: 0,
+  y: 0,
+  length: 160,
 }
 
 describe('connection junction topology', () => {
@@ -313,6 +324,34 @@ describe('connection junction topology', () => {
     expect(result.routeWaypoints).toEqual([])
   })
 
+  it('deletes a busbar node together with every connection attached to it', () => {
+    const electrical: ConnectionNetwork = {
+      id: 'electrical',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'tap', kind: 'busbar-tap', busbarId: electricalBusbar.id, offset: 40 },
+        { id: 'anchor-a', kind: 'element-anchor', elementId: 'a', anchorId: 'power' },
+        { id: 'anchor-b', kind: 'element-anchor', elementId: 'b', anchorId: 'power' },
+      ],
+      edges: [
+        { id: 'edge-a', sourceNodeId: 'tap', targetNodeId: 'anchor-a' },
+        { id: 'edge-b', sourceNodeId: 'tap', targetNodeId: 'anchor-b' },
+      ],
+    }
+    const result = deleteConnectionJunctions(
+      [electrical],
+      new Set(['tap']),
+      [],
+      [],
+      [electricalBusbar],
+      [],
+    )
+
+    expect(result.networks).toEqual([])
+    expect(result.routeWaypoints).toEqual([])
+  })
+
   it('deletes a degree-two route node by restoring local automatic routing', () => {
     const routed: ConnectionNetwork = {
       id: 'routed',
@@ -366,7 +405,12 @@ describe('connection junction topology', () => {
         { id: 'middle', kind: 'node', x: 40, y: 0 },
       ],
       edges: [
-        { id: 'a-middle', sourceNodeId: 'a', targetNodeId: 'middle' },
+        {
+          id: 'a-middle',
+          sourceNodeId: 'a',
+          targetNodeId: 'middle',
+          crossingLayer: 'lower',
+        },
         {
           id: 'middle-b',
           sourceNodeId: 'middle',
@@ -376,6 +420,7 @@ describe('connection junction topology', () => {
           labelSide: 'positive',
           flowDirection: 'forward',
           coolingLineRole: 'auxiliary',
+          crossingLayer: 'upper',
           monitorDataVisible: true,
           monitorMetricLabelsVisible: false,
           monitorMetrics: [{
@@ -409,6 +454,7 @@ describe('connection junction topology', () => {
       labelEndpoint: 'target',
       labelSide: 'negative',
       flowDirection: 'reverse',
+      crossingLayer: 'upper',
       monitorDataVisible: true,
       monitorMetricLabelsVisible: false,
       monitorMetrics: [expect.objectContaining({ id: 'flow', name: '流量' })],
@@ -572,6 +618,51 @@ describe('connection junction topology', () => {
         sourceNodeId: 'branch-anchor',
         targetNodeId: 'source-anchor',
       },
+    ])
+  })
+
+  it('absorbs a coincident free node into the persisted busbar node', () => {
+    const busbarNetwork: ConnectionNetwork = {
+      id: 'busbar-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'tap', kind: 'busbar-tap', busbarId: electricalBusbar.id, offset: 40 },
+        { id: 'anchor-a', kind: 'element-anchor', elementId: 'a', anchorId: 'power' },
+      ],
+      edges: [{ id: 'tap-edge', sourceNodeId: 'tap', targetNodeId: 'anchor-a' }],
+    }
+    const freeNetwork: ConnectionNetwork = {
+      id: 'free-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'free', kind: 'node', x: 40, y: 0 },
+        { id: 'anchor-b', kind: 'element-anchor', elementId: 'b', anchorId: 'power' },
+      ],
+      edges: [{ id: 'free-edge', sourceNodeId: 'free', targetNodeId: 'anchor-b' }],
+    }
+    const result = mergeCollidingConnectionPoints({
+      networks: [busbarNetwork, freeNetwork],
+      routeWaypoints: [],
+      routedEdges: [],
+      diagramId: 'diagram',
+      busbars: [electricalBusbar],
+      movedJunctionIds: new Set(['free']),
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.networks).toHaveLength(1)
+    expect(result?.absorbedNodeIds).toEqual(['free'])
+    expect(result?.mergedJunctionIds).toEqual(['tap'])
+    expect(result?.networks[0].nodes.map((node) => node.id)).toEqual([
+      'tap',
+      'anchor-a',
+      'anchor-b',
+    ])
+    expect(result?.networks[0].edges).toEqual([
+      { id: 'tap-edge', sourceNodeId: 'tap', targetNodeId: 'anchor-a' },
+      { id: 'free-edge', sourceNodeId: 'tap', targetNodeId: 'anchor-b' },
     ])
   })
 

@@ -1,4 +1,4 @@
-import type { ConnectionNetwork } from '../domain/project'
+import type { Busbar, ConnectionNetwork } from '../domain/project'
 
 interface BusbarTapEntry {
   networkIndex: number
@@ -19,57 +19,67 @@ export function busbarTapCount(connections: ConnectionNetwork[], busbarId: strin
   return busbarTapEntries(connections, busbarId).length
 }
 
-export function minimumBusbarLengthForConnections(
-  connections: ConnectionNetwork[],
-  busbarId: string,
-  gridSize: number,
-) {
-  return Math.max(gridSize, (busbarTapCount(connections, busbarId) - 1) * gridSize)
+export interface ResizeBusbarResult {
+  busbar: Busbar
+  connections: ConnectionNetwork[]
+  blocked: boolean
 }
 
-export function compressBusbarTapOffsets(
+/**
+ * Resizes a busbar without moving any persisted tap in world space. A start
+ * resize updates every tap offset by the inverse displacement; an end resize
+ * keeps offsets unchanged. Requests that would exclude a tap are clamped.
+ */
+export function resizeBusbarPreservingTapPositions(
   connections: ConnectionNetwork[],
-  busbarId: string,
-  previousLength: number,
-  nextLength: number,
+  busbar: Busbar,
+  endpoint: 'start' | 'end',
+  requestedCoordinate: number,
   gridSize: number,
-) {
-  const taps = busbarTapEntries(connections, busbarId).sort((left, right) => (
-    left.offset - right.offset ||
-    left.nodeId.localeCompare(right.nodeId) ||
-    left.networkIndex - right.networkIndex ||
-    left.nodeIndex - right.nodeIndex
-  ))
-  if (!taps.length || nextLength >= previousLength) return connections
+  minimumLength = gridSize,
+): ResizeBusbarResult {
+  const snap = (value: number) => Math.round(value / gridSize) * gridSize
+  const requested = snap(requestedCoordinate)
+  const taps = busbarTapEntries(connections, busbar.id)
+  const start = busbar.orientation === 'horizontal' ? busbar.x : busbar.y
+  const end = start + busbar.length
+  const safeMinimumLength = Math.max(gridSize, minimumLength)
 
-  const availableUnits = Math.floor(nextLength / gridSize)
-  if (taps.length > availableUnits + 1) {
-    throw new RangeError('母线长度不足以容纳全部 8px 网格连接点')
+  if (endpoint === 'end') {
+    const furthestTap = taps.reduce((maximum, tap) => Math.max(maximum, tap.offset), 0)
+    const constrainedEnd = Math.max(requested, start + safeMinimumLength, start + furthestTap)
+    return {
+      busbar: { ...busbar, length: constrainedEnd - start },
+      connections,
+      blocked: furthestTap > safeMinimumLength && requested < start + furthestTap,
+    }
   }
 
-  const safePreviousLength = Math.max(gridSize, previousLength)
-  const nextOffsets = new Map<string, number>()
-  let previousUnit = -1
+  const nearestTapWorldCoordinate = taps.reduce(
+    (minimum, tap) => Math.min(minimum, start + tap.offset),
+    Number.POSITIVE_INFINITY,
+  )
+  const maximumStart = Math.min(end - safeMinimumLength, nearestTapWorldCoordinate)
+  const constrainedStart = Math.min(requested, maximumStart)
+  const displacement = constrainedStart - start
+  const nextConnections = displacement === 0
+    ? connections
+    : connections.map((network) => {
+        let changed = false
+        const nodes = network.nodes.map((node) => {
+          if (node.kind !== 'busbar-tap' || node.busbarId !== busbar.id) return node
+          changed = true
+          return { ...node, offset: node.offset - displacement }
+        })
+        return changed ? { ...network, nodes } : network
+      })
 
-  taps.forEach((tap, index) => {
-    const remainingTapCount = taps.length - index - 1
-    const maximumUnit = availableUnits - remainingTapCount
-    const projectedUnit = Math.round(
-      (Math.max(0, Math.min(tap.offset, safePreviousLength)) / safePreviousLength) * availableUnits,
-    )
-    const unit = Math.max(previousUnit + 1, Math.min(projectedUnit, maximumUnit))
-    nextOffsets.set(`${tap.networkIndex}:${tap.nodeIndex}`, unit * gridSize)
-    previousUnit = unit
-  })
-
-  return connections.map((network, networkIndex) => {
-    let changed = false
-    const nodes = network.nodes.map((node, nodeIndex) => {
-      const offset = nextOffsets.get(`${networkIndex}:${nodeIndex}`)
-      if (offset === undefined || node.kind !== 'busbar-tap' || node.offset === offset) return node
-      changed = true
-      return { ...node, offset }
-    })
-    return changed ? { ...network, nodes } : network
-  })
+  return {
+    busbar: busbar.orientation === 'horizontal'
+      ? { ...busbar, x: constrainedStart, length: end - constrainedStart }
+      : { ...busbar, y: constrainedStart, length: end - constrainedStart },
+    connections: nextConnections,
+    blocked: nearestTapWorldCoordinate < end - safeMinimumLength &&
+      requested > nearestTapWorldCoordinate,
+  }
 }

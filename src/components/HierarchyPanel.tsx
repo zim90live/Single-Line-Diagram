@@ -8,6 +8,7 @@ import {
   Pencil,
   Plus,
   Snowflake,
+  Trash2,
   Zap,
 } from 'lucide-react'
 import {
@@ -30,6 +31,7 @@ interface HierarchyPanelProps {
   onSelectDiagram: (diagramId: string) => void
   onCreateDiagram?: (parentId: string) => string | null
   onRenameDiagram?: (diagramId: string, name: string) => boolean
+  onDeleteDiagram?: (diagramId: string) => void
   onMoveDiagram?: (
     sourceId: string,
     targetId: string,
@@ -80,6 +82,7 @@ interface DiagramBranchProps {
   onSelectDiagram: (diagramId: string) => void
   onToggleDiagram: (diagramId: string) => void
   onBeginRename: (diagram: Diagram) => void
+  onDeleteDiagram?: (diagramId: string) => void
   onRenameDraftChange: (value: string) => void
   onCommitRename: () => boolean
   onCancelRename: () => void
@@ -106,6 +109,7 @@ function DiagramBranch({
   onSelectDiagram,
   onToggleDiagram,
   onBeginRename,
+  onDeleteDiagram,
   onRenameDraftChange,
   onCommitRename,
   onCancelRename,
@@ -137,6 +141,7 @@ function DiagramBranch({
         data-diagram-id={diagram.id}
         data-drop-position={activePosition}
         data-dragging={draggedDiagramId === diagram.id || undefined}
+        data-deletable={editable && diagram.parentId !== null && !isEditing || undefined}
         onDragOver={(event) => onDragOver(diagram, event)}
         onDragLeave={(event) => onDragLeave(diagram, event)}
         onDrop={(event) => onDrop(diagram, event)}
@@ -192,59 +197,74 @@ function DiagramBranch({
             ) : null}
           </div>
         ) : (
-          <Pressable
-            className="tree-row"
-            data-selected={diagram.id === currentDiagramId || undefined}
-            draggable={editable && diagram.parentId !== null}
-            aria-expanded={hasChildren ? expanded : undefined}
-            aria-keyshortcuts={[
-              hasChildren ? 'ArrowLeft ArrowRight' : '',
-              editable && diagram.parentId !== null
-                ? 'Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight'
-                : '',
-            ].filter(Boolean).join(' ') || undefined}
-            style={{ paddingInlineStart: rowPadding }}
-            title={editable && diagram.parentId !== null
-              ? '拖动调整层级或顺序；Alt+方向键也可调整'
-              : diagram.name}
-            onClick={() => onSelectDiagram(diagram.id)}
-            onDoubleClick={() => { if (editable) onBeginRename(diagram) }}
-            onKeyDown={(event) => {
-              if (!event.altKey && hasChildren) {
-                if ((event.key === 'ArrowLeft' && expanded) ||
-                  (event.key === 'ArrowRight' && !expanded)) {
-                  event.preventDefault()
-                  onToggleDiagram(diagram.id)
-                  return
+          <>
+            <Pressable
+              className="tree-row"
+              data-selected={diagram.id === currentDiagramId || undefined}
+              draggable={editable && diagram.parentId !== null}
+              aria-expanded={hasChildren ? expanded : undefined}
+              aria-keyshortcuts={[
+                hasChildren ? 'ArrowLeft ArrowRight' : '',
+                editable && diagram.parentId !== null
+                  ? 'Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight'
+                  : '',
+              ].filter(Boolean).join(' ') || undefined}
+              style={{ paddingInlineStart: rowPadding }}
+              title={editable && diagram.parentId !== null
+                ? '拖动调整层级或顺序；Alt+方向键也可调整'
+                : diagram.name}
+              onClick={() => onSelectDiagram(diagram.id)}
+              onDoubleClick={() => { if (editable) onBeginRename(diagram) }}
+              onKeyDown={(event) => {
+                if (!event.altKey && hasChildren) {
+                  if ((event.key === 'ArrowLeft' && expanded) ||
+                    (event.key === 'ArrowRight' && !expanded)) {
+                    event.preventDefault()
+                    onToggleDiagram(diagram.id)
+                    return
+                  }
                 }
-              }
-              onKeyboardMove(diagram, event)
-            }}
-            onDragStart={(event) => onDragStart(diagram, event)}
-            onDragEnd={onDragEnd}
-          >
-            <span
-              className="tree-row__branch-slot"
-              title={hasChildren ? (expanded ? '收起子图' : '展开子图') : undefined}
-              onClick={hasChildren ? (event) => {
-                event.stopPropagation()
-                onToggleDiagram(diagram.id)
-              } : undefined}
-              aria-hidden="true"
+                onKeyboardMove(diagram, event)
+              }}
+              onDragStart={(event) => onDragStart(diagram, event)}
+              onDragEnd={onDragEnd}
             >
-              {hasChildren ? (
-                <ChevronRight className="tree-row__branch" data-expanded={expanded || undefined} />
-              ) : null}
-            </span>
-            {editable ? (
-              <span className="tree-row__drag-slot" aria-hidden="true">
-                {diagram.parentId !== null ? <GripVertical className="tree-row__drag-handle" /> : null}
+              <span
+                className="tree-row__branch-slot"
+                title={hasChildren ? (expanded ? '收起子图' : '展开子图') : undefined}
+                onClick={hasChildren ? (event) => {
+                  event.stopPropagation()
+                  onToggleDiagram(diagram.id)
+                } : undefined}
+                aria-hidden="true"
+              >
+                {hasChildren ? (
+                  <ChevronRight className="tree-row__branch" data-expanded={expanded || undefined} />
+                ) : null}
               </span>
+              {editable ? (
+                <span className="tree-row__drag-slot" aria-hidden="true">
+                  {diagram.parentId !== null ? <GripVertical className="tree-row__drag-handle" /> : null}
+                </span>
+              ) : null}
+              <Icon className="tree-row__icon" aria-hidden="true" />
+              <span className="tree-row__name">{diagram.name}</span>
+              <span className="tree-row__meta">{levelNames[diagram.level]}</span>
+            </Pressable>
+            {editable && diagram.parentId !== null && onDeleteDiagram ? (
+              <IconButton
+                className="tree-row__delete"
+                label={`删除图纸 ${diagram.name}`}
+                icon={<Trash2 />}
+                variant="neutral-ghost"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDeleteDiagram(diagram.id)
+                }}
+              />
             ) : null}
-            <Icon className="tree-row__icon" aria-hidden="true" />
-            <span className="tree-row__name">{diagram.name}</span>
-            <span className="tree-row__meta">{levelNames[diagram.level]}</span>
-          </Pressable>
+          </>
         )}
       </div>
       {expanded ? (
@@ -266,6 +286,7 @@ function DiagramBranch({
               onSelectDiagram={onSelectDiagram}
               onToggleDiagram={onToggleDiagram}
               onBeginRename={onBeginRename}
+              onDeleteDiagram={onDeleteDiagram}
               onRenameDraftChange={onRenameDraftChange}
               onCommitRename={onCommitRename}
               onCancelRename={onCancelRename}
@@ -339,6 +360,7 @@ export const HierarchyPanel = memo(function HierarchyPanel({
   onSelectDiagram,
   onCreateDiagram,
   onRenameDiagram,
+  onDeleteDiagram,
   onMoveDiagram,
 }: HierarchyPanelProps) {
   const cancelRenameRef = useRef(false)
@@ -551,6 +573,7 @@ export const HierarchyPanel = memo(function HierarchyPanel({
     onSelectDiagram,
     onToggleDiagram: toggleDiagram,
     onBeginRename: beginRename,
+    onDeleteDiagram,
     onRenameDraftChange: (value: string) => {
       setRenameDraft(value)
       setRenameError(null)
@@ -615,5 +638,6 @@ export const HierarchyPanel = memo(function HierarchyPanel({
   previous.onSelectDiagram === next.onSelectDiagram &&
   previous.onCreateDiagram === next.onCreateDiagram &&
   previous.onRenameDiagram === next.onRenameDiagram &&
+  previous.onDeleteDiagram === next.onDeleteDiagram &&
   previous.onMoveDiagram === next.onMoveDiagram
 ))

@@ -97,6 +97,24 @@ describe('monitor flow geometry', () => {
 
     expect(geometry.positions).toHaveLength(36)
   })
+
+  it('writes lower-priority animation strips before upper-priority strips', () => {
+    const geometry = buildFlowLineGeometry([
+      {
+        id: 'upper',
+        points: [{ x: 100, y: 0 }, { x: 116, y: 0 }],
+        renderPriority: 5,
+      },
+      {
+        id: 'lower',
+        points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+        renderPriority: 0,
+      },
+    ])
+
+    expect([...geometry.positions].slice(0, 3)).toEqual([0, 0, 0])
+    expect([...geometry.positions].slice(-3)).toEqual([100, 0, 0])
+  })
 })
 
 describe('monitor static flow lines', () => {

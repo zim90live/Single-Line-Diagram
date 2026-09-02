@@ -322,7 +322,14 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
     { along: 1, side: 1 },
     { along: 1, side: -1 },
   ] as const
-  for (const path of paths) {
+  const orderedPaths = paths
+    .map((path, index) => ({ path, index }))
+    .sort((left, right) => (
+      (left.path.renderPriority ?? 1) - (right.path.renderPriority ?? 1) ||
+      left.index - right.index
+    ))
+    .map(({ path }) => path)
+  for (const path of orderedPaths) {
     const { lineWidth, scalesWithZoom } = resolvedLineWidth(path)
     const speedMultiplier = path.speedMultiplier ?? 1
     let accumulated = 0

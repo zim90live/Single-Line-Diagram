@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultProject, projectDocumentSchema, type ProjectDocument } from './project'
-import { createChildDiagram, moveDiagram } from './diagramHierarchy'
+import { createChildDiagram, deleteDiagram, moveDiagram } from './diagramHierarchy'
 
 function withMutation(document: ProjectDocument, diagrams: ProjectDocument['diagrams'] | undefined) {
   if (!diagrams) throw new Error('图纸层级变更失败')
@@ -69,6 +69,31 @@ describe('diagram hierarchy management', () => {
     document = withMutation(document, restored.diagrams)
     expect(document.diagrams.filter((diagram) => diagram.parentId === coolingRoot).map((diagram) => diagram.id))
       .toEqual([firstBuilding.id, 'second-building'])
+  })
+
+  it('deletes a non-root diagram with its complete subtree', () => {
+    const document = createDefaultProject('层级测试')
+    const coolingRoot = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    const building = document.diagrams.find((diagram) => diagram.parentId === coolingRoot)!
+    const pod = document.diagrams.find((diagram) => diagram.parentId === building.id)!
+    const device = document.diagrams.find((diagram) => diagram.parentId === pod.id)!
+
+    const deleted = deleteDiagram(document, building.id)
+
+    expect(deleted).toMatchObject({
+      ok: true,
+      changed: true,
+      diagramId: coolingRoot,
+      removedDiagramIds: [building.id, pod.id, device.id],
+    })
+    expect(deleted.diagrams?.some((diagram) => (
+      deleted.removedDiagramIds?.includes(diagram.id)
+    ))).toBe(false)
+    expect(deleteDiagram(document, coolingRoot)).toMatchObject({
+      ok: false,
+      changed: false,
+      message: expect.stringContaining('根图纸'),
+    })
   })
 
   it('rejects root, cross-line, cyclic, and over-depth moves', () => {

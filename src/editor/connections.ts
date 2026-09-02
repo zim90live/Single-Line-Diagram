@@ -13,6 +13,7 @@ import {
   type SymbolAnchor,
 } from '../domain/project'
 import { elementsBounds, rotatePoint, snap, type Point, type Rect } from './geometry'
+import { compareConnectionEdgeCrossingPriority } from './connectionCrossingOrder'
 
 export interface ResolvedElementAnchor {
   elementId: string
@@ -946,15 +947,14 @@ function crossingIndexKeys(start: Point, end: Point) {
   return keys
 }
 
-function coolingLineRolesByEdgeId(networks: ConnectionNetwork[]) {
-  const roles = new Map<string, 'primary' | 'auxiliary'>()
+function connectionEdgesById(networks: ConnectionNetwork[]) {
+  const edges = new Map<string, ConnectionEdge>()
   networks.forEach((network) => {
-    if (network.type === 'electrical') return
     network.edges.forEach((edge) => {
-      roles.set(edge.id, edge.coolingLineRole ?? 'primary')
+      edges.set(edge.id, edge)
     })
   })
-  return roles
+  return edges
 }
 
 function findCrossings(
@@ -969,7 +969,7 @@ function findCrossings(
   }> = []
   const seen = new Set<string>()
   const segmentIndex = new Map<string, IndexedRouteSegment[]>()
-  const coolingRoles = coolingLineRolesByEdgeId(networks)
+  const configuredEdges = connectionEdgesById(networks)
   for (let laterIndex = 0; laterIndex < edges.length; laterIndex += 1) {
     const later = edges[laterIndex]
     for (let leftIndex = 1; leftIndex < later.points.length; leftIndex += 1) {
@@ -984,10 +984,10 @@ function findCrossings(
         if (later.networkId === earlier.networkId) return
         const point = segmentCrossing(start, end, earlierSegment.start, earlierSegment.end)
         if (!point) return
-      const sharedNodeIds = new Set([
-        later.sourceNodeId,
-        later.targetNodeId,
-      ].filter((id) => id === earlier.sourceNodeId || id === earlier.targetNodeId))
+        const sharedNodeIds = new Set([
+          later.sourceNodeId,
+          later.targetNodeId,
+        ].filter((id) => id === earlier.sourceNodeId || id === earlier.targetNodeId))
         const atSharedEndpoint = sharedNodeIds.size > 0 && (
           pointsEqual(point, later.points[0]) ||
           pointsEqual(point, later.points.at(-1)!)
@@ -999,13 +999,10 @@ function findCrossings(
         const key = `${later.edgeId}::${earlier.edgeId}::${pointKey(point)}`
         if (seen.has(key)) return
         seen.add(key)
-        const laterRole = coolingRoles.get(later.edgeId)
-        const earlierRole = coolingRoles.get(earlier.edgeId)
-        const primaryCrossesAuxiliary = laterRole !== undefined &&
-          earlierRole !== undefined && laterRole !== earlierRole
-        const bridge = primaryCrossesAuxiliary && earlierRole === 'primary'
-          ? earlier
-          : later
+        const bridge = compareConnectionEdgeCrossingPriority(
+          configuredEdges.get(later.edgeId),
+          configuredEdges.get(earlier.edgeId),
+        ) < 0 ? earlier : later
         const under = bridge === later ? earlier : later
         crossings.push({
           ...point,
@@ -1646,6 +1643,9 @@ function routeConnectionNetworksWithSeed(
   const resolvedBusbarTapOffsets = new Map(Object.entries(
     seed?.previous.resolvedBusbarTapOffsets ?? {},
   ).filter(([nodeId]) => !dirtyTapNodeIds.has(nodeId)))
+  networks.forEach((network) => network.nodes.forEach((node) => {
+    if (node.kind === 'busbar-tap') resolvedBusbarTapOffsets.set(node.id, node.offset)
+  }))
 
   for (const network of networks) {
     if (!dirtyNetworkIds.has(network.id)) continue
@@ -1856,12 +1856,16 @@ function crossingPrioritiesEqual(
   return leftNetworks.every((left) => {
     const right = rightById.get(left.id)
     if (!right || left.type !== right.type || left.edges.length !== right.edges.length) return false
-    if (left.type === 'electrical') return true
     const rightEdgesById = new Map(right.edges.map((edge) => [edge.id, edge]))
-    return left.edges.every((edge) => (
-      (edge.coolingLineRole ?? 'primary') ===
-        (rightEdgesById.get(edge.id)?.coolingLineRole ?? 'primary')
-    ))
+    return left.edges.every((edge) => {
+      const candidate = rightEdgesById.get(edge.id)
+      return candidate !== undefined &&
+        edge.crossingLayer === candidate.crossingLayer &&
+        (left.type === 'electrical' || (
+          (edge.coolingLineRole ?? 'primary') ===
+            (candidate.coolingLineRole ?? 'primary')
+        ))
+    })
   })
 }
 

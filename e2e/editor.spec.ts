@@ -12,7 +12,7 @@ const CONNECTED_REAL_SCENE_ELEMENT_IDS = [...new Set(
   ))),
 )]
 
-test('registers and inserts TMU as a 72 by 96 cooling symbol', async ({ page }) => {
+test('registers and inserts TMU as a 64 by 96 cooling symbol', async ({ page }) => {
   await page.goto('/')
 
   const tmu = page.getByTitle('拖动或双击插入TMU')
@@ -21,23 +21,87 @@ test('registers and inserts TMU as a 72 by 96 cooling symbol', async ({ page }) 
 
   const element = page.locator('.diagram-element[data-asset-key="tmu"]')
   await expect(element).toHaveCount(1)
-  await expect(element.locator('image')).toHaveAttribute('width', '72')
+  await expect(element.locator('image')).toHaveAttribute('width', '64')
   await expect(element.locator('image')).toHaveAttribute('height', '96')
 })
 
-test('registers Cabinet A and Cabinet B as separate insertable symbols', async ({ page }) => {
+test('registers and inserts CDU as a 192 by 96 cooling symbol', async ({ page }) => {
   await page.goto('/')
 
-  const cabinetA = page.getByTitle('拖动或双击插入Cabinet A')
-  const cabinetB = page.getByTitle('拖动或双击插入Cabinet B')
-  await expect(cabinetA).toBeVisible()
-  await expect(cabinetB).toBeVisible()
+  const cdu = page.getByTitle('拖动或双击插入CDU')
+  await expect(cdu).toBeVisible()
+  await cdu.dblclick()
 
-  await cabinetA.dblclick()
-  await cabinetB.dblclick()
+  const element = page.locator('.diagram-element[data-asset-key="cdu"]')
+  await expect(element).toHaveCount(1)
+  await expect(element.locator('image')).toHaveAttribute('width', '192')
+  await expect(element.locator('image')).toHaveAttribute('height', '96')
+})
 
+test('replaces a stopped cooling pump with the dedicated stopped image', async ({ page }) => {
+  await page.goto('/')
+
+  const chwpMaterial = page.getByTitle('拖动或双击插入CHWP')
+  await chwpMaterial.dblclick()
+  const pump = page.locator('.diagram-element[data-asset-key="chwp"]')
+  const pumpImage = pump.locator('.diagram-element__image')
+  await expect(pumpImage).toHaveAttribute('href', /CHWP\.png/)
+
+  await chwpMaterial.hover()
+  await page.getByRole('button', { name: '编辑 CHWP 锚点' }).click()
+  const anchorDialog = page.getByRole('dialog', { name: '接线锚点编辑器' })
+  await anchorDialog.getByLabel('冷却设备角色').selectOption('pump')
+  await anchorDialog.getByRole('button', { name: '关闭图元编辑器' }).click()
+
+  await page.getByRole('tab', { name: '监控模式' }).click()
+  await pumpImage.click({ force: true })
+  const runningSwitch = page.getByRole('switch', { name: '水泵运行状态' })
+  await expect(runningSwitch).toHaveAttribute('aria-checked', 'true')
+  await expect(pumpImage).toHaveAttribute('data-cooling-pump-state', 'running')
+  await expect(pumpImage).toHaveAttribute('href', /CHWP\.png/)
+
+  await runningSwitch.click()
+  await expect(runningSwitch).toHaveAttribute('aria-checked', 'false')
+  await expect(pumpImage).toHaveAttribute('data-cooling-pump-state', 'stopped')
+  await expect(pumpImage).toHaveAttribute('href', /PumpOff\.png/)
+
+  await runningSwitch.click()
+  await expect(pumpImage).toHaveAttribute('data-cooling-pump-state', 'running')
+  await expect(pumpImage).toHaveAttribute('href', /CHWP\.png/)
+})
+
+test('registers Cabinet, both Tap-off Units, and their child symbol separately', async ({ page }) => {
+  await page.goto('/')
+
+  const cabinet = page.getByTitle('拖动或双击插入Cabinet')
+  const tapUnitA = page.getByTitle('拖动或双击插入Tap-off Unit A')
+  const tapUnitB = page.getByTitle('拖动或双击插入Tap-off Unit B')
+  const tapOffUnit = page.getByTitle('拖动或双击插入Tap-off Unit', { exact: true })
+  await expect(cabinet).toBeVisible()
+  await expect(tapUnitA).toBeVisible()
+  await expect(tapUnitB).toBeVisible()
+  await expect(tapOffUnit).toBeVisible()
+
+  await cabinet.dblclick()
+  await tapUnitA.dblclick()
+  await tapUnitB.dblclick()
+  await tapOffUnit.dblclick()
+
+  await expect(page.locator('.diagram-element[data-asset-key="cabinet-device"]')).toHaveCount(1)
   await expect(page.locator('.diagram-element[data-asset-key="cabinet"]')).toHaveCount(1)
   await expect(page.locator('.diagram-element[data-asset-key="cabinet-b"]')).toHaveCount(1)
+  const child = page.locator('.diagram-element[data-asset-key="tap-off-unit"]')
+  const childImage = child.locator('.diagram-element__image')
+  await expect(child).toHaveCount(1)
+  await expect(childImage).toHaveAttribute('width', '32')
+  await expect(childImage).toHaveAttribute('height', '32')
+  await expect(childImage).toHaveAttribute('data-symbol-color', '#777777')
+
+  const colorInput = page.getByLabel('图元颜色 HEX')
+  await colorInput.fill('#77b4bf')
+  await expect(childImage).toHaveAttribute('data-symbol-color', '#77B4BF')
+  await colorInput.press('Enter')
+  await expect(childImage).toHaveAttribute('data-symbol-color', '#77B4BF')
 })
 
 test('renders a free-size generic frame with an upright clipped device identifier', async ({ page }) => {
@@ -217,6 +281,26 @@ test('draws free-ended and closed-loop lines until Escape exits the explicit too
   await expect(page.locator('.connection-edge')).toHaveCount(0)
 })
 
+test('configures one whole child line above or below every non-connected crossing', async ({ page }) => {
+  await page.goto('/')
+
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  await page.getByRole('button', { name: '绘制线路' }).click()
+  await canvas.click({ position: { x: 280, y: 280 } })
+  await canvas.click({ position: { x: 400, y: 280 } })
+  await canvas.press('Escape')
+
+  await page.locator('.connection-edge__hit:not(.connection-edge__hit--world)')
+    .click({ force: true })
+  const crossingLayer = page.getByRole('combobox', { name: '跨线层级' })
+  await expect(crossingLayer).toHaveValue('auto')
+  await crossingLayer.selectOption('upper')
+  await expect(crossingLayer).toHaveValue('upper')
+
+  await canvas.press('Control+z')
+  await expect(crossingLayer).toHaveValue('auto')
+})
+
 test('collapses and expands the left menu from its graphical edge control', async ({ page }) => {
   await page.goto('/')
 
@@ -284,6 +368,17 @@ test('creates, renames, and reparents diagrams from the hierarchy tree', async (
 
   await coolingLine.getByText('POD A', { exact: true }).click()
   await expect(page.locator('.breadcrumbs')).toContainText('园区总图/2 号楼/POD A')
+
+  await expect(coolingRoot.getByRole('button', { name: /删除图纸/ })).toHaveCount(0)
+  const deleteButton = secondBuildingRow.getByRole('button', { name: '删除图纸 2 号楼' })
+  await expect(deleteButton).toHaveCSS('opacity', '0')
+  await secondBuildingRow.hover()
+  await expect(deleteButton).toHaveCSS('opacity', '1')
+  await deleteButton.click()
+  await expect(page.getByText('已删除“2 号楼”及 2 张下级图纸')).toBeVisible()
+  await expect(coolingLine.getByText('2 号楼', { exact: true })).toHaveCount(0)
+  await expect(hierarchy).toContainText('6 张')
+  await expect(page.locator('.breadcrumbs')).toContainText('园区总图')
 })
 
 test('collapses hierarchy line systems and diagram branches without dirtying the project', async ({ page }) => {
@@ -309,6 +404,109 @@ test('collapses hierarchy line systems and diagram branches without dirtying the
 
   await buildingRow.locator('.tree-row').press('ArrowRight')
   await expect(coolingLine.getByText('POD A', { exact: true })).toBeVisible()
+  await expect(savedStatus).toBeVisible()
+})
+
+test('fits all diagram content after switching back to a drawing', async ({ page }) => {
+  const document = createDefaultProject('切图自动适配回归', [{
+    key: 'fit-symbol',
+    name: '适配测试图元',
+    category: '冷却',
+    source: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"/%3E',
+    intrinsicWidth: 64,
+    intrinsicHeight: 64,
+    anchors: [],
+  }])
+  const coolingLine = document.lineSystems.find((line) => line.type === 'cooling')!
+  const diagramId = coolingLine.rootDiagramId
+  document.elements = [
+    {
+      id: 'fit-element-left',
+      diagramId,
+      assetKey: 'fit-symbol',
+      name: '左侧图元',
+      x: -800,
+      y: -400,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+    {
+      id: 'fit-element-right',
+      diagramId,
+      assetKey: 'fit-symbol',
+      name: '右侧图元',
+      x: 2400,
+      y: 1600,
+      width: 64,
+      height: 64,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    },
+  ]
+  document.connections = [{
+    id: 'fit-free-line',
+    diagramId,
+    type: 'cooling-primary-cold',
+    nodes: [
+      { id: 'fit-free-left', kind: 'node', x: -1000, y: 1040 },
+      { id: 'fit-free-right', kind: 'node', x: 2800, y: 1040 },
+    ],
+    edges: [{
+      id: 'fit-free-edge',
+      sourceNodeId: 'fit-free-left',
+      targetNodeId: 'fit-free-right',
+    }],
+  }]
+
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'diagram-auto-fit.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  })
+  await expect(page.getByText('已导入 diagram-auto-fit.json')).toBeVisible()
+
+  const stage = page.getByTestId('diagram-canvas')
+  const canvas = page.getByLabel('一次接线图编辑画布')
+  await expect(page.locator('.diagram-element')).toHaveCount(2)
+  await expect(stage).not.toHaveAttribute('data-routing-pending', 'true', { timeout: 15_000 })
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom')))
+    .toBeLessThan(0.25)
+
+  await page.getByRole('button', { name: '保存' }).click()
+  const savedStatus = page.locator('.workspace-header').getByText('已保存', { exact: true })
+  await expect(savedStatus).toBeVisible()
+  await page.getByRole('button', { name: '重置画布缩放' }).click()
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom'))).toBe(1)
+
+  const hierarchy = page.locator('.hierarchy-section')
+  const coolingTree = hierarchy.locator('.tree-line').filter({ hasText: '冷却线路' })
+  await coolingTree.getByText('1 号楼', { exact: true }).click()
+  await expect(page.locator('.diagram-element')).toHaveCount(0)
+  await coolingTree.getByText('园区总图', { exact: true }).click()
+  await expect(page.locator('.diagram-element')).toHaveCount(2)
+  await expect.poll(async () => Number(await stage.getAttribute('data-grid-zoom')))
+    .toBeLessThan(0.25)
+
+  const canvasBox = await canvas.boundingBox()
+  if (!canvasBox) throw new Error('无法读取画布尺寸')
+  const contentBoxes = await page.locator(
+    '.diagram-element, .connection-edge[data-edge-id="fit-free-edge"] .connection-edge__line',
+  ).evaluateAll((nodes) => nodes.map((node) => {
+    const rect = node.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+  }))
+  expect(contentBoxes).toHaveLength(3)
+  expect(contentBoxes.every((box) => (
+    box.left >= canvasBox.x + 40 &&
+    box.top >= canvasBox.y + 40 &&
+    box.right <= canvasBox.x + canvasBox.width - 40 &&
+    box.bottom <= canvasBox.y + canvasBox.height - 40
+  ))).toBe(true)
   await expect(savedStatus).toBeVisible()
 })
 
@@ -2252,6 +2450,45 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await expect(page.locator('.busbar-tap')).toHaveCount(1)
   await expect(page.locator('.connection-edge')).toHaveCount(1)
 
+  const busbarNodeHandle = page.locator('.connection-junction-handle--busbar')
+  await expect(busbarNodeHandle).toHaveCount(1)
+  const originalTapOffset = Number(await page.locator('.busbar-tap').getAttribute('data-busbar-offset'))
+  const originalTapY = Number(await page.locator('.busbar-tap').getAttribute('cy'))
+  const busbarNodeBox = await busbarNodeHandle.boundingBox()
+  if (!busbarNodeBox) throw new Error('无法读取母线节点控制柄')
+  await page.mouse.move(
+    busbarNodeBox.x + busbarNodeBox.width / 2,
+    busbarNodeBox.y + busbarNodeBox.height / 2,
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    busbarNodeBox.x + busbarNodeBox.width / 2 + 16,
+    busbarNodeBox.y + busbarNodeBox.height / 2 + 16,
+    { steps: 4 },
+  )
+  await page.mouse.up()
+  await expect(page.locator('.busbar-tap')).toHaveAttribute(
+    'data-busbar-offset',
+    String(originalTapOffset + 16),
+  )
+  await expect(page.locator('.busbar-tap')).toHaveAttribute('cy', String(originalTapY))
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.busbar-tap')).toHaveAttribute(
+    'data-busbar-offset',
+    String(originalTapOffset),
+  )
+
+  await busbarNodeHandle.dblclick()
+  await expect(page.getByTestId('connection-preview')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await busbarNodeHandle.click()
+  await page.keyboard.press('Delete')
+  await expect(page.locator('.busbar-tap')).toHaveCount(0)
+  await expect(page.locator('.connection-edge')).toHaveCount(0)
+  await page.getByRole('button', { name: '撤销' }).click()
+  await expect(page.locator('.busbar-tap')).toHaveCount(1)
+  await expect(page.locator('.connection-edge')).toHaveCount(1)
+
   const mixedElementBox = await sourceElement.boundingBox()
   const mixedBusbarBox = await busbarHit.boundingBox()
   if (!mixedElementBox || !mixedBusbarBox) throw new Error('无法读取混合框选对象边界')
@@ -2273,7 +2510,7 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await page.mouse.up()
   await expect(sourceElement).toHaveAttribute('data-selected', 'true')
   await expect(page.locator('.busbar')).toHaveAttribute('data-selected', 'true')
-  await expect(page.locator('.transform-controls')).toHaveAttribute('data-selection-count', '2')
+  await expect(page.locator('.transform-controls')).toHaveAttribute('data-selection-count', '3')
   await expect(page.locator('.transform-controls')).toHaveAttribute('data-selection-has-busbar', 'true')
   await expect(page.locator('.selection-member')).toHaveCount(1)
   await expect(page.locator('.transform-handle--resize')).toHaveCount(0)
@@ -2451,10 +2688,11 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await page.mouse.up()
   await expect.poll(() => busbarHit.evaluate((node) => (
     (node as SVGPathElement).getTotalLength()
-  ))).toBe(8)
+  ))).toBe(originalTapOffset)
+  await expect(page.getByText('无法缩短母线：请先移动或删除范围外的节点。')).toBeVisible()
   await expect(page.locator('.busbar-tap')).toHaveCount(1)
   await expect.poll(() => page.locator('.busbar-tap').getAttribute('data-busbar-offset'))
-    .toMatch(/^(0|8)$/)
+    .toBe(String(originalTapOffset))
 
   await page.getByRole('button', { name: '撤销' }).click()
   await expect.poll(() => busbarHit.evaluate((node) => (
@@ -2463,7 +2701,7 @@ test('creates, connects, edits, and deletes an electrical busbar', async ({ page
   await page.getByRole('button', { name: '重做' }).click()
   await expect.poll(() => busbarHit.evaluate((node) => (
     (node as SVGPathElement).getTotalLength()
-  ))).toBe(8)
+  ))).toBe(originalTapOffset)
   await expect(page.locator('.busbar-tap')).toHaveCount(1)
 
   const rotateHandle = page.locator('.busbar-handle--rotate')
