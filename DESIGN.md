@@ -103,7 +103,7 @@ Creative North Star 是“安静的运行台”。工作区由连续的中性深
 
 ## 组件与状态
 
-- 监控渲染输入统一通过 `DiagramRuntimeView` 与 `DiagramRuntimeContext` 进入：前者只含当前图纸、资产、线路和下探映射，后者承载 Switch/泵阀状态、外部供电与可替换数据 Provider。跨项目交付使用独立版本的 RuntimeBundle v1，按入口图纸裁剪下级子树和必要祖先，冻结下探并固化 On/Off 初始状态；React 宿主通过 `RuntimeBundleViewer` 接管图纸、播放与数据源。跨项目查看器使用监控专用 `DiagramMonitorCanvas`，只暴露缩放控制，不能导入编辑画布、编辑命令、Store、IndexedDB 或 dirty；中键、空格+左键和触控板视口手势继续可用。两条画布现共用 `DiagramScenePrimitives` 中的图元主体、三类标签、母线基线、颜色/冷却滤镜、监控静态线路、桥面遮罩、管壳和方向箭头，编辑事件通过稳定 ref/children 注入；当前产品内监控画布暂不替换，后续继续收敛线路组装派生模型、母线 tap 等剩余静态表现并补资产解析策略。
+- 监控渲染输入统一通过 `DiagramRuntimeView` 与 `DiagramRuntimeContext` 进入：前者只含当前图纸、资产、线路和下探映射，后者承载 Switch/泵阀状态、外部供电与可替换数据 Provider。跨项目交付使用独立版本的 RuntimeBundle v1，按入口图纸裁剪下级子树和必要祖先，冻结下探并固化 On/Off 初始状态；React 宿主通过 `RuntimeBundleViewer` 接管图纸、播放与数据源。跨项目查看器和当前产品监控模式统一使用监控专用 `DiagramMonitorCanvas`，只暴露缩放控制，不能导入编辑画布、编辑命令、Store、IndexedDB 或 dirty；中键、空格+左键和触控板视口手势继续可用。两条画布共用 `DiagramScenePrimitives` 中的图元主体、三类标签、母线基线/节点、颜色/冷却滤镜、监控静态线路、桥面遮罩、管壳和方向箭头，并通过纯数据 `connectionScene` 统一线路显示路径、渲染分组、管壳、静态流动和相关拓扑派生；几何/视口、点阵、手势、线路外观、连接几何、标签布局和素材目录以 `scene/` 为实现源，正式路由调度、Worker 与 Hook 以 `runtime/` 为实现源。`runtime/scene/monitoring` 产品代码不得反向依赖 `editor/`；编辑事件继续通过稳定 ref/children 或画布包裹层注入。RuntimeBundle 的资产解析/内嵌和发布方式属于独立交付阶段。
 - 主按钮使用浅色实底，仅用于当前上下文的主要动作；普通工具使用中性软底或透明底。
 - 输入框高 32px，标签置于字段上方；属性提交以 blur/Enter 为事务边界，Escape 取消草稿。
 - 图纸树重命名在原行内完成并保持 28px 行高；拖拽时只显示克制的插入线或目标行轮廓，中部表示成为子图，上/下边缘表示同级前后排序。非根图纸以拖动手柄作为入口，并提供 `Alt+方向键` 的键盘替代；根图与监控模式不呈现可拖动态。非根图纸行在 hover 或键盘焦点进入时于最右侧显示 24px 删除图标，触控环境常驻；图标使用错误色并阻止行选择与拖动事件，根图和监控模式不渲染。普通 `←/→` 只收起或展开当前含子图节点，线路标题可用 Enter/空格整组切换；折叠状态不持久化，当前图纸变化时自动展开所属线路及祖先路径。

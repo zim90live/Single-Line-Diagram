@@ -6,8 +6,8 @@ import type {
   CoolingLineRole,
   DiagramElement,
 } from '../domain/project'
-import type { MonitorStaticFlowLineGroup } from '../monitoring/FlowAnimationLayer'
-import type { BusbarLabelLayout } from '../editor/busbarLabels'
+import type { MonitorStaticFlowLineGroup } from '../monitoring/flowPresentation'
+import type { BusbarLabelLayout } from './busbarLabels'
 import {
   COOLING_PIPE_INNER_SHADOW_BLUR,
   COOLING_PIPE_INNER_SHADOW_COLOR,
@@ -15,25 +15,25 @@ import {
   COOLING_PIPE_INNER_SHADOW_DY,
   coolingPipeFilterRegion,
   coolingPipeInnerShadowOpacity,
-} from '../editor/connectionAppearance'
-import type { ConnectionLabelLayout } from '../editor/connectionLabels'
-import { busbarEndPoint, pathData } from '../editor/connections'
+} from './connectionAppearance'
+import type { ConnectionLabelLayout } from './connectionLabels'
+import { busbarEndPoint, pathData } from './connections'
 import {
   elementDeviceIdentifier,
   type ElementLabelLayout,
-} from '../editor/elementLabels'
+} from './elementLabels'
 import {
   fitGenericSymbolTag,
   genericSymbolDisplayedWidth,
-} from '../editor/genericSymbol'
-import type { Point } from '../editor/geometry'
+} from './genericSymbol'
+import type { Point } from './geometry'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
   getSymbolDisplayUrl,
   normalizeSymbolColor,
   type SymbolDefinition,
   type SymbolVisualState,
-} from '../editor/symbolCatalog'
+} from './symbolCatalog'
 
 export function symbolColorFilterId(color: string, scope?: string) {
   const suffix = normalizeSymbolColor(color).slice(1).toLowerCase()
@@ -117,6 +117,44 @@ export const BusbarVisual = memo(function BusbarVisual({
       />
       {children}
     </g>
+  )
+})
+
+export interface BusbarTapVisualProps {
+  nodeId: string
+  busbarId: string
+  offset: number
+  point: Point
+  color?: string
+  zoom: number
+  nodeRegistry?: { current: Map<string, SVGCircleElement> }
+}
+
+export const BusbarTapVisual = memo(function BusbarTapVisual({
+  nodeId,
+  busbarId,
+  offset,
+  point,
+  color,
+  zoom,
+  nodeRegistry,
+}: BusbarTapVisualProps) {
+  return (
+    <circle
+      ref={(node) => {
+        if (!nodeRegistry) return
+        if (node) nodeRegistry.current.set(nodeId, node)
+        else nodeRegistry.current.delete(nodeId)
+      }}
+      className="busbar-tap"
+      data-connection-type="electrical"
+      data-busbar-id={busbarId}
+      data-busbar-offset={offset}
+      style={color ? { '--busbar-color': color } as CSSProperties : undefined}
+      cx={point.x}
+      cy={point.y}
+      r={2.5 / zoom}
+    />
   )
 })
 

@@ -8,7 +8,7 @@ import {
   DEFAULT_BUSBAR_COLOR,
   defaultConnectionColor,
   normalizeHexColor,
-} from './objectColors'
+} from '../scene/objectColors'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
   elementSupportsOnOffState,
@@ -16,7 +16,7 @@ import {
   symbolColorPropertyKey,
   symbolsByKey,
   type SymbolColorSlot,
-} from './symbolCatalog'
+} from '../scene/symbolCatalog'
 
 export type CanvasColorCategory = 'element' | 'busbar' | 'connection'
 

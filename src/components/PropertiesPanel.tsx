@@ -21,8 +21,8 @@ import {
   type CanvasColorCategory,
   type CanvasColorTarget,
 } from '../editor/canvasColors'
-import { DEFAULT_BUSBAR_LABEL_COLOR } from '../editor/busbarLabels'
-import { isCoolingConnectionType } from '../editor/connectionAppearance'
+import { DEFAULT_BUSBAR_LABEL_COLOR } from '../scene/busbarLabels'
+import { isCoolingConnectionType } from '../scene/connectionAppearance'
 import {
   DEFAULT_BUSBAR_COLOR,
   defaultConnectionColor,
@@ -30,7 +30,7 @@ import {
   hsvToHex,
   isHexColor,
   normalizeHexColor,
-} from '../editor/objectColors'
+} from '../scene/objectColors'
 import {
   GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY,
   GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR,
@@ -38,7 +38,7 @@ import {
   GENERIC_SYMBOL_MIN_WIDTH,
   isGenericSymbolKey,
   resolvedGenericSymbolBackgroundColor,
-} from '../editor/genericSymbol'
+} from '../scene/genericSymbol'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
   symbolSupportsOnOffState,
@@ -49,7 +49,7 @@ import {
   symbolColorPropertyKey,
   symbolsByKey,
   type SymbolColorSlot,
-} from '../editor/symbolCatalog'
+} from '../scene/symbolCatalog'
 import { Button, NumericField, SelectField, TextField } from './ui'
 import { MonitorMetricsEditor } from './MonitorMetricsEditor'
 

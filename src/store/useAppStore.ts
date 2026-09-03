@@ -20,8 +20,8 @@ import {
   type RouteWaypoint,
   type SymbolAnchor,
 } from '../domain/project'
-import { symbolAssets } from '../editor/symbolCatalog'
-import { normalizeConnectionNetworks } from '../editor/connections'
+import { symbolAssets } from '../scene/symbolCatalog'
+import { normalizeConnectionNetworks } from '../scene/connections'
 
 interface AppState {
   document: ProjectDocument

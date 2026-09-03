@@ -46,8 +46,9 @@
 
 ## 最近同步
 
-- 2026-09-03：编辑画布与跨项目监控画布开始共用 `src/scene/DiagramScenePrimitives.tsx`；第一批统一图元主体、三类标签、母线基线、颜色/冷却滤镜、监控静态线路、桥面遮罩、管壳和方向箭头，编辑事件通过稳定 ref/children 注入，运行时入口仍不携带编辑命令。后续继续统一线路组装派生模型和母线 tap 等剩余静态表现，详见 KD-130。
-- 2026-09-03：跨项目 React 入口新增监控专用 `DiagramMonitorCanvas`，直接渲染 RuntimeView 的线路、图元、标签、点阵和流动动画，并保留下探选择及中键/空格/触控板视口手势；`DiagramRuntimeViewer`、`RuntimeBundleViewer` 与公开 ref 不再导入整套 `DiagramCanvas` 或编辑命令。当前产品内画布保持不变，后续继续收敛共享场景原语。详见 KD-129 和 `MONITOR_RUNTIME_ARCHITECTURE.md`。
+- 2026-09-03：完成共享场景与路由目录迁移：几何/视口、点阵、手势、线路表现、连接几何、三类标签布局、素材目录归入 `scene/`，正式路由调度、Worker 和 Hook 归入 `runtime/`；`runtime/scene/monitoring` 产品代码不再导入 `editor/`，旧路径保留兼容重导出。详见 KD-131。
+- 2026-09-03：编辑画布与监控画布共用 `DiagramScenePrimitives`、`connectionScene` 与纯数据 `flowPresentation`，统一图元主体、三类标签、母线基线/节点、颜色与冷却滤镜、线路渲染分组、最终显示路径、静态流动分组、桥面/管壳、方向箭头及相关拓扑派生。编辑事件继续通过稳定 ref/children 或画布包裹层注入，纯场景派生不加载 Three，运行时入口不携带编辑命令。详见 KD-130。
+- 2026-09-03：跨项目 React 入口和当前产品监控模式统一使用 `DiagramMonitorCanvas`，直接渲染 RuntimeView 的线路、图元、标签、点阵和流动动画，并保留下探选择及中键/空格/触控板视口手势；只有编辑模式实例化 `DiagramCanvas`。详见 KD-129 和 `MONITOR_RUNTIME_ARCHITECTURE.md`。
 - 2026-09-03：完成 RuntimeBundle v1 与独立 React 宿主入口：可从一张或多张入口图纸裁剪可校验运行时 JSON，携带下级子树、必要祖先、业务画布对象、已使用资产、On/Off 快照和冻结下探关系；`RuntimeBundleViewer` 支持宿主管理图纸、播放、运行态覆盖和数据 Provider。编辑 Store、历史、dirty、当前相机和随机读数不进入包，项目 Schema 保持 v33。详见 KD-128 和 `MONITOR_RUNTIME_ARCHITECTURE.md`。
 - 2026-09-03：建立 `src/runtime/` 监控运行时边界：完整项目可派生单图运行时视图，运行状态与下探关系收敛为统一上下文，指标和冷却数据支持 Provider 注入，监控拓扑从画布抽为 Hook，并提供只读 React 查看器入口。现有应用已反向使用核心边界，视觉、交互、项目 Schema 与模拟结果不变。详见 KD-127 和 `MONITOR_RUNTIME_ARCHITECTURE.md`。
 - 2026-09-03：编辑与监控主画布背景改为纯黑 `#000000`；WebGL 与 CSS 回退路径一致，现有自适应点状网格完整保留，全局主题和通用图元背景不变。详见 KD-126。

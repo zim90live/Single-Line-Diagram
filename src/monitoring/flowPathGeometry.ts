@@ -1,4 +1,4 @@
-import type { Point } from '../editor/geometry'
+import type { Point } from '../scene/geometry'
 
 function projectedDistanceAlongPolyline(points: Point[], target: Point) {
   let accumulated = 0

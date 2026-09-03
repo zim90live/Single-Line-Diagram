@@ -27,8 +27,8 @@ import {
   isAutomaticAnchorName,
   type AnchorPoint,
 } from '../editor/anchors'
-import { GRID_DOT_SCREEN_RADIUS } from '../editor/gridScale'
-import { symbolCatalog, symbolsByKey } from '../editor/symbolCatalog'
+import { GRID_DOT_SCREEN_RADIUS } from '../scene/gridScale'
+import { symbolCatalog, symbolsByKey } from '../scene/symbolCatalog'
 import { SymbolBrowser } from './SymbolBrowser'
 import { IconButton, SelectField, TextField } from './ui'
 

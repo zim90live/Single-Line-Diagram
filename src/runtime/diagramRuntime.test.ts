@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultProject, type ConnectionNetwork } from '../domain/project'
-import { symbolAssets } from '../editor/symbolCatalog'
+import { symbolAssets } from '../scene/symbolCatalog'
 import {
   createDiagramRuntimeView,
   routeWaypointsForNetworks,

@@ -6,7 +6,7 @@
 
 为未来把监控模式和选定图纸接入另一个 React 项目建立稳定边界，同时保持当前编辑器的视觉、交互、线路算法、存储格式和运行结果不变。
 
-当前阶段已经把“监控能力从哪里进入、依赖什么数据、如何替换数据源”收敛为公共边界，并以约 1.7 千行的监控专用场景替代跨项目入口对 8 千行级编辑画布的依赖；仍不提前定义尚未确认的部署、遥测协议和跨仓库发布方式。
+当前阶段已经把“监控能力从哪里进入、依赖什么数据、如何替换数据源”收敛为公共边界，并以监控专用场景替代跨项目入口和当前产品监控模式对 8 千行级编辑画布的依赖。共享场景、连接、标签、素材与路由实现已完成目录级解耦；仍不提前定义尚未确认的部署、遥测协议和跨仓库发布方式。
 
 ## 当前分层
 
@@ -14,9 +14,10 @@
 | --- | --- | --- |
 | 项目领域 | `src/domain/` | 版本化项目文档、图纸、图元、母线和连接网络模型 |
 | 监控算法 | `src/monitoring/` | 电力/冷却拓扑、运行指标规则、流动路径与 WebGL 动画实现 |
-| 运行时核心 | `src/runtime/` | 当前图纸切片、运行态上下文、数据 Provider、监控拓扑 Hook、监控专用 React 画布与公共导出入口 |
-| 编辑器适配 | `src/editor/DiagramCanvas.tsx` | 编辑手势、路由预览和当前 SVG/WebGL 组合渲染；通过运行时上下文消费监控能力 |
-| 应用壳 | `src/App.tsx` | 模式切换、层级导航、存储和属性面板；通过运行时工厂取得当前图纸，不再自行拼装监控切片 |
+| 共享场景 | `src/scene/` | 几何/视口、素材、标签、连接几何、静态场景派生与共享 SVG/WebGL 表现原语 |
+| 运行时核心 | `src/runtime/` | 当前图纸切片、运行态上下文、数据 Provider、正式路由 Worker/Hook、监控专用 React 画布与公共导出入口 |
+| 编辑器适配 | `src/editor/DiagramCanvas.tsx` | 编辑手势、路由预览、选择/变换和属性写回；通过共享场景与运行时接口消费基础能力 |
+| 应用壳 | `src/App.tsx` | 模式切换、层级导航、存储和属性面板；编辑模式挂载编辑画布，监控模式挂载专用监控画布 |
 
 ## 已建立的公共边界
 
@@ -70,13 +71,27 @@
 
 它不包含选择框、变换手柄、素材拖放、接线、线路改道、剪贴板、撤销历史、属性写回或 dirty。`runtime/react.ts` 的模块边界测试会拒绝重新导入 `DiagramCanvas` 或 `EditorCommandState`。
 
-当前应用壳仍继续用原 `DiagramCanvas` 的监控分支，避免在本轮替换用户已经使用的产品内画面；外部 React/RuntimeBundle 入口使用新画布。两者共享领域模型、路由/几何算法、标签布局、素材、CSS、监控拓扑和动画实现；第一批静态 JSX 已进一步收敛到共享场景表现原语，剩余线路组装派生模型、母线 tap 等静态表现继续分批统一。
+当前应用壳、外部 React 入口和 RuntimeBundle 入口均使用 `DiagramMonitorCanvas`；只有编辑模式实例化 `DiagramCanvas`。两条画布共享领域模型、路由/几何算法、标签布局、素材、CSS、监控拓扑和动画实现，静态 JSX 与线路显示派生收敛到共享场景原语和纯数据场景模型，因此产品内与跨项目监控不再维护两套渲染路径。
 
 ### `DiagramScenePrimitives`
 
-`src/scene/DiagramScenePrimitives.tsx` 是编辑画布和监控专用画布共同使用的无状态 SVG 表现层。第一批覆盖普通图片/通用框图元主体、三类标签及指标行、母线基线、Symbol 颜色滤镜、冷却管内阴影滤镜、监控静态线路、桥面双层遮罩、冷却管壳和线路方向箭头。它只消费派生后的布局、路径与运行状态；编辑锚点通过 children 注入，标签拖动通过稳定 ref 注入，因此不会把 Store、历史、dirty、接线或下探策略带入共享层。
+`src/scene/DiagramScenePrimitives.tsx` 是编辑画布和监控专用画布共同使用的无状态 SVG 表现层。它覆盖普通图片/通用框图元主体、三类标签及指标行、母线基线与母线节点、Symbol 颜色滤镜、冷却管内阴影滤镜、监控静态线路、桥面双层遮罩、冷却管壳和线路方向箭头。它只消费业务对象或派生后的布局、路径与运行状态；编辑锚点通过 children 注入，标签拖动和母线节点颜色预览通过稳定 ref 注入，节点交互手柄由编辑画布包裹，因此不会把 Store、历史、dirty、接线或下探策略带入共享层。
 
-模块守卫要求两个画布都引用该共享入口，并继续禁止运行时 React 入口导入 `DiagramCanvas` 或 `EditorCommandState`。当前共享层仍引用 `editor/` 下的纯布局/几何/素材模块，这是目录归属待迁移项，不代表重新依赖编辑画布。
+### `connectionScene` 与 `flowPresentation`
+
+`src/scene/connectionScene.ts` 是两条画布共同使用的纯线路场景模型，负责稳定渲染分组、最终带桥显示路径、冷却管壳、监控静态线、桥下动画排除、冷却节点与连接锚点集合。编辑画布可以传入既有缓存复用路径和管壳对象；监控专用画布使用相同算法但不持有编辑缓存，避免两份派生逻辑逐渐漂移。
+
+`src/monitoring/flowPresentation.ts` 承载静态流动常量、类型、无流量压暗颜色和静态线路分组，不依赖 React、Three.js 或 React Three Fiber。`FlowAnimationLayer.tsx` 保留 WebGL 几何与渲染组件，并重导出原公共符号保持现有调用兼容。由此核心或纯场景消费者不会因为需要线路静态分组而加载 WebGL 运行时。
+
+### 场景与路由基础模块
+
+`src/scene/geometry.ts`、`gridScale.ts`、`wheelGestures.ts`、`connectionAppearance.ts`、`connectionCrossingOrder.ts`、`objectColors.ts` 和 `genericSymbol.ts` 分别承载二维几何/视口、点阵密度、输入设备分类、线路外观、跨线排序、颜色及通用图元计算。`connections.ts`、`elementLabels.ts`、`busbarLabels.ts`、`connectionLabels.ts` 与 `symbolCatalog.ts` 负责连接/正式路由算法、三类标签布局和素材目录。它们只依赖领域类型或其他纯场景模块，不依赖 `editor/`、React 或 Three。`src/scene/GridSurface.tsx` 是明确的 WebGL 表现层，负责点阵 Shader，因此允许依赖 React Three Fiber 与 Three.js。
+
+正式 latest-wins 路由调度位于 `src/runtime/routeEngine.ts`，Worker 位于 `src/runtime/route.worker.ts`，React 路由快照 Hook 位于 `src/runtime/useRoutedConnections.ts`。监控画布不再通过编辑目录取得 Worker、调度器或 Hook。
+
+原 `editor/` 同名入口保留兼容重导出，`editor/geometry.ts` 只额外保留选择平移这类编辑专属纯变换。监控画布、共享场景和产品代码直接引用 `scene/` / `runtime/` 实现，避免目录级依赖图把基础能力误归入编辑器。
+
+模块守卫要求两个画布引用共享场景入口，禁止运行时 React 入口导入 `DiagramCanvas` 或 `EditorCommandState`，并禁止 `src/runtime/`、`src/scene/`、`src/monitoring/` 的产品实现反向导入 `editor/`。当前应用入口还会检查编辑画布固定为编辑模式、监控工作区使用专用画布。
 
 纯数据与 Provider 公共入口从 `src/runtime/index.ts` 导出；React 查看器和监控专用画布从 `src/runtime/react.ts` 单独导出。核心消费者不会因为只导入图纸切片或状态函数而把 React、Three.js 或 React Three Fiber 加入依赖图；React 监控消费者会加载 Three.js 动画和点阵，但不会加载整套编辑画布。
 
@@ -150,19 +165,20 @@ const bundle = parseDiagramRuntimeBundle(await file.text())
 
 示例中的导入路径取决于后续选择工作区包、私有包或代码同步方式。当前 v1 的资产 `source` 是元数据路径，不是内嵌资源；目标项目必须同时获得当前运行时素材目录，或在后续 v2 接入资产解析/内嵌方案。
 
-## 后续拆分顺序
+## 后续交付顺序
 
-1. 在已共享图元、标签、母线基线、滤镜、静态线、桥面/管壳和方向箭头的基础上，继续统一线路组装派生模型、母线 tap 等剩余静态表现；验证后再让当前 `App` 使用专用画布。
-2. 把仍位于 `editor/` 的无状态路由、连接几何、标签布局、素材解析和视口手势迁入共享 `scene/` 或 `runtime/`，形成目录级独立边界。
-3. 为 RuntimeBundle 增加宿主资产 URL 解析器或可选 SVG/PNG 内嵌策略，并按兼容规则升级独立格式版本。
-4. 将 `src/runtime` 发布为工作区包或私有包，并接入目标项目 Router、素材部署与真实数据 Provider。
-5. 在目标项目复验图纸下探、播放/暂停、泵阀/Switch 状态、指标刷新和大图性能；必要时再增加带算法版本的派生路由快照。
+1. 为 RuntimeBundle 增加宿主资产 URL 解析器或可选 SVG/PNG 内嵌策略，并按兼容规则升级独立格式版本。
+2. 将 `src/runtime` 与所需 `scene/monitoring/domain` 入口发布为工作区包或私有包，明确 peer dependency 与样式交付方式。
+3. 接入目标项目 Router、素材部署与真实数据 Provider。
+4. 在目标项目复验图纸下探、播放/暂停、泵阀/Switch 状态、指标刷新和大图性能；必要时再增加带算法版本的派生路由快照。
 
 ## 本阶段验收边界
 
 - 现有编辑与监控模式的可见行为不变化；
 - 现有应用实际消费运行时视图和上下文，而不是保留两套并行拼装逻辑；
+- 当前应用与跨项目入口统一使用监控专用画布；
 - 跨项目 React 入口不导入编辑画布或编辑命令类型；
+- 运行时、共享场景和监控算法产品代码不反向导入编辑目录；
 - 默认模拟数据、泵阀状态、电力外部供电、图元下探和动画拓扑结果保持；
 - 类型检查、单元/组件测试和生产构建通过；
 - 项目 Schema 保持 v33，旧项目和场景归档无需迁移。

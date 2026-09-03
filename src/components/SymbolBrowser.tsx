@@ -1,7 +1,7 @@
 import { PencilLine, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { symbolCatalog } from '../editor/symbolCatalog'
+import { symbolCatalog } from '../scene/symbolCatalog'
 import { IconButton, TextField } from './ui'
 
 interface SymbolBrowserProps {

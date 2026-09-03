@@ -1,7 +1,7 @@
 import {
   routeConnectionNetworksIncrementally,
   type RoutedConnections,
-} from './connections'
+} from '../scene/connections'
 import type { RouteComputationInput, RouteJob, RouteJobResult } from './routeEngine'
 
 const workerScope = globalThis as unknown as {

@@ -1202,7 +1202,7 @@
 - 日期：2026-09-03
 - 背景：当前项目未来需要把选定图纸、监控下探、动画播放和数据模拟迁移到另一个 React 项目，但监控输入、拓扑派生和当前图纸切片此前分散在 `App.tsx` 与 8 千行级 `DiagramCanvas.tsx` 中。直接复制画布会同时带走编辑 Store、历史、交互和存储职责，也难以把模拟数据替换为目标项目真实数据。
 - 决策：新增 `src/runtime/` 作为监控复用公共边界。完整 `ProjectDocument` 通过纯函数派生 `DiagramRuntimeView`，运行控制与下探关系收敛为 `DiagramRuntimeContext`；指标数据支持快照、订阅或轮询 Provider，冷却 Provider 继续可注入；电力/冷却拓扑和流量指标覆盖由统一 Hook 派生。现有 `App` 与 `DiagramCanvas` 必须反向消费这些核心接口，同时提供监控只读 `DiagramRuntimeViewer` React 入口。纯核心从 `runtime/index.ts` 导出，React 查看器从 `runtime/react.ts` 独立导出，避免只使用核心函数时加载 Three.js 和整套画布。
-- 迁移边界：本阶段查看器仍复用现有画布监控路径，以保证静态 SVG、WebGL 动画、标签、线路和下探结果不变；不在本轮独立发布 npm 包、不定义真实遥测协议、不生成跨仓库 RuntimeBundle，也不搬动编辑手势和线路路由。下一阶段先抽只读场景渲染，再清理 runtime core 对编辑几何的剩余依赖，最后定义版本化图纸/资产导出包。
+- 阶段界定：本决策建立边界时先复用原画布监控路径，未同时定义部署、真实遥测协议和跨仓库发布方式。随后 KD-128 已补齐版本化 RuntimeBundle，KD-129 至 KD-131 已完成只读场景、共享场景/路由目录解耦及当前 `App` 切换；独立发布和真实遥测协议仍保留为后续交付事项。
 - 影响：另一个 React 宿主未来可把图纸选择、播放、导航与数据源接到明确接口，不需要依赖 Zustand、IndexedDB、dirty 或撤销历史。默认 30 秒指标模拟、泵阀模拟、外部供电、下探和动画拓扑保持；缩放/平移、当前随机读数与 Three.js 临时对象仍不持久化或导出。无可见界面与项目字段变化，Schema 保持 v33。详细约束见 `MONITOR_RUNTIME_ARCHITECTURE.md`。
 
 ## KD-128：跨项目监控交付采用独立版本的 RuntimeBundle
@@ -1213,7 +1213,7 @@
 - 决策：新增格式标识为 `aidc-diagram-runtime`、格式版本独立为 v1 的 `DiagramRuntimeBundle`。导出时显式选择一张或多张入口图纸，保留其完整下级子树、到线路根的必要祖先以及当前项目 Schema 要求的冷却/电力两个结构根；只有入口子树和必要祖先携带图元、母线和连接网络，另一结构根不夹带画布内容。包内只保留实际图元使用的资产定义，将当前 Switch、2WV、CV 会话状态写成图元 `onOffState` 快照，并冻结每张保留图纸的图元下探映射。格式校验同时检查来源项目元数据、入口、来源图元、目标图纸与目标名称的一致性；序列化、解析、浏览器下载和从包恢复单图运行时视图均使用同一 Zod 契约。
 - 宿主边界：React 入口新增 `RuntimeBundleViewer`，可由宿主受控指定当前图纸，也可从首个入口开始自行管理下探；播放状态、运行态覆盖、指标/冷却 Provider、图纸变化和选择回调由宿主传入。纯数据接口继续只从 `runtime/index.ts` 导出，React 入口从 `runtime/react.ts` 导出，避免仅处理 JSON 时引入 React、Three.js 与画布代码。
 - 排除与资产策略：运行时包不携带编辑选择、撤销历史、dirty、属性草稿、当前会话相机、随机指标读数、Provider 实例或 Three.js/R3F 对象；项目级 `extensions` 在 v1 中清空。图纸 Schema 要求的画布默认视口字段仍存在，但不是当前平移/缩放会话。v1 资产只携带稳定键、尺寸、锚点和源路径元数据，不内嵌 SVG/PNG 字节；当前查看器继续使用随运行时代码发布的素材目录。真正跨仓库部署前仍需增加资产 URL 解析器或内嵌资产策略。
-- 影响：另一个 React 宿主可以先导入一个自描述、可拒绝损坏引用的 JSON 包，再独立接入 Router、播放控制与真实数据源；编辑 Store、IndexedDB 与保存状态不进入新边界。当前 `RuntimeBundleViewer` 仍桥接既有 `DiagramCanvas` 监控路径，不等于只读渲染器已经独立发布。项目数据结构和存档继续保持 Schema v33，RuntimeBundle 版本单独演进。本决策仅取代 KD-127 中“本阶段不生成 RuntimeBundle”及原后续顺序，KD-127 的运行时分层与兼容约束继续有效。
+- 影响：另一个 React 宿主可以先导入一个自描述、可拒绝损坏引用的 JSON 包，再独立接入 Router、播放控制与真实数据源；编辑 Store、IndexedDB 与保存状态不进入新边界。KD-129 已让 `RuntimeBundleViewer` 使用独立只读画布，KD-131 已完成其场景与路由目录解耦。项目数据结构和存档继续保持 Schema v33，RuntimeBundle 版本单独演进。本决策仅取代 KD-127 中“本阶段不生成 RuntimeBundle”及原后续顺序，KD-127 的运行时分层与兼容约束继续有效。
 
 ## KD-129：跨项目 React 入口使用监控专用画布
 
@@ -1221,16 +1221,24 @@
 - 日期：2026-09-03
 - 背景：KD-127/KD-128 虽已建立运行时视图、Bundle 和 React 宿主，但 `DiagramRuntimeViewer` 仍直接实例化 8 千行级 `DiagramCanvas`。目标项目因此会同时加载编辑选择、历史、剪贴板、拖放、接线、变换和属性命令，即使监控场景永远不会使用这些能力；公开 ref 也暴露了大量无意义的编辑命令。这仍然是代码迁移和长期依赖边界上的主要障碍。
 - 决策：新增 `DiagramMonitorCanvas` 作为跨项目专用只读场景，直接消费 `DiagramRuntimeView` 与 `DiagramRuntimeContext`。它只保留正式线路路由、视口裁剪、图元/母线/线路/标签 SVG、WebGL 点阵与流动动画、监控下探、可控运行对象选择，以及鼠标中键、空格+左键、触控板双指平移/捏合和鼠标滚轮缩放。公开 ref 收敛为 `zoomIn / zoomOut / zoomReset`；React 查看器不再导入 `DiagramCanvas`、`EditorCommandState`、编辑历史或编辑写回回调，并用自动化模块边界守卫阻止回退。
-- 兼容策略：当前产品内的 `App` 暂时继续使用既有 `DiagramCanvas` 监控分支，避免本轮改变已验收画面和操作；RuntimeBundle/外部 React 入口改用新场景。两条路径继续共享项目领域模型、正式路由 Worker、连接几何、标签布局、素材目录、监控拓扑 Hook、CSS Token 和 WebGL 动画实现。新场景没有编辑 Store、IndexedDB、dirty、历史、复制、接线或属性写入能力。
-- 影响与后续：跨项目入口的模块图不再包含整套编辑画布，迁移目标可以只携带运行时 React 场景和其纯几何/监控依赖。当前 `DiagramMonitorCanvas` 仍从 `editor/` 复用无状态路由、几何、标签、素材和视口工具；这些模块不包含编辑 Store，但目录归属仍需后续迁入共享 `scene/` 或 `runtime/`。产品内旧监控分支与新场景存在表现漂移风险，下一阶段应提取共享场景表现模型/图元原语，再考虑让当前 `App` 也切换到专用画布。项目 Schema 与 RuntimeBundle v1 均不改变。本决策取代 KD-128 中“RuntimeBundleViewer 仍桥接 DiagramCanvas”的实现状态，KD-128 的 Bundle 契约继续有效。
+- 兼容策略：RuntimeBundle、外部 React 入口和当前产品 `App` 的监控模式统一使用新场景；`App` 仅在编辑模式实例化 `DiagramCanvas`。编辑画布与监控画布共享项目领域模型、正式路由、连接几何、标签布局、素材目录、CSS Token 和 WebGL 动画实现；新场景没有编辑 Store、IndexedDB、dirty、历史、复制、接线或属性写入能力。
+- 影响与后续：跨项目入口的模块图不再包含整套编辑画布；当前产品因同时提供编辑模式，主应用包仍包含两条画布，但监控模式组件树不再实例化编辑画布，从而避免双监控渲染路径长期漂移。KD-130/KD-131 已把共享表现、场景算法、素材目录及路由基础迁入 `scene/` / `runtime/`，运行时与场景产品代码对 `editor/` 的直接依赖为零。项目 Schema 与 RuntimeBundle v1 均不改变；剩余工作是资产交付、包发布和目标项目集成，不再属于画布解耦。本决策取代 KD-128 中“RuntimeBundleViewer 仍桥接 DiagramCanvas”的实现状态，KD-128 的 Bundle 契约继续有效。
 
 ## KD-130：编辑与跨项目监控画布共用无状态场景原语
 
-- 状态：已接受并实现（第一批）
+- 状态：已接受并实现
 - 日期：2026-09-03
 - 背景：KD-129 已让跨项目入口脱离编辑画布，但新旧画布分别复制了图元主体、标签、颜色滤镜、冷却管滤镜和监控静态线路的 SVG。任何一侧单独修改 class、状态属性、滤镜或文字结构都会造成产品内监控与外部 React 查看器表现漂移。
-- 决策：新增 `src/scene/DiagramScenePrimitives.tsx`，由 `DiagramCanvas` 与 `DiagramMonitorCanvas` 同时消费。第一批共享普通图片/通用框图元主体、图元/母线/子线标签及指标行、母线基线、Symbol 颜色滤镜、冷却管内阴影滤镜、监控静态线路、桥面双层遮罩、冷却管壳和线路方向箭头。共享组件只接收已经派生的布局、路径、状态、颜色和可选事件 ref，不读取 Store、不产生历史、不写项目、不持有 dirty，也不决定编辑/监控业务行为；编辑锚点通过 children 注入，标签拖动通过稳定 ref 注入，监控下探与运行对象选择继续由各自画布处理。
-- 影响与后续：上述静态 DOM、class、状态属性和滤镜以后只有一个实现源，编辑端的标签 memo 边界与稳定回调继续保留，运行时入口仍不依赖 `DiagramCanvas` 或 `EditorCommandState`。`src/scene` 当前仍引用位于 `editor/` 的无状态布局、几何和素材模块，后续应迁移这些纯模块并继续收敛线路组装派生模型、母线 tap 等剩余静态表现；本阶段不替换当前 App 的画布，不改变项目 Schema、RuntimeBundle v1、存档或可见交互。
+- 决策：新增 `src/scene/DiagramScenePrimitives.tsx`，由 `DiagramCanvas` 与 `DiagramMonitorCanvas` 同时消费。共享普通图片/通用框图元主体、图元/母线/子线标签及指标行、母线基线与母线节点、Symbol 颜色滤镜、冷却管内阴影滤镜、监控静态线路、桥面双层遮罩、冷却管壳和线路方向箭头。新增纯数据 `src/scene/connectionScene.ts`，统一两条画布的线路渲染分组、最终显示路径、冷却管壳、静态监控线路、桥下动画排除、冷却节点与连接锚点派生；静态流动常量、类型、压暗颜色和分组算法进一步拆到不依赖 React/Three 的 `src/monitoring/flowPresentation.ts`，`FlowAnimationLayer` 只保留 WebGL 几何与组件并兼容重导出原公共符号。共享层只接收业务对象或已经派生的布局、路径、状态、颜色和可选事件 ref，不读取 Store、不产生历史、不写项目、不持有 dirty，也不决定编辑/监控业务行为；编辑锚点、节点手柄通过 children 或画布包裹层注入，标签拖动与母线颜色预览通过稳定 ref 注入，监控下探与运行对象选择继续由各自画布处理。
+- 影响与后续：静态 DOM、class、状态属性、滤镜与线路显示派生以后只有一个实现源，编辑端的标签 memo 边界、节点交互和稳定回调继续保留，运行时入口仍不依赖 `DiagramCanvas` 或 `EditorCommandState`；纯线路场景派生也不会因复用静态流动分组而加载 Three.js / React Three Fiber。KD-131 已完成标签、连接、素材与正式路由依赖迁移，当前 `App` 的监控模式也已使用专用画布。项目 Schema、RuntimeBundle v1、存档和业务交互不改变。
+
+## KD-131：共享场景与路由能力脱离 `editor/` 并保留兼容入口
+
+- 状态：已接受并实现
+- 日期：2026-09-03
+- 背景：共享场景原语和跨项目监控画布虽然已经与编辑命令解耦，但几何/视口、点阵密度、手势分类、线路外观、跨线排序、颜色和通用图元等纯能力的实现仍位于 `editor/`。这会让目标 React 项目的依赖图在目录层面看似继续依赖编辑器，也增加未来拆包时误带编辑代码的风险。
+- 决策：把二维几何与视口、点阵密度、滚轮/触控板分类、线路外观、跨线排序、颜色、通用图元、连接几何、图元/母线/子线标签布局和素材目录实现迁入 `src/scene/`；WebGL 点阵 `GridSurface` 也归入场景层。正式 latest-wins 路由调度、Worker 与 `useRoutedConnections` 迁入 `src/runtime/`。监控、共享场景和产品代码直接引用新入口；原 `editor/` 同名文件保留兼容重导出，`editor/geometry.ts` 只继续承载选择平移等编辑专属变换。模块守卫要求纯场景实现不得反向导入 `editor/`、React、Three.js 或 React Three Fiber，`GridSurface` 是明确的 WebGL 表现层例外；运行时路由不得反向导入编辑器。
+- 影响与后续：`src/runtime/`、`src/scene/` 和 `src/monitoring/` 的产品代码不再直接导入 `editor/`；当前 `App` 在监控模式改用 `DiagramMonitorCanvas`，编辑模式才加载 `DiagramCanvas`。迁移不改变算法、导出名、画面语义、手势、Schema v33、RuntimeBundle v1 或持久化，旧内部导入仍可通过兼容入口工作。后续只需决定 RuntimeBundle 资产 URL/内嵌策略、包发布方式并在目标 React 项目做集成验证。
 
 ## 决策模板
 

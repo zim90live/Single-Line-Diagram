@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createDefaultProject } from '../domain/project'
-import { symbolAssets } from '../editor/symbolCatalog'
+import { symbolAssets } from '../scene/symbolCatalog'
 import {
   DiagramMonitorCanvas,
   type DiagramMonitorCanvasHandle,
@@ -26,7 +26,7 @@ vi.mock('../monitoring/FlowAnimationLayer', async (importOriginal) => {
   }
 })
 
-vi.mock('../editor/useRoutedConnections', () => ({
+vi.mock('./useRoutedConnections', () => ({
   useRoutedConnections: () => ({
     routed: {
       edges: [{

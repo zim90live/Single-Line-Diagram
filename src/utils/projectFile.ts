@@ -1,5 +1,5 @@
 import { parseProjectDocument, type ProjectDocument } from '../domain/project'
-import { symbolAssets } from '../editor/symbolCatalog'
+import { symbolAssets } from '../scene/symbolCatalog'
 
 export function serializeProject(document: ProjectDocument) {
   return JSON.stringify(document, null, 2)

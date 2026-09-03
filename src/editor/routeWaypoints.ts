@@ -4,7 +4,7 @@ import type {
 } from '../domain/project'
 import { routeWaypointsForNetworks } from '../runtime/diagramRuntime'
 import { snap, type Point, type Rect } from './geometry'
-import { compactOrthogonalPoints, type RoutedConnectionEdge } from './connections'
+import { compactOrthogonalPoints, type RoutedConnectionEdge } from '../scene/connections'
 
 export { routeWaypointsForNetworks } from '../runtime/diagramRuntime'
 

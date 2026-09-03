@@ -16,7 +16,7 @@ import {
   resolveElementAnchor,
   type ConnectionTerminal,
   type RoutedConnectionEdge,
-} from './connections'
+} from '../scene/connections'
 import type { Point } from './geometry'
 import { garbageCollectRouteWaypoints } from './routeWaypoints'
 

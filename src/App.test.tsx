@@ -92,6 +92,60 @@ vi.mock('./editor/DiagramCanvas', () => ({
   }),
 }))
 
+vi.mock('./runtime/DiagramMonitorCanvas', () => ({
+  DiagramMonitorCanvas: forwardRef(function MockDiagramMonitorCanvas(
+    props: Record<string, unknown>,
+    ref: Ref<unknown>,
+  ) {
+    const runtime = props.runtime as {
+      navigation?: Record<string, unknown>
+    } | undefined
+    const firstDrillDownElementId = Object.keys(runtime?.navigation ?? {})[0]
+    useImperativeHandle(ref, () => ({
+      zoomIn: vi.fn(),
+      zoomOut: vi.fn(),
+      zoomReset: vi.fn(),
+    }))
+    return (
+      <div
+        data-testid="diagram-monitor-canvas"
+        data-mode="monitor"
+        data-animation-playing={String(props.animationPlaying)}
+      >
+        监控画布
+        <button
+          type="button"
+          onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['switch-test'])}
+        >
+          选择测试 Switch
+        </button>
+        <button
+          type="button"
+          onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['2-wv-test'])}
+        >
+          选择测试 2WV
+        </button>
+        <button
+          type="button"
+          onClick={() => (props.onSelectionChange as (ids: string[]) => void)(['pump-test'])}
+        >
+          选择测试水泵
+        </button>
+        {firstDrillDownElementId ? (
+          <button
+            type="button"
+            onClick={() => (props.onElementDrillDown as (elementId: string) => void)(
+              firstDrillDownElementId,
+            )}
+          >
+            下探测试图元
+          </button>
+        ) : null}
+      </div>
+    )
+  }),
+}))
+
 function renderApp() {
   return render(<App />)
 }
@@ -381,13 +435,16 @@ describe('AIDC editor workspace', () => {
 
     await user.click(screen.getByRole('tab', { name: '监控模式' }))
 
-    expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-mode', 'monitor')
+    expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-mode', 'monitor')
     expect(screen.getByLabelText('项目名称')).toBeDisabled()
     expect(screen.queryByText('CHWP')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '播放流动' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '播放流动' }))
-    expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-animation-playing', 'true')
+    expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute(
+      'data-animation-playing',
+      'true',
+    )
 
     await user.click(screen.getByRole('button', { name: '选择测试 Switch' }))
     await user.click(screen.getByRole('switch', { name: '开关状态' }))

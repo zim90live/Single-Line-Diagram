@@ -4,8 +4,8 @@ import type {
   ConnectionNode,
   DiagramElement,
 } from '../domain/project'
-import { busbarPoint } from '../editor/connections'
-import type { Point } from '../editor/geometry'
+import { busbarPoint } from '../scene/connections'
+import type { Point } from '../scene/geometry'
 
 export const POWER_SOURCE_ASSET_KEYS = new Set(['grid', 'generator', 'battery'])
 export const POWER_TARGET_ASSET_KEYS = new Set(['compute-pod', 'power-pod', 'fm'])

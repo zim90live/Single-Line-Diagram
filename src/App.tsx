@@ -39,6 +39,7 @@ import {
   type ConnectionNetwork,
   type CoolingDeviceRole,
   type DiagramElement,
+  type DiagramViewport,
   type RouteWaypoint,
 } from './domain/project'
 import {
@@ -48,13 +49,17 @@ import {
   type CanvasMode,
 } from './editor/DiagramCanvas'
 import { getAnchorTypeLabel } from './editor/anchors'
-import { getAdaptiveGridScale } from './editor/gridScale'
-import { symbolAssets } from './editor/symbolCatalog'
+import { getAdaptiveGridScale } from './scene/gridScale'
+import { symbolAssets } from './scene/symbolCatalog'
 import {
   DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT,
   clampCoolingPumpOutputPower,
 } from './monitoring/coolingRuntime'
 import { createDiagramRuntimeView } from './runtime/diagramRuntime'
+import {
+  DiagramMonitorCanvas,
+  type DiagramMonitorCanvasHandle,
+} from './runtime/DiagramMonitorCanvas'
 import {
   createDiagramRuntimeState,
   evaluateCoolingRuntime,
@@ -164,6 +169,7 @@ function ConfirmDialog({ request, onClose }: { request: ConfirmRequest; onClose:
 
 export default function App() {
   const editorRef = useRef<DiagramCanvasHandle>(null)
+  const monitorRef = useRef<DiagramMonitorCanvasHandle>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const monitorStateRevisionRef = useRef(0)
   const monitorStateWriteRevisionsRef = useRef<Record<string, number>>({})
@@ -177,6 +183,7 @@ export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
   const [animationPlaying, setAnimationPlaying] = useState(false)
+  const [monitorZoom, setMonitorZoom] = useState(1)
   const [onOffStates, setOnOffStates] = useState<Record<string, boolean>>({})
   const [coolingPumpRunningStates, setCoolingPumpRunningStates] = useState<Record<string, boolean>>({})
   const [coolingPumpOutputPowerStates, setCoolingPumpOutputPowerStates] = useState<Record<string, number>>({})
@@ -316,6 +323,9 @@ export default function App() {
     setSelectedElementIds([])
     setCurrentDiagram(target.diagramId)
   }, [runtime.navigation, setCurrentDiagram, setSelectedElementIds])
+  const handleMonitorViewportChange = useCallback((viewport: DiagramViewport) => {
+    setMonitorZoom(viewport.zoom)
+  }, [])
 
   const handleCreateDiagram = useCallback((parentId: string) => {
     const result = createDiagram(parentId)
@@ -746,27 +756,41 @@ export default function App() {
           aria-label={`${currentDiagram.name}${workspaceMode === 'edit' ? '编辑区' : '监控区'}`}
         >
           <div className="canvas-frame">
-            <DiagramCanvas
-              ref={editorRef}
-              mode={workspaceMode}
-              animationPlaying={animationPlaying}
-              runtime={runtime}
-              diagramId={currentDiagramId}
-              lineSystemType={currentLine?.type ?? 'cooling'}
-              documentEpoch={documentEpoch}
-              gridSize={currentDiagram.canvas.gridSize}
-              viewport={currentDiagram.canvas.viewport}
-              assets={document.assets}
-              elements={currentElements}
-              busbars={currentBusbars}
-              connections={currentConnections}
-              routeWaypoints={currentRouteWaypoints}
-              onDiagramChange={handleDiagramChange}
-              onSelectionChange={setSelectedElementIds}
-              onElementDrillDown={handleMonitorElementDrillDown}
-              onCommandStateChange={setCommandState}
-              onActionMessage={showToast}
-            />
+            {workspaceMode === 'edit' ? (
+              <DiagramCanvas
+                ref={editorRef}
+                mode="edit"
+                animationPlaying={false}
+                runtime={runtime}
+                diagramId={currentDiagramId}
+                lineSystemType={currentLine?.type ?? 'cooling'}
+                documentEpoch={documentEpoch}
+                gridSize={currentDiagram.canvas.gridSize}
+                viewport={currentDiagram.canvas.viewport}
+                assets={document.assets}
+                elements={currentElements}
+                busbars={currentBusbars}
+                connections={currentConnections}
+                routeWaypoints={currentRouteWaypoints}
+                onDiagramChange={handleDiagramChange}
+                onSelectionChange={setSelectedElementIds}
+                onElementDrillDown={handleMonitorElementDrillDown}
+                onCommandStateChange={setCommandState}
+                onActionMessage={showToast}
+              />
+            ) : (
+              <DiagramMonitorCanvas
+                ref={monitorRef}
+                view={runtimeView!}
+                runtime={runtime}
+                animationPlaying={animationPlaying}
+                documentEpoch={documentEpoch}
+                viewport={currentDiagram.canvas.viewport}
+                onSelectionChange={setSelectedElementIds}
+                onElementDrillDown={handleMonitorElementDrillDown}
+                onViewportChange={handleMonitorViewportChange}
+              />
+            )}
             <div className="canvas-titlebar" aria-label="画布信息与导航">
               <IconButton
                 className="canvas-back-button"
@@ -826,11 +850,30 @@ export default function App() {
               )}
             </div>
             <div className="canvas-zoom-controls" aria-label="画布缩放">
-              <IconButton label="缩小画布" icon={<Minus />} onClick={() => editorRef.current?.zoomOut()} />
-              <button type="button" className="zoom-readout" aria-label="重置画布缩放" onClick={() => editorRef.current?.zoomReset()}>
-                {Math.round(commandState.zoom * 100)}%
+              <IconButton
+                label="缩小画布"
+                icon={<Minus />}
+                onClick={() => workspaceMode === 'edit'
+                  ? editorRef.current?.zoomOut()
+                  : monitorRef.current?.zoomOut()}
+              />
+              <button
+                type="button"
+                className="zoom-readout"
+                aria-label="重置画布缩放"
+                onClick={() => workspaceMode === 'edit'
+                  ? editorRef.current?.zoomReset()
+                  : monitorRef.current?.zoomReset()}
+              >
+                {Math.round((workspaceMode === 'edit' ? commandState.zoom : monitorZoom) * 100)}%
               </button>
-              <IconButton label="放大画布" icon={<Plus />} onClick={() => editorRef.current?.zoomIn()} />
+              <IconButton
+                label="放大画布"
+                icon={<Plus />}
+                onClick={() => workspaceMode === 'edit'
+                  ? editorRef.current?.zoomIn()
+                  : monitorRef.current?.zoomIn()}
+              />
             </div>
             {currentElements.length === 0 && currentBusbars.length === 0 ? (
               <div className="canvas-empty-guide" aria-hidden="true">
@@ -840,7 +883,10 @@ export default function App() {
             ) : null}
             <footer className="status-bar">
               <span>
-                网格 {getAdaptiveGridScale(currentDiagram.canvas.gridSize, commandState.zoom).worldStep} px
+                网格 {getAdaptiveGridScale(
+                  currentDiagram.canvas.gridSize,
+                  workspaceMode === 'edit' ? commandState.zoom : monitorZoom,
+                ).worldStep} px
               </span>
               <span>
                 {workspaceMode === 'monitor'

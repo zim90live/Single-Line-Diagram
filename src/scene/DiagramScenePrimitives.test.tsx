@@ -2,10 +2,11 @@ import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DiagramElement } from '../domain/project'
-import type { ElementLabelLayout } from '../editor/elementLabels'
-import { symbolsByKey } from '../editor/symbolCatalog'
+import type { ElementLabelLayout } from './elementLabels'
+import { symbolsByKey } from './symbolCatalog'
 import {
   BusbarVisual,
+  BusbarTapVisual,
   ConnectionBridgeCasing,
   ConnectionDirectionArrow,
   CoolingPipeInnerShadowFilter,
@@ -95,6 +96,7 @@ describe('diagram scene primitives', () => {
   })
 
   it('shares cooling filters and static monitor stroke semantics', () => {
+    const tapRegistry = { current: new Map<string, SVGCircleElement>() }
     const { container } = render(
       <svg>
         <defs>
@@ -124,6 +126,15 @@ describe('diagram scene primitives', () => {
           length: 80,
           orientation: 'horizontal',
         }} />
+        <BusbarTapVisual
+          nodeId="shared-tap"
+          busbarId="shared-busbar"
+          offset={24}
+          point={{ x: 24, y: 16 }}
+          color="#32D583"
+          zoom={2}
+          nodeRegistry={tapRegistry}
+        />
         <ConnectionBridgeCasing
           path="M 0 24 L 80 24"
           type="cooling-primary-hot"
@@ -149,6 +160,13 @@ describe('diagram scene primitives', () => {
     )
     expect(container.querySelector('[data-busbar-id="shared-busbar"] .busbar__line'))
       .toHaveAttribute('d', 'M 0 16 L 80 16')
+    const tap = container.querySelector('[data-busbar-offset="24"]')
+    expect(tap).toHaveAttribute('data-connection-type', 'electrical')
+    expect(tap).toHaveAttribute('cx', '24')
+    expect(tap).toHaveAttribute('cy', '16')
+    expect(tap).toHaveAttribute('r', '1.25')
+    expect(tap).toHaveStyle({ '--busbar-color': '#32D583' })
+    expect(tapRegistry.current.get('shared-tap')).toBe(tap)
     expect(container.querySelectorAll('.connection-edge__bridge-casing')).toHaveLength(2)
     expect(container.querySelector('.connection-edge__pipe-shell'))
       .toHaveAttribute('data-monitor-pipe-shell-replay', 'true')

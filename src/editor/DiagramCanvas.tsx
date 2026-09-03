@@ -19,7 +19,6 @@ import type {
   AnchorType,
   AssetDefinition,
   Busbar,
-  ConnectionCrossingLayer,
   ConnectionEdge,
   ConnectionFlowDirection,
   ConnectionNetwork,
@@ -51,7 +50,7 @@ import {
   busbarLabelPlacementForPointer,
   DEFAULT_BUSBAR_LABEL_COLOR,
   layoutBusbarLabels,
-} from './busbarLabels'
+} from '../scene/busbarLabels'
 import {
   replaceCanvasColor,
   resolvedBusbarColor,
@@ -63,22 +62,18 @@ import {
   connectionLabelPlacementForPointer,
   layoutConnectionLabels,
   type ConnectionLabelPlacement,
-} from './connectionLabels'
+} from '../scene/connectionLabels'
 import {
   COOLING_DIRECTION_ARROW_INSET_SCREEN,
-  COOLING_PIPE_BRIDGE_RADIUS,
   COOLING_PIPE_CORNER_RADIUS,
   COOLING_PIPE_SHELL_ENDPOINT_INSET,
-  coolingPipeCoreWidth,
   insetPolylineEndpoints,
   isCoolingConnectionType,
-  resolvedCoolingLineColor,
   routeHitWorldWidthForConnectionType,
-} from './connectionAppearance'
+} from '../scene/connectionAppearance'
 import {
   connectionEdgeCrossingPriority,
-  sortByConnectionCrossingPriority,
-} from './connectionCrossingOrder'
+} from '../scene/connectionCrossingOrder'
 import {
   connectTerminalToRouteJunction,
   deleteConnectionJunctions,
@@ -88,8 +83,6 @@ import {
 import {
   busbarEndPoint,
   busbarPoint,
-  bridgedPathData,
-  bridgedPolylinePoints,
   connectTerminals,
   connectedRouteEndpointGeometry,
   connectionRouteBranchPointKeys,
@@ -112,7 +105,7 @@ import {
   type ConnectedRouteDisplayGeometry,
   type ConnectionTerminal,
   type RoutedConnectionEdge,
-} from './connections'
+} from '../scene/connections'
 import { createLatestFrameScheduler, createTrailingScheduler } from './frameScheduler'
 import {
   busbarInsideRect,
@@ -139,32 +132,36 @@ import {
   GRID_BACKGROUND_COLOR,
   GridSurface,
   type GridRenderState,
-} from './GridSurface'
-import { GRID_PRESENTATION, getAdaptiveGridScale } from './gridScale'
+} from '../scene/GridSurface'
+import { GRID_PRESENTATION, getAdaptiveGridScale } from '../scene/gridScale'
 import {
   inferWheelGestureKind,
   pinchZoomFactor,
   type WheelGestureKind,
-} from './wheelGestures'
+} from '../scene/wheelGestures'
 import {
   labelPlacementForPointer,
   layoutElementLabels,
   nextDeviceIdentifier,
   type ElementLabelLayout,
-} from './elementLabels'
+} from '../scene/elementLabels'
 import {
   GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY,
   getSnappedGenericSymbolSize,
   isGenericSymbolKey,
   normalizeGenericSymbolBackgroundColor,
   resolvedGenericSymbolBackgroundColor,
-} from './genericSymbol'
-import { DEFAULT_BUSBAR_COLOR, defaultConnectionColor, normalizeHexColor } from './objectColors'
+} from '../scene/genericSymbol'
+import {
+  DEFAULT_BUSBAR_COLOR,
+  defaultConnectionColor,
+  normalizeHexColor,
+} from '../scene/objectColors'
 import {
   derivedRouteCornerCandidateAtPointer,
   type DerivedRouteCornerCandidate,
 } from './routeCornerCandidates'
-import { useRoutedConnections } from './useRoutedConnections'
+import { useRoutedConnections } from '../runtime/useRoutedConnections'
 import {
   applyDraggedRouteSegment,
   atomicRouteSegments,
@@ -204,9 +201,10 @@ import {
   type SymbolColorSlot,
   type SymbolDefinition,
   type SymbolVisualState,
-} from './symbolCatalog'
+} from '../scene/symbolCatalog'
 import {
   BusbarVisual,
+  BusbarTapVisual,
   BusbarLabelItem,
   ConnectionBridgeCasing,
   ConnectionDirectionArrow,
@@ -219,6 +217,19 @@ import {
   SymbolColorFilter,
   symbolColorFilterId,
 } from '../scene/DiagramScenePrimitives'
+import {
+  createConnectedAnchorIdsByElement,
+  createConnectionRouteRenderGroups,
+  createCoolingNodeIdsByNetwork,
+  createCoolingPipeFilterIds,
+  createCoolingPipeShellsByRenderKey,
+  createDisplayedRoutePaths,
+  createRenderedConnectionPaths,
+  createStaticConnectionGroupsByRenderKey,
+  createUnderpassAnimationExclusions,
+  type ConnectionRouteDisplayCacheEntry,
+  type CoolingPipeShellRouteCacheEntry,
+} from '../scene/connectionScene'
 
 export type CanvasMode = 'edit' | 'monitor'
 
@@ -1357,31 +1368,17 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const busbarTapNodeRefs = useRef(new Map<string, SVGCircleElement>())
     const busbarCandidateNodeRef = useRef<SVGCircleElement | null>(null)
     const connectionEdgeNodeRefs = useRef(new Map<string, SVGGElement>())
-    const renderedConnectionPathCacheRef = useRef(new Map<string, {
-      route: RoutedConnectionEdge
-      crossingKey: string
-      gridSize: number
-      bridgeRadius: number
-      cornerRadius: number
-      squareCornerPointKeys?: ReadonlySet<string>
-      rendered: ReturnType<typeof bridgedPathData>
-    }>())
+    const renderedConnectionPathCacheRef = useRef(
+      new Map<string, ConnectionRouteDisplayCacheEntry>(),
+    )
     const connectedCoolingRouteGeometryCacheRef = useRef(new Map<string, {
       key: string
       geometry: ConnectedRouteDisplayGeometry
     }>())
     const branchPointKeysCacheRef = useRef<ReadonlyMap<string, ReadonlySet<string>>>(new Map())
-    const coolingPipeShellRouteCacheRef = useRef(new Map<string, {
-      displayRoute: RoutedConnectionEdge
-      endpointGeometry?: ConnectedRouteDisplayGeometry
-      crossingKey: string
-      gridSize: number
-      squareCornerPointKeys?: ReadonlySet<string>
-      sourceInset: number
-      targetInset: number
-      path: string
-      points: Point[]
-    }>())
+    const coolingPipeShellRouteCacheRef = useRef(
+      new Map<string, CoolingPipeShellRouteCacheEntry>(),
+    )
     const startElementMoveRef = useRef<
       (event: PointerEvent<SVGElement>, elementId: string) => void
     >(() => undefined)
@@ -2457,74 +2454,17 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       renderedRoutedConnections.edges,
       selectedConnectionEdgeIdSet,
     ])
-    const visibleRouteGroups = useMemo(() => {
-      const groups = new Map<string, {
-        networkId: string
-        type: AnchorType
-        routes: RoutedConnectionEdge[]
-      }>()
-      visibleRoutes.forEach((route) => {
-        const group = groups.get(route.networkId)
-        if (group) group.routes.push(route)
-        else groups.set(route.networkId, {
-          networkId: route.networkId,
-          type: route.type,
-          routes: [route],
-        })
-      })
-      return [...groups.values()]
-    }, [visibleRoutes])
-    const visibleRouteRenderGroups = useMemo(() => {
-      const renderGroups: Array<{
-        networkId: string
-        type: AnchorType
-        routes: RoutedConnectionEdge[]
-        renderKey: string
-        coolingLineRole?: CoolingLineRole
-        crossingLayer?: ConnectionCrossingLayer
-      }> = []
-      visibleRouteGroups.forEach((group) => {
-        const buckets = new Map<string, {
-          routes: RoutedConnectionEdge[]
-          coolingLineRole?: CoolingLineRole
-          crossingLayer?: ConnectionCrossingLayer
-        }>()
-        group.routes.forEach((route) => {
-          const edge = displayedConnectionEdgesById.get(route.edgeId)
-          const coolingLineRole = isCoolingConnectionType(group.type)
-            ? edge?.coolingLineRole ?? 'primary'
-            : undefined
-          const crossingLayer = edge?.crossingLayer
-          const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}`
-          const bucket = buckets.get(key)
-          if (bucket) bucket.routes.push(route)
-          else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer })
-        })
-        buckets.forEach((bucket, key) => {
-          renderGroups.push({
-            ...group,
-            routes: bucket.routes,
-            renderKey: `${group.networkId}:${key}`,
-            coolingLineRole: bucket.coolingLineRole,
-            crossingLayer: bucket.crossingLayer,
-          })
-        })
-      })
-      return sortByConnectionCrossingPriority(
-        renderGroups,
-        (group) => ({
-          crossingLayer: group.crossingLayer,
-          coolingLineRole: group.coolingLineRole,
-        }),
-      )
-    }, [displayedConnectionEdgesById, visibleRouteGroups])
-    const coolingPipeFilterIdsByRenderKey = useMemo(() => new Map(
-      visibleRouteRenderGroups.flatMap((group, index) => (
-        isCoolingConnectionType(group.type)
-          ? [[group.renderKey, `cooling-pipe-inner-shadow-${index}`] as const]
-          : []
-      )),
-    ), [visibleRouteRenderGroups])
+    const visibleRouteRenderGroups = useMemo(
+      () => createConnectionRouteRenderGroups(visibleRoutes, displayedConnectionEdgesById),
+      [displayedConnectionEdgesById, visibleRoutes],
+    )
+    const coolingPipeFilterIdsByRenderKey = useMemo(
+      () => createCoolingPipeFilterIds(
+        visibleRouteRenderGroups,
+        (index) => `cooling-pipe-inner-shadow-${index}`,
+      ),
+      [visibleRouteRenderGroups],
+    )
     const routeSegments = useMemo(
       () => atomicRouteSegments(renderedRoutedConnections.edges),
       [renderedRoutedConnections.edges],
@@ -2564,26 +2504,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       () => indexConnectionCrossings(renderedRoutedConnections.crossings),
       [renderedRoutedConnections.crossings],
     )
-    const underpassAnimationExclusionsByEdgeId = useMemo(() => {
-      const routesByEdgeId = new Map(renderedRoutedConnections.edges.map((route) => (
-        [route.edgeId, route] as const
-      )))
-      const exclusions = new Map<string, Array<{ point: Point; radius: number }>>()
-      renderedRoutedConnections.crossings.forEach((crossing) => {
-        if (
-          !routesByEdgeId.has(crossing.underEdgeId) &&
-          !crossing.underEdgeId.startsWith('busbar:')
-        ) return
-        const bridgeRoute = routesByEdgeId.get(crossing.bridgeEdgeId)
-        const radius = bridgeRoute && isCoolingConnectionType(bridgeRoute.type)
-          ? COOLING_PIPE_BRIDGE_RADIUS
-          : gridSize * 0.5
-        const edgeExclusions = exclusions.get(crossing.underEdgeId) ?? []
-        edgeExclusions.push({ point: crossing, radius })
-        exclusions.set(crossing.underEdgeId, edgeExclusions)
-      })
-      return exclusions
-    }, [gridSize, renderedRoutedConnections.crossings, renderedRoutedConnections.edges])
+    const underpassAnimationExclusionsByEdgeId = useMemo(
+      () => createUnderpassAnimationExclusions(
+        renderedRoutedConnections.edges,
+        renderedRoutedConnections.crossings,
+        gridSize,
+      ),
+      [gridSize, renderedRoutedConnections.crossings, renderedRoutedConnections.edges],
+    )
     const branchPointKeysByNetworkId = useMemo(() => {
       const next = connectionRouteBranchPointKeys(
         renderedRoutedConnections.edges,
@@ -2592,15 +2520,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       branchPointKeysCacheRef.current = next
       return next
     }, [renderedRoutedConnections.edges])
-    const roundableCoolingNodeIdsByNetworkId = useMemo(() => new Map(
-      displayedConnections.flatMap((network) => (
-        isCoolingConnectionType(network.type)
-          ? [[network.id, new Set(network.nodes.flatMap((node) => (
-              node.kind === 'node' ? [node.id] : []
-            )))] as const]
-          : []
-      )),
-    ), [displayedConnections])
+    const roundableCoolingNodeIdsByNetworkId = useMemo(
+      () => createCoolingNodeIdsByNetwork(displayedConnections),
+      [displayedConnections],
+    )
     const connectedCoolingRouteGeometryByEdgeId = useMemo(() => {
       const next = connectedRouteEndpointGeometry(
         visibleRoutes.filter((route) => (
@@ -2629,143 +2552,34 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       roundableCoolingNodeIdsByNetworkId,
       visibleRoutes,
     ])
-    const renderedConnectionPaths = useMemo(() => {
-      const cache = renderedConnectionPathCacheRef.current
-      const activeEdgeIds = new Set(renderedRoutedConnections.edges.map((route) => route.edgeId))
-      cache.forEach((_, edgeId) => {
-        if (!activeEdgeIds.has(edgeId)) cache.delete(edgeId)
-      })
-      return new Map(visibleRoutes.map((route) => {
-        const roundedCoolingPipe = isCoolingConnectionType(route.type)
-        const endpointGeometry = roundedCoolingPipe
-          ? connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
-          : undefined
-        const displayRoute = endpointGeometry?.route ?? route
-        const bridgeRadius = roundedCoolingPipe ? COOLING_PIPE_BRIDGE_RADIUS : gridSize * 0.5
-        const cornerRadius = roundedCoolingPipe ? COOLING_PIPE_CORNER_RADIUS : 0
-        const squareCornerPointKeys = roundedCoolingPipe
-          ? branchPointKeysByNetworkId.get(route.networkId)
-          : undefined
-        const edgeCrossings = crossingsByEdgeId.get(route.edgeId) ?? []
-        const crossingKey = edgeCrossings.map((crossing) => (
-          `${crossing.x},${crossing.y}:${crossing.underEdgeId}`
-        )).join('|')
-        const cached = cache.get(route.edgeId)
-        if (
-          cached?.route === displayRoute &&
-          cached.gridSize === gridSize &&
-          cached.bridgeRadius === bridgeRadius &&
-          cached.cornerRadius === cornerRadius &&
-          cached.squareCornerPointKeys === squareCornerPointKeys &&
-          cached.crossingKey === crossingKey
-        ) return [route.edgeId, cached.rendered] as const
-        const rendered = bridgedPathData(displayRoute, crossingsByEdgeId, gridSize, {
-          bridgeRadius,
-          cornerRadius,
-          squareCornerPointKeys,
-          sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
-          targetEndpointArc: endpointGeometry?.targetEndpointArc,
-        })
-        cache.set(route.edgeId, {
-          route: displayRoute,
-          crossingKey,
-          gridSize,
-          bridgeRadius,
-          cornerRadius,
-          squareCornerPointKeys,
-          rendered,
-        })
-        return [route.edgeId, rendered] as const
-      }))
-    }, [
+    const renderedConnectionPaths = useMemo(() => createRenderedConnectionPaths(
+      visibleRoutes,
+      renderedRoutedConnections.edges,
+      connectedCoolingRouteGeometryByEdgeId,
+      crossingsByEdgeId,
+      branchPointKeysByNetworkId,
+      gridSize,
+      renderedConnectionPathCacheRef.current,
+    ), [
       branchPointKeysByNetworkId,
       connectedCoolingRouteGeometryByEdgeId,
       crossingsByEdgeId,
       gridSize,
-      mode,
       renderedRoutedConnections.edges,
       visibleRoutes,
     ])
-    const coolingPipeShellsByRenderKey = useMemo(() => {
-      const routeCache = coolingPipeShellRouteCacheRef.current
-      const activeEdgeIds = new Set(renderedRoutedConnections.edges.map((route) => route.edgeId))
-      routeCache.forEach((_, edgeId) => {
-        if (!activeEdgeIds.has(edgeId)) routeCache.delete(edgeId)
-      })
-      return new Map(visibleRouteRenderGroups.flatMap((group) => {
-        if (!isCoolingConnectionType(group.type)) return []
-        const nodesById = new Map(
-          displayedConnectionsById.get(group.networkId)?.nodes.map((node) => [node.id, node]) ?? [],
-        )
-        const shellRoutes = group.routes.map((route) => {
-          const endpointGeometry = connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
-          const displayRoute = endpointGeometry?.route ?? route
-          const sourceNode = nodesById.get(route.sourceNodeId)
-          const targetNode = nodesById.get(route.targetNodeId)
-          const sourceInset = sourceNode?.kind === 'element-anchor'
-            ? COOLING_PIPE_SHELL_ENDPOINT_INSET
-            : 0
-          const targetInset = targetNode?.kind === 'element-anchor'
-            ? COOLING_PIPE_SHELL_ENDPOINT_INSET
-            : 0
-          const squareCornerPointKeys = branchPointKeysByNetworkId.get(route.networkId)
-          const crossingKey = (crossingsByEdgeId.get(route.edgeId) ?? []).map((crossing) => (
-            `${crossing.x},${crossing.y}:${crossing.underEdgeId}`
-          )).join('|')
-          const cached = routeCache.get(route.edgeId)
-          if (
-            cached?.displayRoute === displayRoute &&
-            cached.endpointGeometry === endpointGeometry &&
-            cached.crossingKey === crossingKey &&
-            cached.gridSize === gridSize &&
-            cached.squareCornerPointKeys === squareCornerPointKeys &&
-            cached.sourceInset === sourceInset &&
-            cached.targetInset === targetInset
-          ) return cached
-          const points = insetPolylineEndpoints(
-            displayRoute.points,
-            sourceInset,
-            targetInset,
-          )
-          const shellRoute = {
-            displayRoute,
-            endpointGeometry,
-            crossingKey,
-            gridSize,
-            squareCornerPointKeys,
-            sourceInset,
-            targetInset,
-            path: bridgedPathData(
-              { ...displayRoute, points },
-              crossingsByEdgeId,
-              gridSize,
-              {
-                bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
-                cornerRadius: COOLING_PIPE_CORNER_RADIUS,
-                squareCornerPointKeys,
-                sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
-                targetEndpointArc: endpointGeometry?.targetEndpointArc,
-              },
-            ).linePath,
-            points: [
-              ...points,
-              ...(endpointGeometry?.sourceEndpointArc
-                ? [endpointGeometry.sourceEndpointArc.midpoint]
-                : []),
-              ...(endpointGeometry?.targetEndpointArc
-                ? [endpointGeometry.targetEndpointArc.midpoint]
-                : []),
-            ],
-          }
-          routeCache.set(route.edgeId, shellRoute)
-          return shellRoute
-        })
-        return [[group.renderKey, {
-          path: shellRoutes.map((route) => route.path).join(' '),
-          points: shellRoutes.flatMap((route) => route.points),
-        }] as const]
-      }))
-    }, [
+    const coolingPipeShellsByRenderKey = useMemo(() => (
+      createCoolingPipeShellsByRenderKey(
+        visibleRouteRenderGroups,
+        renderedRoutedConnections.edges,
+        displayedConnectionsById,
+        connectedCoolingRouteGeometryByEdgeId,
+        crossingsByEdgeId,
+        branchPointKeysByNetworkId,
+        gridSize,
+        coolingPipeShellRouteCacheRef.current,
+      )
+    ), [
       crossingsByEdgeId,
       branchPointKeysByNetworkId,
       connectedCoolingRouteGeometryByEdgeId,
@@ -2788,38 +2602,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       resolvedBusbarTapOffsets: renderedRoutedConnections.resolvedBusbarTapOffsets,
       runtime,
     })
-    const monitorDisplayedRoutePaths = useMemo(() => new Map(visibleRoutes.map((route) => {
-      const coolingRoute = isCoolingConnectionType(route.type)
-      const endpointGeometry = coolingRoute
-        ? connectedCoolingRouteGeometryByEdgeId.get(route.edgeId)
-        : undefined
-      const displayRoute = endpointGeometry?.route ?? route
-      const edge = displayedConnectionEdgesById.get(route.edgeId)
-      const lineColor = edge?.color ?? defaultConnectionColor(route.type)
-      const path: MonitorFlowPath = {
-        id: `edge-display:${route.edgeId}`,
-        connectionEdgeId: route.edgeId,
-        points: bridgedPolylinePoints(displayRoute, crossingsByEdgeId, gridSize, coolingRoute
-          ? {
-              bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
-              cornerRadius: COOLING_PIPE_CORNER_RADIUS,
-              squareCornerPointKeys: branchPointKeysByNetworkId.get(route.networkId),
-              sourceEndpointArc: endpointGeometry?.sourceEndpointArc,
-              targetEndpointArc: endpointGeometry?.targetEndpointArc,
-            }
-          : {}),
-        worldWidth: coolingRoute ? coolingPipeCoreWidth(edge?.coolingLineRole) : undefined,
-        style: coolingRoute ? 'cooling' : 'power',
-        renderPriority: connectionEdgeCrossingPriority(edge),
-        baseColor: coolingRoute
-          ? resolvedCoolingLineColor(lineColor, edge?.coolingLineRole)
-          : lineColor,
-      }
-      return [route.edgeId, {
-        route,
-        path,
-      }] as const
-    })), [
+    const monitorDisplayedRoutePaths = useMemo(() => createDisplayedRoutePaths(
+      visibleRoutes,
+      displayedConnectionEdgesById,
+      connectedCoolingRouteGeometryByEdgeId,
+      crossingsByEdgeId,
+      branchPointKeysByNetworkId,
+      gridSize,
+    ), [
       branchPointKeysByNetworkId,
       connectedCoolingRouteGeometryByEdgeId,
       crossingsByEdgeId,
@@ -2960,28 +2750,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         monitorInactiveFlowPaths,
       )
     ), [monitorActiveFlowPaths, monitorInactiveFlowPaths])
-    const monitorStaticConnectionGroupsByRenderKey = useMemo(() => {
-      const activeByEdgeId = new Map<string, MonitorFlowPath[]>()
-      const inactiveByEdgeId = new Map<string, MonitorFlowPath[]>()
-      const append = (
-        groups: Map<string, MonitorFlowPath[]>,
-        path: MonitorFlowPath,
-      ) => {
-        if (!path.connectionEdgeId) return
-        const paths = groups.get(path.connectionEdgeId) ?? []
-        paths.push(path)
-        groups.set(path.connectionEdgeId, paths)
-      }
-      monitorActiveFlowPaths.forEach((path) => append(activeByEdgeId, path))
-      monitorInactiveFlowPaths.forEach((path) => append(inactiveByEdgeId, path))
-      return new Map(visibleRouteRenderGroups.map((group) => [
-        group.renderKey,
-        buildMonitorStaticFlowLineGroups(
-          group.routes.flatMap((route) => activeByEdgeId.get(route.edgeId) ?? []),
-          group.routes.flatMap((route) => inactiveByEdgeId.get(route.edgeId) ?? []),
-        ).filter((staticGroup) => staticGroup.kind === 'connection'),
-      ] as const))
-    }, [monitorActiveFlowPaths, monitorInactiveFlowPaths, visibleRouteRenderGroups])
+    const monitorStaticConnectionGroupsByRenderKey = useMemo(
+      () => createStaticConnectionGroupsByRenderKey(
+        visibleRouteRenderGroups,
+        monitorActiveFlowPaths,
+        monitorInactiveFlowPaths,
+      ),
+      [monitorActiveFlowPaths, monitorInactiveFlowPaths, visibleRouteRenderGroups],
+    )
     const monitorFlowPaths = useMemo(() => (
       animationPlaying ? monitorActiveFlowPaths : []
     ), [animationPlaying, monitorActiveFlowPaths])
@@ -2989,22 +2765,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       () => new Map(assets.map((asset) => [asset.key, asset])),
       [assets],
     )
-    const connectedAnchorIdsByElement = useMemo(() => {
-      const connectedAnchorIds = new Map<string, Set<string>>()
-      for (const network of displayedConnections) {
-        const connectedNodeIds = new Set(network.edges.flatMap((edge) => [
-          edge.sourceNodeId,
-          edge.targetNodeId,
-        ]))
-        for (const node of network.nodes) {
-          if (node.kind !== 'element-anchor' || !connectedNodeIds.has(node.id)) continue
-          const anchorIds = connectedAnchorIds.get(node.elementId) ?? new Set<string>()
-          anchorIds.add(node.anchorId)
-          connectedAnchorIds.set(node.elementId, anchorIds)
-        }
-      }
-      return connectedAnchorIds
-    }, [displayedConnections])
+    const connectedAnchorIdsByElement = useMemo(
+      () => createConnectedAnchorIdsByElement(displayedConnections),
+      [displayedConnections],
+    )
     const elementLabelLayouts = useMemo(() => {
       const nextCache = new Map<string, ElementLabelLayout>()
       const layouts = layoutElementLabels(visibleElements, assetsByKey, {
@@ -7392,21 +7156,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     if (cullingEnabled && !pointInsideRect(point, renderWorldRect)) return []
                     return [(
                       <g key={node.id}>
-                        <circle
-                          ref={(circle) => {
-                            if (circle) busbarTapNodeRefs.current.set(node.id, circle)
-                            else busbarTapNodeRefs.current.delete(node.id)
-                          }}
-                          className="busbar-tap"
-                          data-connection-type="electrical"
-                          data-busbar-id={node.busbarId}
-                          data-busbar-offset={resolvedOffset}
-                          style={busbar.color
-                            ? { '--busbar-color': busbar.color } as CSSProperties
-                            : undefined}
-                          cx={point.x}
-                          cy={point.y}
-                          r={2.5 / viewportValue.zoom}
+                        <BusbarTapVisual
+                          nodeId={node.id}
+                          busbarId={node.busbarId}
+                          offset={resolvedOffset}
+                          point={point}
+                          color={busbar.color}
+                          zoom={viewportValue.zoom}
+                          nodeRegistry={busbarTapNodeRefs}
                         />
                         {mode === 'edit' ? (
                           <circle

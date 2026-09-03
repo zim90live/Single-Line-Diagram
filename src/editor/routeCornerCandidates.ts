@@ -1,5 +1,5 @@
 import type { AnchorType } from '../domain/project'
-import type { RoutedConnectionEdge } from './connections'
+import type { RoutedConnectionEdge } from '../scene/connections'
 import type { Point } from './geometry'
 
 const EPSILON = 0.0001

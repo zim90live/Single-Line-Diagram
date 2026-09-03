@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createDefaultProject } from '../domain/project'
-import { symbolAssets } from '../editor/symbolCatalog'
+import { symbolAssets } from '../scene/symbolCatalog'
 import type { DiagramMonitorCanvas } from './DiagramMonitorCanvas'
 import { DiagramRuntimeViewer } from './DiagramRuntimeViewer'
 import { createDiagramRuntimeView } from './diagramRuntime'
