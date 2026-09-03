@@ -1210,20 +1210,31 @@ export function previewConnectionRoutesForDiagram(
   committedBusbars: Busbar[] = [],
   previewBusbars: Busbar[] = committedBusbars,
 ): RoutedConnections {
-  const committedNetworksById = new Map(committedNetworks.map((network) => [network.id, network]))
-  const previewNetworksById = new Map(previewNetworks.map((network) => [network.id, network]))
+  const committedNodesByNetworkId = new Map(committedNetworks.map((network) => [
+    network.id,
+    new Map(network.nodes.map((node) => [node.id, node])),
+  ]))
+  const previewNodesByNetworkId = new Map(previewNetworks.map((network) => [
+    network.id,
+    new Map(network.nodes.map((node) => [node.id, node])),
+  ]))
   const committedElementsById = new Map(committedElements.map((element) => [element.id, element]))
   const previewElementsById = new Map(previewElements.map((element) => [element.id, element]))
   const assetsByKey = new Map(assets.map((asset) => [asset.key, asset]))
   const previewBusbarsById = new Map(previewBusbars.map((busbar) => [busbar.id, busbar]))
-  const resolvedBusbarTapOffsets = { ...routed.resolvedBusbarTapOffsets }
+  let resolvedBusbarTapOffsets = routed.resolvedBusbarTapOffsets
+  const setResolvedBusbarTapOffset = (nodeId: string, offset: number) => {
+    if (resolvedBusbarTapOffsets[nodeId] === offset) return
+    if (resolvedBusbarTapOffsets === routed.resolvedBusbarTapOffsets) {
+      resolvedBusbarTapOffsets = { ...resolvedBusbarTapOffsets }
+    }
+    resolvedBusbarTapOffsets[nodeId] = offset
+  }
   previewNetworks.forEach((previewNetwork) => {
-    const committedNodesById = new Map(
-      committedNetworksById.get(previewNetwork.id)?.nodes.map((node) => [node.id, node]) ?? [],
-    )
+    const committedNodesById = committedNodesByNetworkId.get(previewNetwork.id)
     previewNetwork.nodes.forEach((node) => {
       if (node.kind !== 'busbar-tap') return
-      const committedNode = committedNodesById.get(node.id)
+      const committedNode = committedNodesById?.get(node.id)
       const busbar = previewBusbarsById.get(node.busbarId)
       if (!busbar) return
       const previousResolved = resolvedBusbarTapOffsets[node.id] ?? (
@@ -1232,25 +1243,21 @@ export function previewConnectionRoutesForDiagram(
       const offset = committedNode?.kind === 'busbar-tap' && committedNode.offset !== node.offset
         ? node.offset
         : previousResolved
-      resolvedBusbarTapOffsets[node.id] = Math.max(0, Math.min(offset, busbar.length))
+      setResolvedBusbarTapOffset(node.id, Math.max(0, Math.min(offset, busbar.length)))
     })
   })
   const edges = routed.edges.map((edge) => {
-    const committedNetwork = committedNetworksById.get(edge.networkId)
-    const previewNetwork = previewNetworksById.get(edge.networkId)
-    const committedNodesById = new Map(
-      committedNetwork?.nodes.map((node) => [node.id, node]) ?? [],
-    )
-    const previewNodesById = new Map(previewNetwork?.nodes.map((node) => [node.id, node]) ?? [])
-    const sourceNode = committedNodesById.get(edge.sourceNodeId)
-    const targetNode = committedNodesById.get(edge.targetNodeId)
+    const committedNodesById = committedNodesByNetworkId.get(edge.networkId)
+    const previewNodesById = previewNodesByNetworkId.get(edge.networkId)
+    const sourceNode = committedNodesById?.get(edge.sourceNodeId)
+    const targetNode = committedNodesById?.get(edge.targetNodeId)
     const sourceJunctionPoint = previewJunctionEndpoint(
       sourceNode,
-      previewNodesById.get(edge.sourceNodeId),
+      previewNodesById?.get(edge.sourceNodeId),
     )
     const targetJunctionPoint = previewJunctionEndpoint(
       targetNode,
-      previewNodesById.get(edge.targetNodeId),
+      previewNodesById?.get(edge.targetNodeId),
     )
     const sourceMovement = previewEndpointMovement(
       sourceNode,
@@ -1259,7 +1266,7 @@ export function previewConnectionRoutesForDiagram(
       assetsByKey,
     ) ?? previewBusbarEndpointMovement(
       sourceNode,
-      previewNodesById.get(edge.sourceNodeId),
+      previewNodesById?.get(edge.sourceNodeId),
       edge.points[0],
       edge.points[1],
       previewBusbarsById,
@@ -1272,7 +1279,7 @@ export function previewConnectionRoutesForDiagram(
       assetsByKey,
     ) ?? previewBusbarEndpointMovement(
       targetNode,
-      previewNodesById.get(edge.targetNodeId),
+      previewNodesById?.get(edge.targetNodeId),
       edge.points.at(-1)!,
       edge.points.at(-2),
       previewBusbarsById,
@@ -1303,13 +1310,24 @@ export function previewConnectionRoutesForDiagram(
     if (targetMovement) points = attachPreviewEndpoint(points, targetMovement, gridSize, false)
     return { ...edge, points }
   })
+  const crossings = [
+    ...findCrossings(edges, previewNetworks),
+    ...findBusbarCrossings(edges, previewNetworks, previewBusbars),
+  ]
+  const stableCrossings = routed.crossings.length === crossings.length &&
+    routed.crossings.every((crossing, index) => {
+      const candidate = crossings[index]
+      return crossing.x === candidate.x &&
+        crossing.y === candidate.y &&
+        crossing.bridgeEdgeId === candidate.bridgeEdgeId &&
+        crossing.underEdgeId === candidate.underEdgeId
+    })
+    ? routed.crossings
+    : crossings
   return {
     ...routed,
     edges,
-    crossings: [
-      ...findCrossings(edges, previewNetworks),
-      ...findBusbarCrossings(edges, previewNetworks, previewBusbars),
-    ],
+    crossings: stableCrossings,
     resolvedBusbarTapOffsets,
   }
 }
@@ -2474,6 +2492,7 @@ function connectionEdgeWithoutDisplayData(edge: ConnectionEdge) {
     monitorDataVisible: _monitorDataVisible,
     monitorMetricLabelsVisible: _monitorMetricLabelsVisible,
     monitorMetrics: _monitorMetrics,
+    externalSupplyEndpoint: _externalSupplyEndpoint,
     ...rest
   } = edge
   return rest
@@ -2516,7 +2535,11 @@ export function segmentConnectionEdgesAtNodes(
         const labelSegmentIndex = edge.labelEndpoint === 'source' ? 0 : chain.length - 2
         const hasDisplayData = Boolean(edge.label?.trim()) || Boolean(edge.monitorMetrics?.length)
         const retainedIdSegmentIndex = hasDisplayData ? labelSegmentIndex : 0
-        const { routeNodeIds: _routeNodeIds, ...edgeWithoutRouteNodes } = edge
+        const {
+          routeNodeIds: _routeNodeIds,
+          externalSupplyEndpoint: _externalSupplyEndpoint,
+          ...edgeWithoutRouteNodes
+        } = edge
         const edgeWithoutDisplayData = connectionEdgeWithoutDisplayData(edgeWithoutRouteNodes)
         return chain.slice(1).map((targetNodeId, segmentIndex) => ({
           ...(segmentIndex === labelSegmentIndex
@@ -2526,6 +2549,11 @@ export function segmentConnectionEdgesAtNodes(
           sourceNodeId: chain[segmentIndex],
           targetNodeId,
           logicalConnectionId,
+          ...(edge.externalSupplyEndpoint === 'source' && segmentIndex === 0
+            ? { externalSupplyEndpoint: 'source' as const }
+            : edge.externalSupplyEndpoint === 'target' && segmentIndex === chain.length - 2
+              ? { externalSupplyEndpoint: 'target' as const }
+              : {}),
         }))
       }),
     }
@@ -2885,7 +2913,10 @@ function pointOnOrthogonalSegment(point: Point, start: Point, end: Point) {
  * count. Overlapping routes remain one pipe; only points with at least three
  * visible directions are branches that must keep a square junction.
  */
-export function connectionRouteBranchPointKeys(routes: RoutedConnectionEdge[]) {
+export function connectionRouteBranchPointKeys(
+  routes: RoutedConnectionEdge[],
+  previous: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
+) {
   const routesByNetworkId = new Map<string, RoutedConnectionEdge[]>()
   routes.forEach((route) => {
     const networkRoutes = routesByNetworkId.get(route.networkId) ?? []
@@ -2919,7 +2950,13 @@ export function connectionRouteBranchPointKeys(routes: RoutedConnectionEdge[]) {
       })
       if (directions.size >= 3) branches.add(key)
     })
-    return [networkId, branches] as const
+    const previousBranches = previous.get(networkId)
+    const stableBranches = previousBranches &&
+      previousBranches.size === branches.size &&
+      [...branches].every((key) => previousBranches.has(key))
+      ? previousBranches
+      : branches
+    return [networkId, stableBranches] as const
   }))
 }
 

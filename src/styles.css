@@ -939,12 +939,14 @@ button:focus-visible,
 }
 
 .canvas-stage {
+  --canvas: var(--diagram-canvas-background);
+
   position: absolute;
   inset: 0;
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #121316;
+  background: var(--diagram-canvas-background);
 }
 
 .diagram-viewport {
@@ -994,7 +996,7 @@ button:focus-visible,
 }
 
 .grid-fallback {
-  background-color: #121316;
+  background-color: var(--diagram-canvas-background);
   background-image: radial-gradient(
     circle at 0 0,
     color-mix(in srgb, var(--dim) 56%, transparent) 0 var(--grid-dot-radius),
@@ -1034,7 +1036,9 @@ button:focus-visible,
 }
 
 .canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-on-off='true'] .diagram-element__image,
-.canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-cooling-role] .diagram-element__image {
+.canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-cooling-role] .diagram-element__image,
+.canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-drill-down] .diagram-element__image,
+.canvas-stage[data-mode='monitor'] .diagram-element[data-monitor-drill-down] .diagram-element__generic-frame {
   cursor: pointer;
 }
 
@@ -1104,6 +1108,11 @@ button:focus-visible,
   pointer-events: none;
 }
 
+.busbar-label .element-label__text {
+  fill: var(--busbar-label-color, var(--muted));
+  font-size: 14px;
+}
+
 .element-metric-row__label {
   fill: var(--dim);
   font-weight: 400;
@@ -1151,6 +1160,11 @@ button:focus-visible,
 .element-label[data-interactive='true']:hover .element-label__text,
 .element-label[data-selected='true'] .element-label__text {
   fill: var(--ink);
+}
+
+.busbar-label[data-interactive='true']:hover .element-label__text,
+.busbar-label[data-selected='true'] .element-label__text {
+  fill: var(--busbar-label-color, var(--muted));
 }
 
 .element-label[data-selected='true'] .element-label__hit {
@@ -1201,6 +1215,26 @@ button:focus-visible,
   vector-effect: non-scaling-stroke;
   pointer-events: stroke;
   cursor: move;
+}
+
+.busbar-flow-hint {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out-quart);
+}
+
+.busbar-flow-hint__label {
+  fill: var(--ink);
+  stroke: var(--canvas);
+  stroke-width: 3;
+  paint-order: stroke;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.canvas-stage[data-mode='edit'] .busbar:hover .busbar-flow-hint,
+.canvas-stage[data-mode='edit'] .busbar[data-selected='true'] .busbar-flow-hint {
+  opacity: 1;
 }
 
 .connection-edge,
@@ -1829,6 +1863,16 @@ button:focus-visible,
   transform: translateX(14px);
 }
 
+.property-toggle__control[aria-checked='mixed'] {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-control));
+}
+
+.property-toggle__control[aria-checked='mixed'] > span {
+  background: var(--muted);
+  transform: translateX(7px);
+}
+
 .property-toggle__control:hover {
   border-color: var(--recipe-field-hover-border);
 }
@@ -1844,6 +1888,19 @@ button:focus-visible,
   flex-direction: column;
   gap: 10px;
   border-top: 1px solid var(--divider);
+}
+
+.batch-monitor-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.batch-monitor-metrics__note {
+  margin: -2px 2px 0;
+  color: var(--dim);
+  font: var(--type-label);
+  line-height: 1.5;
 }
 
 .monitor-metric-editor__heading,

@@ -5,6 +5,7 @@ import type {
   ConnectionNetwork,
   DiagramElement,
   DiagramViewport,
+  RouteWaypoint,
 } from '../domain/project'
 import {
   busbarInsideRect,
@@ -227,6 +228,44 @@ describe('editor geometry', () => {
       expect.objectContaining({ id: 'node-1', x: 120, y: 104 }),
       expect.objectContaining({ id: 'node-2', x: 160, y: 112 }),
     ])
+  })
+
+  it('preserves untouched collection and network references during a node-only translation', () => {
+    const element = createElement()
+    const untouchedNetwork: ConnectionNetwork = {
+      id: 'network-untouched', diagramId: 'diagram-1', type: 'electrical',
+      nodes: [{ id: 'node-untouched', kind: 'node', x: 0, y: 0 }],
+      edges: [],
+    }
+    const movedNetwork: ConnectionNetwork = {
+      id: 'network-moved', diagramId: 'diagram-1', type: 'electrical',
+      nodes: [{ id: 'node-moved', kind: 'node', x: 16, y: 16 }],
+      edges: [],
+    }
+    const elements = [element]
+    const busbars: Busbar[] = []
+    const routeWaypoints: RouteWaypoint[] = []
+    const translated = translateDiagramSelection(
+      elements,
+      busbars,
+      [untouchedNetwork, movedNetwork],
+      routeWaypoints,
+      {
+        elementIds: new Set(),
+        busbarIds: new Set(),
+        nodeIds: new Set(['node-moved']),
+        routeWaypointIds: new Set(),
+      },
+      { x: 8, y: 0 },
+      8,
+    )
+
+    expect(translated.elements).toBe(elements)
+    expect(translated.busbars).toBe(busbars)
+    expect(translated.routeWaypoints).toBe(routeWaypoints)
+    expect(translated.connections[0]).toBe(untouchedNetwork)
+    expect(translated.connections[1]).not.toBe(movedNetwork)
+    expect(translated.connections[1].nodes[0]).toMatchObject({ x: 24, y: 16 })
   })
 
   it('moves a selected busbar node only along its host while preserving a mixed selection', () => {

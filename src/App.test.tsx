@@ -18,6 +18,11 @@ vi.mock('./editor/DiagramCanvas', () => ({
     props: Record<string, unknown>,
     ref: Ref<unknown>,
   ) {
+    const runtime = props.runtime as {
+      navigation?: Record<string, unknown>
+    } | undefined
+    const drillDownTargets = runtime?.navigation
+    const firstDrillDownElementId = Object.keys(drillDownTargets ?? {})[0]
     useImperativeHandle(ref, () => ({
       undo: vi.fn(),
       redo: vi.fn(),
@@ -70,6 +75,16 @@ vi.mock('./editor/DiagramCanvas', () => ({
             >
               选择测试水泵
             </button>
+            {firstDrillDownElementId ? (
+              <button
+                type="button"
+                onClick={() => (props.onElementDrillDown as (elementId: string) => void)(
+                  firstDrillDownElementId,
+                )}
+              >
+                下探测试图元
+              </button>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -194,6 +209,87 @@ describe('AIDC editor workspace', () => {
 
     expect(screen.getByRole('button', { name: /返回/ })).toBeEnabled()
     expect(screen.getByRole('region', { name: '1 号楼编辑区' })).toBeInTheDocument()
+  })
+
+  it('drills from a linked element into its child diagram in monitor mode', async () => {
+    const document = createDefaultProject('监控下探', symbolAssets)
+    const powerLine = document.lineSystems.find((line) => line.type === 'power')!
+    const pod = document.diagrams.find((diagram) => (
+      diagram.lineSystemId === powerLine.id && diagram.name === 'POD A'
+    ))!
+    document.diagrams.push({
+      ...pod,
+      id: 'ups-left-detail',
+      parentId: pod.id,
+      name: 'UPS L',
+      level: 'device',
+    })
+    document.elements.push(
+      {
+        id: 'ups-left', diagramId: pod.id, assetKey: 'ups', name: 'UPS',
+        x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+      },
+      {
+        id: 'ups-right', diagramId: pod.id, assetKey: 'ups', name: 'UPS',
+        x: 160, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+      },
+    )
+    useAppStore.setState({
+      document,
+      documentEpoch: 0,
+      currentDiagramId: pod.id,
+      selectedElementIds: [],
+      dirty: false,
+    })
+    const user = userEvent.setup()
+    renderApp()
+
+    await user.click(screen.getByRole('tab', { name: '监控模式' }))
+    await user.click(screen.getByRole('button', { name: '下探测试图元' }))
+
+    expect(screen.getByRole('region', { name: 'UPS L监控区' })).toBeInTheDocument()
+  })
+
+  it('drills from CDU-01 in cooling POD A into TMU到FM 01 in monitor mode', async () => {
+    const document = createDefaultProject('冷却监控下探', symbolAssets)
+    const coolingLine = document.lineSystems.find((line) => line.type === 'cooling')!
+    const pod = document.diagrams.find((diagram) => (
+      diagram.lineSystemId === coolingLine.id && diagram.name === 'POD A'
+    ))!
+    document.diagrams.push({
+      ...pod,
+      id: 'tmu-to-fm-01',
+      parentId: pod.id,
+      name: 'TMU到FM 01',
+      level: 'device',
+    })
+    document.elements.push({
+      id: 'cdu-01',
+      diagramId: pod.id,
+      assetKey: 'cdu',
+      name: 'CDU',
+      x: 0,
+      y: 0,
+      width: 192,
+      height: 96,
+      rotation: 0,
+      properties: { tag: 'CDU-01' },
+      extensions: {},
+    })
+    useAppStore.setState({
+      document,
+      documentEpoch: 0,
+      currentDiagramId: pod.id,
+      selectedElementIds: [],
+      dirty: false,
+    })
+    const user = userEvent.setup()
+    renderApp()
+
+    await user.click(screen.getByRole('tab', { name: '监控模式' }))
+    await user.click(screen.getByRole('button', { name: '下探测试图元' }))
+
+    expect(screen.getByRole('region', { name: 'TMU到FM 01监控区' })).toBeInTheDocument()
   })
 
   it('saves through Command/Ctrl+S and prevents the browser default', async () => {

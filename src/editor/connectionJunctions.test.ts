@@ -410,6 +410,7 @@ describe('connection junction topology', () => {
           sourceNodeId: 'a',
           targetNodeId: 'middle',
           crossingLayer: 'lower',
+          externalSupplyEndpoint: 'source',
         },
         {
           id: 'middle-b',
@@ -455,6 +456,7 @@ describe('connection junction topology', () => {
       labelSide: 'negative',
       flowDirection: 'reverse',
       crossingLayer: 'upper',
+      externalSupplyEndpoint: 'target',
       monitorDataVisible: true,
       monitorMetricLabelsVisible: false,
       monitorMetrics: [expect.objectContaining({ id: 'flow', name: '流量' })],
@@ -664,6 +666,129 @@ describe('connection junction topology', () => {
       { id: 'tap-edge', sourceNodeId: 'tap', targetNodeId: 'anchor-a' },
       { id: 'free-edge', sourceNodeId: 'tap', targetNodeId: 'anchor-b' },
     ])
+  })
+
+  it('attaches a moved subline endpoint to a bare position on its busbar', () => {
+    const busbarNetwork: ConnectionNetwork = {
+      id: 'busbar-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'existing-tap', kind: 'busbar-tap', busbarId: electricalBusbar.id, offset: 16 },
+        { id: 'anchor-a', kind: 'element-anchor', elementId: 'a', anchorId: 'power' },
+      ],
+      edges: [{ id: 'tap-edge', sourceNodeId: 'existing-tap', targetNodeId: 'anchor-a' }],
+    }
+    const endpointNetwork: ConnectionNetwork = {
+      id: 'endpoint-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'moved-endpoint', kind: 'node', x: 80, y: 0 },
+        { id: 'anchor-b', kind: 'element-anchor', elementId: 'b', anchorId: 'power' },
+      ],
+      edges: [{ id: 'endpoint-edge', sourceNodeId: 'moved-endpoint', targetNodeId: 'anchor-b' }],
+    }
+    const result = mergeCollidingConnectionPoints({
+      networks: [busbarNetwork, endpointNetwork],
+      routeWaypoints: [],
+      routedEdges: [],
+      diagramId: 'diagram',
+      busbars: [electricalBusbar],
+      movedJunctionIds: new Set(['moved-endpoint']),
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.networks).toHaveLength(1)
+    expect(result?.mergedJunctionIds).toContain('moved-endpoint')
+    expect(result?.absorbedNodeIds).toEqual([])
+    expect(result?.networks[0].nodes).toContainEqual({
+      id: 'moved-endpoint',
+      kind: 'busbar-tap',
+      busbarId: electricalBusbar.id,
+      offset: 80,
+    })
+    expect(result?.networks[0].edges).toEqual(expect.arrayContaining([
+      { id: 'tap-edge', sourceNodeId: 'existing-tap', targetNodeId: 'anchor-a' },
+      { id: 'endpoint-edge', sourceNodeId: 'moved-endpoint', targetNodeId: 'anchor-b' },
+    ]))
+  })
+
+  it('attaches a moved multi-subline node to a busbar without dropping its branches', () => {
+    const branchedNetwork: ConnectionNetwork = {
+      id: 'branched-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'moved-node', kind: 'node', x: 80, y: 0 },
+        { id: 'left', kind: 'node', x: 48, y: 32 },
+        { id: 'right', kind: 'node', x: 112, y: 32 },
+      ],
+      edges: [
+        { id: 'left-edge', sourceNodeId: 'left', targetNodeId: 'moved-node' },
+        { id: 'right-edge', sourceNodeId: 'moved-node', targetNodeId: 'right' },
+      ],
+    }
+    const result = mergeCollidingConnectionPoints({
+      networks: [branchedNetwork],
+      routeWaypoints: [],
+      routedEdges: [],
+      diagramId: 'diagram',
+      busbars: [electricalBusbar],
+      movedJunctionIds: new Set(['moved-node']),
+    })
+
+    expect(result?.networks[0].nodes).toContainEqual({
+      id: 'moved-node',
+      kind: 'busbar-tap',
+      busbarId: electricalBusbar.id,
+      offset: 80,
+    })
+    expect(result?.networks[0].edges).toHaveLength(2)
+  })
+
+  it('does not connect a passive route crossing without a moved persisted node', () => {
+    const result = mergeCollidingConnectionPoints({
+      networks: [network],
+      routeWaypoints: [{ id: 'route-point', x: 40, y: 0 }],
+      routedEdges: [route],
+      diagramId: 'diagram',
+      busbars: [electricalBusbar],
+      movedWaypointIds: new Set(['route-point']),
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.networks[0].nodes.some((node) => node.kind === 'busbar-tap')).toBe(false)
+    expect(result?.routeWaypoints).toEqual([{ id: 'route-point', x: 40, y: 0 }])
+  })
+
+  it('rejects automatic attachment at the ambiguous intersection of two busbars', () => {
+    const verticalBusbar: Busbar = {
+      ...electricalBusbar,
+      id: 'vertical-busbar',
+      orientation: 'vertical',
+      x: 80,
+      y: -80,
+    }
+    const endpointNetwork: ConnectionNetwork = {
+      id: 'ambiguous-endpoint-network',
+      diagramId: 'diagram',
+      type: 'electrical',
+      nodes: [
+        { id: 'ambiguous-endpoint', kind: 'node', x: 80, y: 0 },
+        { id: 'other', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [{ id: 'ambiguous-edge', sourceNodeId: 'ambiguous-endpoint', targetNodeId: 'other' }],
+    }
+
+    expect(mergeCollidingConnectionPoints({
+      networks: [endpointNetwork],
+      routeWaypoints: [],
+      routedEdges: [],
+      diagramId: 'diagram',
+      busbars: [electricalBusbar, verticalBusbar],
+      movedJunctionIds: new Set(['ambiguous-endpoint']),
+    })).toBeNull()
   })
 
   it('removes both endpoint nodes when a dragged segment returns to its anchors', () => {

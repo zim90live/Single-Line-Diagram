@@ -1,0 +1,1410 @@
+import { Canvas } from '@react-three/fiber'
+import {
+  forwardRef,
+  memo,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type RefObject,
+} from 'react'
+
+import type {
+  AssetDefinition,
+  ConnectionCrossingLayer,
+  CoolingLineRole,
+  DiagramElement,
+  DiagramViewport,
+} from '../domain/project'
+import {
+  buildMonitorStaticFlowLineGroups,
+  deriveInactiveFlowPaths,
+  FLOW_BUSBAR_SCREEN_WIDTH,
+  FlowAnimationLayer,
+  type MonitorFlowPath,
+} from '../monitoring/FlowAnimationLayer'
+import { splitFlowPathAroundCrossings } from '../monitoring/flowPathGeometry'
+import {
+  layoutBusbarLabels,
+} from '../editor/busbarLabels'
+import {
+  layoutConnectionLabels,
+} from '../editor/connectionLabels'
+import {
+  COOLING_DIRECTION_ARROW_INSET_SCREEN,
+  COOLING_PIPE_BRIDGE_RADIUS,
+  COOLING_PIPE_CORNER_RADIUS,
+  COOLING_PIPE_SHELL_ENDPOINT_INSET,
+  coolingPipeCoreWidth,
+  insetPolylineEndpoints,
+  isCoolingConnectionType,
+  resolvedCoolingLineColor,
+} from '../editor/connectionAppearance'
+import {
+  connectionEdgeCrossingPriority,
+  sortByConnectionCrossingPriority,
+} from '../editor/connectionCrossingOrder'
+import {
+  bridgedPathData,
+  bridgedPolylinePoints,
+  busbarEndPoint,
+  busbarPoint,
+  connectedRouteEndpointGeometry,
+  connectionRouteBranchPointKeys,
+  connectionTerminalArrowPath,
+  indexConnectionCrossings,
+  type RoutedConnectionEdge,
+} from '../editor/connections'
+import {
+  clampZoom,
+  diagramContentBounds,
+  elementsBounds,
+  fitViewportToBounds,
+  MIN_ZOOM,
+  zoomAroundPoint,
+  type Point,
+  type Rect,
+} from '../editor/geometry'
+import {
+  GRID_BACKGROUND_COLOR,
+  GridSurface,
+  type GridRenderState,
+} from '../editor/GridSurface'
+import { getAdaptiveGridScale, GRID_PRESENTATION } from '../editor/gridScale'
+import {
+  layoutElementLabels,
+} from '../editor/elementLabels'
+import {
+  resolvedGenericSymbolBackgroundColor,
+} from '../editor/genericSymbol'
+import { DEFAULT_BUSBAR_COLOR, defaultConnectionColor } from '../editor/objectColors'
+import {
+  elementSupportsOnOffState,
+  resolvedSymbolColor,
+  symbolSupportsOnOffState,
+  symbolsByKey,
+  type SymbolDefinition,
+  type SymbolVisualState,
+} from '../editor/symbolCatalog'
+import { useRoutedConnections } from '../editor/useRoutedConnections'
+import {
+  inferWheelGestureKind,
+  pinchZoomFactor,
+  type WheelGestureKind,
+} from '../editor/wheelGestures'
+import type { DiagramRuntimeView } from './diagramRuntime'
+import type { DiagramRuntimeContext } from './types'
+import { useDiagramMonitorRuntime } from './useDiagramMonitorRuntime'
+import {
+  BusbarLabelItem,
+  BusbarVisual,
+  ConnectionBridgeCasing,
+  ConnectionDirectionArrow,
+  ConnectionLabelItem,
+  CoolingPipeShell,
+  CoolingPipeInnerShadowFilter,
+  DiagramElementVisual,
+  ElementLabelItem,
+  MonitorStaticFlowLines,
+  SymbolColorFilter,
+  symbolColorFilterId,
+} from '../scene/DiagramScenePrimitives'
+
+const CANVAS_STAGE_STYLE = {
+  '--diagram-canvas-background': GRID_BACKGROUND_COLOR,
+} as CSSProperties
+const RENDER_CULLING_OBJECT_THRESHOLD = 180
+const RENDER_OVERSCAN_SCREEN_PX = 160
+const PAN_CULLING_SYNC_SCREEN_DISTANCE = 120
+const WHEEL_GESTURE_END_DELAY_MS = 160
+
+export interface DiagramMonitorCanvasHandle {
+  zoomIn: () => void
+  zoomOut: () => void
+  zoomReset: () => void
+}
+
+export interface DiagramMonitorCanvasProps {
+  view: DiagramRuntimeView
+  runtime: DiagramRuntimeContext
+  animationPlaying: boolean
+  documentEpoch?: number
+  viewport?: DiagramViewport
+  onSelectionChange?: (elementIds: string[]) => void
+  onElementDrillDown?: (elementId: string) => void
+  onViewportChange?: (viewport: DiagramViewport) => void
+}
+
+interface RouteRenderGroup {
+  networkId: string
+  type: RoutedConnectionEdge['type']
+  routes: RoutedConnectionEdge[]
+  renderKey: string
+  coolingLineRole?: CoolingLineRole
+  crossingLayer?: ConnectionCrossingLayer
+}
+
+function useElementSize(elementRef: RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ width: 1, height: 1 })
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+    const update = () => {
+      const rect = element.getBoundingClientRect()
+      setSize({ width: Math.max(1, rect.width), height: Math.max(1, rect.height) })
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [elementRef])
+  return size
+}
+
+function rectsIntersect(left: Rect, right: Rect) {
+  return left.x <= right.x + right.width &&
+    left.x + left.width >= right.x &&
+    left.y <= right.y + right.height &&
+    left.y + left.height >= right.y
+}
+
+function pointInsideRect(point: Point, rect: Rect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.width &&
+    point.y >= rect.y && point.y <= rect.y + rect.height
+}
+
+function segmentIntersectsViewport(start: Point, end: Point, rect: Rect) {
+  if (pointInsideRect(start, rect) || pointInsideRect(end, rect)) return true
+  if (start.y === end.y) {
+    return start.y >= rect.y && start.y <= rect.y + rect.height &&
+      Math.max(Math.min(start.x, end.x), rect.x) <=
+        Math.min(Math.max(start.x, end.x), rect.x + rect.width)
+  }
+  if (start.x === end.x) {
+    return start.x >= rect.x && start.x <= rect.x + rect.width &&
+      Math.max(Math.min(start.y, end.y), rect.y) <=
+        Math.min(Math.max(start.y, end.y), rect.y + rect.height)
+  }
+  return false
+}
+
+function polylineIntersectsViewport(points: Point[], rect: Rect) {
+  if (points.some((point) => pointInsideRect(point, rect))) return true
+  return points.slice(1).some((end, index) => (
+    segmentIntersectsViewport(points[index], end, rect)
+  ))
+}
+
+function projectedDistanceAlongPolyline(points: Point[], target: Point) {
+  let accumulated = 0
+  let best = { distanceAlong: 0, squaredDistance: Number.POSITIVE_INFINITY }
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1]
+    const end = points[index]
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const lengthSquared = dx * dx + dy * dy
+    const length = Math.sqrt(lengthSquared)
+    const ratio = lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, (
+          (target.x - start.x) * dx + (target.y - start.y) * dy
+        ) / lengthSquared))
+    const projected = { x: start.x + dx * ratio, y: start.y + dy * ratio }
+    const squaredDistance = (target.x - projected.x) ** 2 +
+      (target.y - projected.y) ** 2
+    if (squaredDistance < best.squaredDistance) {
+      best = { distanceAlong: accumulated + length * ratio, squaredDistance }
+    }
+    accumulated += length
+  }
+  return best.distanceAlong
+}
+
+function slicePolylineByDistance(points: Point[], lower: number, upper: number) {
+  if (points.length < 2 || upper <= lower) return []
+  let accumulated = 0
+  const sliced: Point[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const left = points[index - 1]
+    const right = points[index]
+    const length = Math.hypot(right.x - left.x, right.y - left.y)
+    if (length === 0) continue
+    const segmentStart = accumulated
+    const segmentEnd = accumulated + length
+    if (segmentEnd < lower || segmentStart > upper) {
+      accumulated = segmentEnd
+      continue
+    }
+    const interpolate = (distance: number) => {
+      const ratio = Math.max(0, Math.min(1, (distance - segmentStart) / length))
+      return {
+        x: left.x + (right.x - left.x) * ratio,
+        y: left.y + (right.y - left.y) * ratio,
+      }
+    }
+    const clippedStart = interpolate(Math.max(lower, segmentStart))
+    const clippedEnd = interpolate(Math.min(upper, segmentEnd))
+    if (
+      !sliced.length || sliced.at(-1)!.x !== clippedStart.x ||
+      sliced.at(-1)!.y !== clippedStart.y
+    ) sliced.push(clippedStart)
+    if (sliced.at(-1)!.x !== clippedEnd.x || sliced.at(-1)!.y !== clippedEnd.y) {
+      sliced.push(clippedEnd)
+    }
+    accumulated = segmentEnd
+  }
+  return sliced
+}
+
+function slicePolylineBetween(points: Point[], start: Point, end: Point) {
+  if (points.length < 2) return []
+  const startDistance = projectedDistanceAlongPolyline(points, start)
+  const endDistance = projectedDistanceAlongPolyline(points, end)
+  const sliced = slicePolylineByDistance(
+    points,
+    Math.min(startDistance, endDistance),
+    Math.max(startDistance, endDistance),
+  )
+  return startDistance <= endDistance ? sliced : sliced.reverse()
+}
+
+function MonitorElement({
+  element,
+  asset,
+  symbol,
+  zoom,
+  selected,
+  runtime,
+  drillDownTarget,
+  onSelect,
+  onDrillDown,
+  filterScope,
+}: {
+  element: DiagramElement
+  asset?: AssetDefinition
+  symbol?: SymbolDefinition
+  zoom: number
+  selected: boolean
+  runtime: DiagramRuntimeContext
+  drillDownTarget?: DiagramRuntimeContext['navigation'][string]
+  onSelect: (elementId: string) => void
+  onDrillDown: (elementId: string) => void
+  filterScope: string
+}) {
+  const centerX = element.x + element.width / 2
+  const centerY = element.y + element.height / 2
+  const visualState: SymbolVisualState = elementSupportsOnOffState(element) &&
+    runtime.state.onOffStates[element.id] ? 'on' : 'off'
+  const symbolColor = symbol?.configurableColor
+    ? resolvedSymbolColor(element, visualState)
+    : undefined
+  const generic = symbol?.renderMode === 'generic-frame'
+  const genericBackgroundColor = generic
+    ? resolvedGenericSymbolBackgroundColor(element)
+    : undefined
+  const coolingPumpRunning = runtime.state.coolingPumpRunningStates[element.id] ?? true
+  const coolingValveOpen = symbolSupportsOnOffState(symbol)
+    ? runtime.state.onOffStates[element.id] ?? false
+    : runtime.state.coolingValveOpenStates[element.id] ?? true
+  const coolingPumpStopped = asset?.coolingDeviceRole === 'pump' && !coolingPumpRunning
+  const clipPathId = `${filterScope}-generic-clip-${element.id}`
+  const handlePointerDown = (event: PointerEvent<SVGElement>) => {
+    if (event.button !== 0) return
+    if (drillDownTarget) {
+      event.preventDefault()
+      event.stopPropagation()
+      onDrillDown(element.id)
+      return
+    }
+    if (!symbolSupportsOnOffState(symbol) && !asset?.coolingDeviceRole) return
+    event.preventDefault()
+    event.stopPropagation()
+    onSelect(element.id)
+  }
+  return (
+    <g
+      className="diagram-element"
+      data-element-id={element.id}
+      data-asset-key={element.assetKey}
+      data-selected={selected || undefined}
+      data-monitor-on-off={symbolSupportsOnOffState(symbol) || undefined}
+      data-monitor-cooling-role={asset?.coolingDeviceRole}
+      data-monitor-cooling-active={asset?.coolingDeviceRole
+        ? asset.coolingDeviceRole === 'pump' ? coolingPumpRunning : coolingValveOpen
+        : undefined}
+      data-monitor-drill-down={drillDownTarget?.diagramId}
+      transform={generic ? undefined : `rotate(${element.rotation} ${centerX} ${centerY})`}
+    >
+      {drillDownTarget ? <title>{`点击下探到${drillDownTarget.diagramName}`}</title> : null}
+      <DiagramElementVisual
+        element={element}
+        symbol={symbol}
+        symbolColor={symbolColor}
+        genericBackgroundColor={genericBackgroundColor}
+        visualState={visualState}
+        coolingPumpStopped={coolingPumpStopped}
+        showCoolingPumpState={asset?.coolingDeviceRole === 'pump'}
+        colorFilterId={symbolColor
+          ? symbolColorFilterId(symbolColor, filterScope)
+          : undefined}
+        clipPathId={clipPathId}
+        onPointerDown={handlePointerDown}
+      />
+      {selected ? (
+        <rect
+          className="diagram-element__monitor-selection"
+          x={element.x - 3 / zoom}
+          y={element.y - 3 / zoom}
+          width={element.width + 6 / zoom}
+          height={element.height + 6 / zoom}
+          rx={2 / zoom}
+          transform={generic ? `rotate(${element.rotation} ${centerX} ${centerY})` : undefined}
+        />
+      ) : null}
+    </g>
+  )
+}
+
+export const DiagramMonitorCanvas = memo(forwardRef<
+  DiagramMonitorCanvasHandle,
+  DiagramMonitorCanvasProps
+>(function DiagramMonitorCanvas({
+  view,
+  runtime,
+  animationPlaying,
+  documentEpoch = 0,
+  viewport = view.diagram.canvas.viewport,
+  onSelectionChange,
+  onElementDrillDown,
+  onViewportChange,
+}, ref) {
+  const { diagram, lineSystem, assets, elements, busbars, connections, routeWaypoints } = view
+  const filterScope = `runtime-${useId().replace(/:/g, '')}`
+  const viewportElementRef = useRef<HTMLDivElement>(null)
+  const canvasStageRef = useRef<HTMLDivElement>(null)
+  const viewportWorldRef = useRef<SVGGElement>(null)
+  const gridFallbackRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef(viewport)
+  const gridInvalidateRef = useRef<(() => void) | null>(null)
+  const flowInvalidateRef = useRef<(() => void) | null>(null)
+  const panFrameRef = useRef<number | null>(null)
+  const pendingPanRef = useRef<DiagramViewport | null>(null)
+  const lastReactViewportRef = useRef(viewport)
+  const autoFitScopeRef = useRef<string | null>(null)
+  const wheelGestureRef = useRef<{
+    kind: WheelGestureKind | null
+    panTarget: DiagramViewport | null
+  }>({ kind: null, panTarget: null })
+  const wheelEndTimerRef = useRef<number | null>(null)
+  const spaceHeldRef = useRef(false)
+  const onViewportChangeRef = useRef(onViewportChange)
+  onViewportChangeRef.current = onViewportChange
+  const panInteractionRef = useRef<{
+    pointerId: number
+    trigger: 'middle' | 'space-left'
+    startClient: Point
+    startViewport: DiagramViewport
+  } | null>(null)
+  const [viewportValue, setViewportValue] = useState(viewport)
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const previousDiagramIdRef = useRef(diagram.id)
+  const canvasSize = useElementSize(viewportElementRef)
+  const gridScale = getAdaptiveGridScale(diagram.canvas.gridSize, viewportValue.zoom)
+  const gridRenderStateRef = useRef<GridRenderState>({
+    viewport: viewportValue,
+    worldStep: gridScale.worldStep,
+  })
+
+  const syncViewportPresentation = (nextViewport: DiagramViewport) => {
+    const nextGridScale = getAdaptiveGridScale(diagram.canvas.gridSize, nextViewport.zoom)
+    const world = viewportWorldRef.current
+    if (world) {
+      world.setAttribute(
+        'transform',
+        `translate(${nextViewport.tx} ${nextViewport.ty}) scale(${nextViewport.zoom})`,
+      )
+      world.style.transform = `translate(${nextViewport.tx}px, ${nextViewport.ty}px) scale(${nextViewport.zoom})`
+    }
+    const stage = canvasStageRef.current
+    if (stage) {
+      stage.dataset.gridZoom = String(nextViewport.zoom)
+      stage.dataset.gridTranslationX = String(nextViewport.tx)
+      stage.dataset.gridTranslationY = String(nextViewport.ty)
+      stage.dataset.gridDensity = String(nextGridScale.density)
+      stage.dataset.gridVisibleStep = String(nextGridScale.worldStep)
+      stage.dataset.gridScreenStep = String(nextGridScale.screenStep)
+      stage.dataset.gridScreenDotRadius = String(nextGridScale.dotScreenRadius)
+    }
+    const fallback = gridFallbackRef.current
+    if (fallback) {
+      fallback.style.setProperty('--grid-origin-x', `${nextViewport.tx}px`)
+      fallback.style.setProperty('--grid-origin-y', `${nextViewport.ty}px`)
+      fallback.style.setProperty('--grid-screen-step', `${nextGridScale.screenStep}px`)
+      fallback.style.setProperty('--grid-dot-radius', `${nextGridScale.dotScreenRadius}px`)
+    }
+    gridRenderStateRef.current = {
+      viewport: nextViewport,
+      worldStep: nextGridScale.worldStep,
+    }
+    gridInvalidateRef.current?.()
+    flowInvalidateRef.current?.()
+  }
+
+  const commitViewport = (nextViewport: DiagramViewport) => {
+    viewportRef.current = nextViewport
+    lastReactViewportRef.current = nextViewport
+    syncViewportPresentation(nextViewport)
+    setViewportValue(nextViewport)
+    onViewportChangeRef.current?.(nextViewport)
+  }
+
+  const applyPanFrame = (nextViewport: DiagramViewport) => {
+    pendingPanRef.current = null
+    viewportRef.current = nextViewport
+    syncViewportPresentation(nextViewport)
+    const last = lastReactViewportRef.current
+    if (Math.max(
+      Math.abs(nextViewport.tx - last.tx),
+      Math.abs(nextViewport.ty - last.ty),
+    ) < PAN_CULLING_SYNC_SCREEN_DISTANCE) return
+    lastReactViewportRef.current = nextViewport
+    setViewportValue(nextViewport)
+  }
+
+  const schedulePan = (nextViewport: DiagramViewport) => {
+    pendingPanRef.current = nextViewport
+    if (panFrameRef.current !== null) return
+    panFrameRef.current = window.requestAnimationFrame(() => {
+      panFrameRef.current = null
+      const pending = pendingPanRef.current
+      if (pending) applyPanFrame(pending)
+    })
+  }
+
+  const flushPan = () => {
+    if (panFrameRef.current !== null) window.cancelAnimationFrame(panFrameRef.current)
+    panFrameRef.current = null
+    const pending = pendingPanRef.current
+    if (pending) applyPanFrame(pending)
+    pendingPanRef.current = null
+    commitViewport(viewportRef.current)
+  }
+
+  useLayoutEffect(() => {
+    syncViewportPresentation(viewportRef.current)
+  }, [diagram.canvas.gridSize, gridScale.worldStep, viewportValue])
+
+  useEffect(() => {
+    viewportRef.current = viewport
+    lastReactViewportRef.current = viewport
+    setViewportValue(viewport)
+  }, [viewport])
+
+  useEffect(() => {
+    if (previousDiagramIdRef.current === diagram.id) return
+    previousDiagramIdRef.current = diagram.id
+    setSelectedElementId(null)
+    onSelectionChange?.([])
+  }, [diagram.id, onSelectionChange])
+
+  const contentBounds = useMemo(
+    () => diagramContentBounds(elements, busbars, connections),
+    [busbars, connections, elements],
+  )
+  useEffect(() => {
+    if (canvasSize.width <= 1 || canvasSize.height <= 1) return
+    const scope = `${documentEpoch}:${diagram.id}`
+    if (autoFitScopeRef.current === scope) return
+    autoFitScopeRef.current = scope
+    commitViewport(contentBounds
+      ? fitViewportToBounds(contentBounds, canvasSize)
+      : { zoom: 1, tx: 0, ty: 0 })
+  }, [canvasSize, contentBounds, diagram.id, documentEpoch])
+
+  const zoomBy = (factor: number) => {
+    const current = viewportRef.current
+    const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
+    commitViewport(zoomAroundPoint(
+      current,
+      center,
+      clampZoom(current.zoom * factor, Math.min(MIN_ZOOM, current.zoom)),
+      Math.min(MIN_ZOOM, current.zoom),
+    ))
+  }
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => zoomBy(1.2),
+    zoomOut: () => zoomBy(1 / 1.2),
+    zoomReset: () => {
+      const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
+      commitViewport(zoomAroundPoint(viewportRef.current, center, 1))
+    },
+  }))
+
+  useEffect(() => {
+    const element = viewportElementRef.current
+    if (!element) return
+    const clientPoint = (event: WheelEvent) => {
+      const rect = element.getBoundingClientRect()
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    }
+    const finishWheel = () => {
+      if (wheelGestureRef.current.kind === 'trackpad-pan') flushPan()
+      wheelGestureRef.current = { kind: null, panTarget: null }
+      wheelEndTimerRef.current = null
+    }
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      if (event.deltaX === 0 && event.deltaY === 0) return
+      const legacy = event as WheelEvent & { wheelDelta?: number; wheelDeltaY?: number }
+      const inferred = inferWheelGestureKind({
+        ctrlKey: event.ctrlKey,
+        deltaMode: event.deltaMode,
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        devicePixelRatio: globalThis.devicePixelRatio,
+        wheelDelta: legacy.wheelDelta,
+        wheelDeltaY: legacy.wheelDeltaY,
+      })
+      const gesture = wheelGestureRef.current
+      const changesPinch = gesture.kind !== null &&
+        (gesture.kind === 'pinch-zoom') !== (inferred === 'pinch-zoom')
+      if (changesPinch) finishWheel()
+      if (!gesture.kind) gesture.kind = inferred
+      if (wheelEndTimerRef.current !== null) window.clearTimeout(wheelEndTimerRef.current)
+      wheelEndTimerRef.current = window.setTimeout(finishWheel, WHEEL_GESTURE_END_DELAY_MS)
+      if (gesture.kind === 'trackpad-pan') {
+        const base = gesture.panTarget ?? viewportRef.current
+        const next = { ...base, tx: base.tx - event.deltaX, ty: base.ty - event.deltaY }
+        gesture.panTarget = next
+        schedulePan(next)
+        return
+      }
+      const current = viewportRef.current
+      const factor = gesture.kind === 'pinch-zoom'
+        ? pinchZoomFactor(event.deltaY)
+        : event.deltaY < 0 ? 1.12 : 1 / 1.12
+      const minimumZoom = Math.min(MIN_ZOOM, current.zoom)
+      commitViewport(zoomAroundPoint(
+        current,
+        clientPoint(event),
+        clampZoom(current.zoom * factor, minimumZoom),
+        minimumZoom,
+      ))
+    }
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+      if (wheelEndTimerRef.current !== null) window.clearTimeout(wheelEndTimerRef.current)
+    }
+  }, [canvasSize.height, canvasSize.width])
+
+  useEffect(() => {
+    const element = viewportElementRef.current
+    const ownsCanvasContext = () => {
+      const active = document.activeElement
+      return Boolean(element && (
+        element.matches(':hover') || active === element ||
+        (active instanceof Node && element.contains(active))
+      ))
+    }
+    const setReady = (ready: boolean) => {
+      spaceHeldRef.current = ready
+      if (!element) return
+      if (ready) element.dataset.panReady = 'true'
+      else delete element.dataset.panReady
+    }
+    const down = (event: KeyboardEvent) => {
+      if (
+        event.code !== 'Space' || event.ctrlKey || event.metaKey || event.altKey ||
+        !ownsCanvasContext()
+      ) return
+      const target = event.target
+      if (target instanceof HTMLElement && (
+        target.isContentEditable || target.matches('input, textarea, select')
+      )) return
+      event.preventDefault()
+      if (!event.repeat) setReady(true)
+    }
+    const up = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || !spaceHeldRef.current) return
+      event.preventDefault()
+      setReady(false)
+      const interaction = panInteractionRef.current
+      if (interaction?.trigger === 'space-left') {
+        flushPan()
+        panInteractionRef.current = null
+        delete element?.dataset.panning
+        if (
+          typeof element?.hasPointerCapture === 'function' &&
+          element.hasPointerCapture(interaction.pointerId) &&
+          typeof element.releasePointerCapture === 'function'
+        ) {
+          element.releasePointerCapture(interaction.pointerId)
+        }
+      }
+    }
+    const blur = () => {
+      setReady(false)
+      const interaction = panInteractionRef.current
+      if (interaction?.trigger !== 'space-left') return
+      flushPan()
+      panInteractionRef.current = null
+      delete element?.dataset.panning
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', blur)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', blur)
+    }
+  }, [])
+
+  useEffect(() => () => {
+    if (panFrameRef.current !== null) window.cancelAnimationFrame(panFrameRef.current)
+    if (wheelEndTimerRef.current !== null) window.clearTimeout(wheelEndTimerRef.current)
+  }, [])
+
+  const handlePointerDownCapture = (event: PointerEvent<HTMLDivElement>) => {
+    const trigger = event.button === 1
+      ? 'middle' as const
+      : event.button === 0 && spaceHeldRef.current
+        ? 'space-left' as const
+        : null
+    if (trigger) {
+      event.preventDefault()
+      event.stopPropagation()
+      panInteractionRef.current = {
+        pointerId: event.pointerId,
+        trigger,
+        startClient: { x: event.clientX, y: event.clientY },
+        startViewport: viewportRef.current,
+      }
+      event.currentTarget.dataset.panning = 'true'
+      if (typeof event.currentTarget.setPointerCapture === 'function') {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }
+    }
+  }
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || spaceHeldRef.current) return
+    setSelectedElementId(null)
+    onSelectionChange?.([])
+  }
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const interaction = panInteractionRef.current
+    if (!interaction || interaction.pointerId !== event.pointerId) return
+    schedulePan({
+      ...interaction.startViewport,
+      tx: interaction.startViewport.tx + event.clientX - interaction.startClient.x,
+      ty: interaction.startViewport.ty + event.clientY - interaction.startClient.y,
+    })
+  }
+  const finishPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const interaction = panInteractionRef.current
+    if (!interaction || interaction.pointerId !== event.pointerId) return
+    flushPan()
+    panInteractionRef.current = null
+    delete event.currentTarget.dataset.panning
+    if (
+      typeof event.currentTarget.hasPointerCapture === 'function' &&
+      event.currentTarget.hasPointerCapture(event.pointerId) &&
+      typeof event.currentTarget.releasePointerCapture === 'function'
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+  const cancelPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const interaction = panInteractionRef.current
+    if (!interaction || interaction.pointerId !== event.pointerId) return
+    if (panFrameRef.current !== null) window.cancelAnimationFrame(panFrameRef.current)
+    panFrameRef.current = null
+    pendingPanRef.current = null
+    commitViewport(interaction.startViewport)
+    panInteractionRef.current = null
+    delete event.currentTarget.dataset.panning
+  }
+
+  const routeInput = useMemo(() => ({
+    scopeKey: `${documentEpoch}:${diagram.id}`,
+    networks: connections,
+    elements,
+    assets,
+    gridSize: diagram.canvas.gridSize,
+    busbars,
+    routeWaypoints,
+  }), [
+    assets,
+    busbars,
+    connections,
+    diagram.canvas.gridSize,
+    diagram.id,
+    documentEpoch,
+    elements,
+    routeWaypoints,
+  ])
+  const { routed, isRouting, routeStats } = useRoutedConnections(routeInput)
+  const renderWorldRect = useMemo(() => {
+    const overscan = RENDER_OVERSCAN_SCREEN_PX / viewportValue.zoom
+    return {
+      x: -viewportValue.tx / viewportValue.zoom - overscan,
+      y: -viewportValue.ty / viewportValue.zoom - overscan,
+      width: canvasSize.width / viewportValue.zoom + overscan * 2,
+      height: canvasSize.height / viewportValue.zoom + overscan * 2,
+    }
+  }, [canvasSize, viewportValue])
+  const cullingEnabled = elements.length + busbars.length + routed.edges.length >
+    RENDER_CULLING_OBJECT_THRESHOLD
+  const visibleElements = useMemo(() => cullingEnabled
+    ? elements.filter((element) => {
+        if (element.id === selectedElementId) return true
+        const bounds = elementsBounds([element])
+        return bounds ? rectsIntersect(bounds, renderWorldRect) : false
+      })
+    : elements, [cullingEnabled, elements, renderWorldRect, selectedElementId])
+  const visibleBusbars = useMemo(() => cullingEnabled
+    ? busbars.filter((busbar) => (
+        segmentIntersectsViewport(busbar, busbarEndPoint(busbar), renderWorldRect)
+      ))
+    : busbars, [busbars, cullingEnabled, renderWorldRect])
+  const visibleRoutes = useMemo(() => cullingEnabled
+    ? routed.edges.filter((route) => polylineIntersectsViewport(route.points, renderWorldRect))
+    : routed.edges, [cullingEnabled, renderWorldRect, routed.edges])
+  const edgesById = useMemo(() => new Map(connections.flatMap((network) => (
+    network.edges.map((edge) => [edge.id, edge] as const)
+  ))), [connections])
+  const networksById = useMemo(
+    () => new Map(connections.map((network) => [network.id, network])),
+    [connections],
+  )
+  const busbarsById = useMemo(
+    () => new Map(busbars.map((busbar) => [busbar.id, busbar])),
+    [busbars],
+  )
+  const assetsByKey = useMemo(
+    () => new Map(assets.map((asset) => [asset.key, asset])),
+    [assets],
+  )
+  const routeGroups = useMemo(() => {
+    const grouped = new Map<string, RoutedConnectionEdge[]>()
+    visibleRoutes.forEach((route) => {
+      const routes = grouped.get(route.networkId) ?? []
+      routes.push(route)
+      grouped.set(route.networkId, routes)
+    })
+    const renderGroups: RouteRenderGroup[] = []
+    grouped.forEach((routes, networkId) => {
+      const type = routes[0]?.type
+      if (!type) return
+      const buckets = new Map<string, Omit<RouteRenderGroup, 'networkId' | 'type' | 'renderKey'>>()
+      routes.forEach((route) => {
+        const edge = edgesById.get(route.edgeId)
+        const coolingLineRole = isCoolingConnectionType(type)
+          ? edge?.coolingLineRole ?? 'primary'
+          : undefined
+        const crossingLayer = edge?.crossingLayer
+        const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}`
+        const bucket = buckets.get(key)
+        if (bucket) bucket.routes.push(route)
+        else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer })
+      })
+      buckets.forEach((bucket, key) => renderGroups.push({
+        networkId,
+        type,
+        renderKey: `${networkId}:${key}`,
+        ...bucket,
+      }))
+    })
+    return sortByConnectionCrossingPriority(renderGroups, (group) => ({
+      crossingLayer: group.crossingLayer,
+      coolingLineRole: group.coolingLineRole,
+    }))
+  }, [edgesById, visibleRoutes])
+  const crossingsByEdgeId = useMemo(
+    () => indexConnectionCrossings(routed.crossings),
+    [routed.crossings],
+  )
+  const branchPointKeysByNetworkId = useMemo(
+    () => connectionRouteBranchPointKeys(routed.edges),
+    [routed.edges],
+  )
+  const coolingNodeIdsByNetwork = useMemo(() => new Map(connections.flatMap((network) => (
+    isCoolingConnectionType(network.type)
+      ? [[network.id, new Set(network.nodes.flatMap((node) => (
+          node.kind === 'node' ? [node.id] : []
+        )))] as const]
+      : []
+  ))), [connections])
+  const coolingGeometryByEdgeId = useMemo(() => connectedRouteEndpointGeometry(
+    visibleRoutes.filter((route) => isCoolingConnectionType(route.type)),
+    coolingNodeIdsByNetwork,
+    crossingsByEdgeId,
+    COOLING_PIPE_CORNER_RADIUS,
+    branchPointKeysByNetworkId,
+  ), [branchPointKeysByNetworkId, coolingNodeIdsByNetwork, crossingsByEdgeId, visibleRoutes])
+  const renderedPaths = useMemo(() => new Map(visibleRoutes.map((route) => {
+    const cooling = isCoolingConnectionType(route.type)
+    const geometry = cooling ? coolingGeometryByEdgeId.get(route.edgeId) : undefined
+    const displayRoute = geometry?.route ?? route
+    return [route.edgeId, bridgedPathData(displayRoute, crossingsByEdgeId, diagram.canvas.gridSize, {
+      bridgeRadius: cooling ? COOLING_PIPE_BRIDGE_RADIUS : diagram.canvas.gridSize * 0.5,
+      cornerRadius: cooling ? COOLING_PIPE_CORNER_RADIUS : 0,
+      squareCornerPointKeys: cooling
+        ? branchPointKeysByNetworkId.get(route.networkId)
+        : undefined,
+      sourceEndpointArc: geometry?.sourceEndpointArc,
+      targetEndpointArc: geometry?.targetEndpointArc,
+    })] as const
+  })), [
+    branchPointKeysByNetworkId,
+    coolingGeometryByEdgeId,
+    crossingsByEdgeId,
+    diagram.canvas.gridSize,
+    visibleRoutes,
+  ])
+  const pipeShellsByRenderKey = useMemo(() => new Map(routeGroups.flatMap((group) => {
+    if (!isCoolingConnectionType(group.type)) return []
+    const nodesById = new Map(
+      networksById.get(group.networkId)?.nodes.map((node) => [node.id, node]) ?? [],
+    )
+    const shells = group.routes.map((route) => {
+      const geometry = coolingGeometryByEdgeId.get(route.edgeId)
+      const displayRoute = geometry?.route ?? route
+      const sourceNode = nodesById.get(route.sourceNodeId)
+      const targetNode = nodesById.get(route.targetNodeId)
+      const points = insetPolylineEndpoints(
+        displayRoute.points,
+        sourceNode?.kind === 'element-anchor' ? COOLING_PIPE_SHELL_ENDPOINT_INSET : 0,
+        targetNode?.kind === 'element-anchor' ? COOLING_PIPE_SHELL_ENDPOINT_INSET : 0,
+      )
+      return {
+        path: bridgedPathData(
+          { ...displayRoute, points },
+          crossingsByEdgeId,
+          diagram.canvas.gridSize,
+          {
+            bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
+            cornerRadius: COOLING_PIPE_CORNER_RADIUS,
+            squareCornerPointKeys: branchPointKeysByNetworkId.get(route.networkId),
+            sourceEndpointArc: geometry?.sourceEndpointArc,
+            targetEndpointArc: geometry?.targetEndpointArc,
+          },
+        ).linePath,
+        points: [
+          ...points,
+          ...(geometry?.sourceEndpointArc ? [geometry.sourceEndpointArc.midpoint] : []),
+          ...(geometry?.targetEndpointArc ? [geometry.targetEndpointArc.midpoint] : []),
+        ],
+      }
+    })
+    return [[group.renderKey, {
+      path: shells.map((shell) => shell.path).join(' '),
+      points: shells.flatMap((shell) => shell.points),
+    }] as const]
+  })), [
+    branchPointKeysByNetworkId,
+    coolingGeometryByEdgeId,
+    crossingsByEdgeId,
+    diagram.canvas.gridSize,
+    networksById,
+    routeGroups,
+  ])
+  const pipeFilterIds = useMemo(() => new Map(routeGroups.flatMap((group, index) => (
+    isCoolingConnectionType(group.type)
+      ? [[group.renderKey, `${filterScope}-cooling-pipe-${index}`] as const]
+      : []
+  ))), [filterScope, routeGroups])
+  const underpassExclusions = useMemo(() => {
+    const routesById = new Map(routed.edges.map((route) => [route.edgeId, route]))
+    const result = new Map<string, Array<{ point: Point; radius: number }>>()
+    routed.crossings.forEach((crossing) => {
+      if (!routesById.has(crossing.underEdgeId) && !crossing.underEdgeId.startsWith('busbar:')) {
+        return
+      }
+      const bridge = routesById.get(crossing.bridgeEdgeId)
+      const radius = bridge && isCoolingConnectionType(bridge.type)
+        ? COOLING_PIPE_BRIDGE_RADIUS
+        : diagram.canvas.gridSize * 0.5
+      const exclusions = result.get(crossing.underEdgeId) ?? []
+      exclusions.push({ point: crossing, radius })
+      result.set(crossing.underEdgeId, exclusions)
+    })
+    return result
+  }, [diagram.canvas.gridSize, routed.crossings, routed.edges])
+  const {
+    powerFlowTopology,
+    coolingFlowTopology,
+    metricReadings,
+  } = useDiagramMonitorRuntime({
+    enabled: true,
+    lineSystemType: lineSystem.type,
+    elements,
+    busbars,
+    connections,
+    assets,
+    resolvedBusbarTapOffsets: routed.resolvedBusbarTapOffsets,
+    runtime,
+  })
+  const displayedRoutePaths = useMemo(() => new Map(visibleRoutes.map((route) => {
+    const cooling = isCoolingConnectionType(route.type)
+    const geometry = cooling ? coolingGeometryByEdgeId.get(route.edgeId) : undefined
+    const displayRoute = geometry?.route ?? route
+    const edge = edgesById.get(route.edgeId)
+    const lineColor = edge?.color ?? defaultConnectionColor(route.type)
+    const path: MonitorFlowPath = {
+      id: `edge-display:${route.edgeId}`,
+      connectionEdgeId: route.edgeId,
+      points: bridgedPolylinePoints(displayRoute, crossingsByEdgeId, diagram.canvas.gridSize, cooling
+        ? {
+            bridgeRadius: COOLING_PIPE_BRIDGE_RADIUS,
+            cornerRadius: COOLING_PIPE_CORNER_RADIUS,
+            squareCornerPointKeys: branchPointKeysByNetworkId.get(route.networkId),
+            sourceEndpointArc: geometry?.sourceEndpointArc,
+            targetEndpointArc: geometry?.targetEndpointArc,
+          }
+        : {}),
+      worldWidth: cooling ? coolingPipeCoreWidth(edge?.coolingLineRole) : undefined,
+      style: cooling ? 'cooling' : 'power',
+      renderPriority: connectionEdgeCrossingPriority(edge),
+      baseColor: cooling
+        ? resolvedCoolingLineColor(lineColor, edge?.coolingLineRole)
+        : lineColor,
+    }
+    return [route.edgeId, { route, path }] as const
+  })), [
+    branchPointKeysByNetworkId,
+    coolingGeometryByEdgeId,
+    crossingsByEdgeId,
+    diagram.canvas.gridSize,
+    edgesById,
+    visibleRoutes,
+  ])
+  const displayedFlowPaths = useMemo<MonitorFlowPath[]>(() => {
+    const routes = [...displayedRoutePaths.values()].map(({ path }) => path)
+    return lineSystem.type === 'power'
+      ? [
+          ...routes,
+          ...visibleBusbars.map((busbar) => ({
+            id: `busbar-display:${busbar.id}`,
+            points: [busbar, busbarEndPoint(busbar)],
+            screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
+            style: 'power' as const,
+            baseColor: busbar.color ?? DEFAULT_BUSBAR_COLOR,
+            renderPriority: -1,
+          })),
+        ]
+      : routes
+  }, [displayedRoutePaths, lineSystem.type, visibleBusbars])
+  const activeFlowPaths = useMemo<MonitorFlowPath[]>(() => {
+    const activeFlowEdges = lineSystem.type === 'cooling'
+      ? coolingFlowTopology.edges
+      : powerFlowTopology.edges
+    const flowSegmentsByEdgeId = new Map<string, typeof activeFlowEdges>()
+    activeFlowEdges.forEach((flow) => {
+      const segments = flowSegmentsByEdgeId.get(flow.edgeId) ?? []
+      segments.push(flow)
+      flowSegmentsByEdgeId.set(flow.edgeId, segments)
+    })
+    const topologyByEdgeId = new Map(connections.flatMap((network) => {
+      const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
+      return network.edges.map((edge) => [edge.id, { edge, nodesById }] as const)
+    }))
+    const edgePaths = visibleRoutes.flatMap((route) => {
+      const flowSegments = flowSegmentsByEdgeId.get(route.edgeId)
+      if (!flowSegments?.length) return []
+      const cooling = isCoolingConnectionType(route.type)
+      const displayedPath = displayedRoutePaths.get(route.edgeId)?.path
+      const points = displayedPath?.points ?? route.points
+      const topology = topologyByEdgeId.get(route.edgeId)
+      return flowSegments.flatMap((flow, index) => {
+        let flowPoints = points
+        if (flow.startNodeId && flow.endNodeId && topology) {
+          const chain = [
+            topology.edge.sourceNodeId,
+            ...(topology.edge.routeNodeIds ?? []),
+            topology.edge.targetNodeId,
+          ]
+          const startIndex = chain.indexOf(flow.startNodeId)
+          const endIndex = chain.indexOf(flow.endNodeId)
+          if (startIndex < 0 || endIndex !== startIndex + 1) return []
+          const pointForNode = (nodeId: string, chainIndex: number) => {
+            if (chainIndex === 0) return route.points[0]
+            if (chainIndex === chain.length - 1) return route.points.at(-1)!
+            const node = topology.nodesById.get(nodeId)
+            return node?.kind === 'node' ? { x: node.x, y: node.y } : null
+          }
+          const start = pointForNode(flow.startNodeId, startIndex)
+          const end = pointForNode(flow.endNodeId, endIndex)
+          if (!start || !end) return []
+          flowPoints = slicePolylineBetween(points, start, end)
+        }
+        if (flow.direction === 'reverse') flowPoints = [...flowPoints].reverse()
+        return splitFlowPathAroundCrossings(
+          flowPoints,
+          underpassExclusions.get(route.edgeId) ?? [],
+        ).map((fragment, fragmentIndex) => ({
+          id: `edge-flow:${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}:${fragmentIndex}`,
+          connectionEdgeId: route.edgeId,
+          points: fragment,
+          worldWidth: displayedPath?.worldWidth,
+          speedMultiplier: flow.speedMultiplier,
+          style: cooling ? 'cooling' as const : 'power' as const,
+          animated: true,
+          baseColor: displayedPath?.baseColor,
+          renderPriority: displayedPath?.renderPriority,
+        }))
+      })
+    })
+    const busbarPaths = powerFlowTopology.busbarSegments.flatMap((segment) => {
+      if (cullingEnabled && !segmentIntersectsViewport(segment.start, segment.end, renderWorldRect)) {
+        return []
+      }
+      const lowerX = Math.min(segment.start.x, segment.end.x)
+      const upperX = Math.max(segment.start.x, segment.end.x)
+      const lowerY = Math.min(segment.start.y, segment.end.y)
+      const upperY = Math.max(segment.start.y, segment.end.y)
+      const exclusions = underpassExclusions.get(`busbar:${segment.busbarId}`)?.filter(({ point }) => (
+        point.x >= lowerX && point.x <= upperX && point.y >= lowerY && point.y <= upperY
+      )) ?? []
+      return splitFlowPathAroundCrossings(
+        [segment.start, segment.end],
+        exclusions,
+      ).map((fragment, fragmentIndex) => ({
+        id: `${segment.id}:${fragmentIndex}`,
+        points: fragment,
+        screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
+        style: 'power' as const,
+        animated: true,
+        baseColor: busbarsById.get(segment.busbarId)?.color ?? DEFAULT_BUSBAR_COLOR,
+        renderPriority: -1,
+      }))
+    })
+    return [...edgePaths, ...busbarPaths]
+  }, [
+    busbarsById,
+    connections,
+    coolingFlowTopology.edges,
+    cullingEnabled,
+    displayedRoutePaths,
+    lineSystem.type,
+    powerFlowTopology.busbarSegments,
+    powerFlowTopology.edges,
+    renderWorldRect,
+    underpassExclusions,
+    visibleRoutes,
+  ])
+  const inactiveFlowPaths = useMemo(
+    () => deriveInactiveFlowPaths(displayedFlowPaths, activeFlowPaths),
+    [activeFlowPaths, displayedFlowPaths],
+  )
+  const staticFlowGroups = useMemo(
+    () => buildMonitorStaticFlowLineGroups(activeFlowPaths, inactiveFlowPaths),
+    [activeFlowPaths, inactiveFlowPaths],
+  )
+  const staticConnectionsByRenderKey = useMemo(() => {
+    const activeByEdge = new Map<string, MonitorFlowPath[]>()
+    const inactiveByEdge = new Map<string, MonitorFlowPath[]>()
+    const append = (map: Map<string, MonitorFlowPath[]>, path: MonitorFlowPath) => {
+      if (!path.connectionEdgeId) return
+      const paths = map.get(path.connectionEdgeId) ?? []
+      paths.push(path)
+      map.set(path.connectionEdgeId, paths)
+    }
+    activeFlowPaths.forEach((path) => append(activeByEdge, path))
+    inactiveFlowPaths.forEach((path) => append(inactiveByEdge, path))
+    return new Map(routeGroups.map((group) => [
+      group.renderKey,
+      buildMonitorStaticFlowLineGroups(
+        group.routes.flatMap((route) => activeByEdge.get(route.edgeId) ?? []),
+        group.routes.flatMap((route) => inactiveByEdge.get(route.edgeId) ?? []),
+      ).filter((staticGroup) => staticGroup.kind === 'connection'),
+    ] as const))
+  }, [activeFlowPaths, inactiveFlowPaths, routeGroups])
+  const connectedAnchors = useMemo(() => {
+    const result = new Map<string, Set<string>>()
+    connections.forEach((network) => {
+      const connectedNodeIds = new Set(network.edges.flatMap((edge) => [
+        edge.sourceNodeId,
+        edge.targetNodeId,
+      ]))
+      network.nodes.forEach((node) => {
+        if (node.kind !== 'element-anchor' || !connectedNodeIds.has(node.id)) return
+        const ids = result.get(node.elementId) ?? new Set<string>()
+        ids.add(node.anchorId)
+        result.set(node.elementId, ids)
+      })
+    })
+    return result
+  }, [connections])
+  const elementLabels = useMemo(() => layoutElementLabels(visibleElements, assetsByKey, {
+    connectedAnchorIdsByElement: connectedAnchors,
+    readings: metricReadings,
+  }), [assetsByKey, connectedAnchors, metricReadings, visibleElements])
+  const busbarLabels = useMemo(() => layoutBusbarLabels(visibleBusbars), [visibleBusbars])
+  const connectionLabels = useMemo(() => layoutConnectionLabels(
+    visibleRoutes,
+    connections,
+    null,
+    { readings: metricReadings },
+  ), [connections, metricReadings, visibleRoutes])
+  const visibleSymbolColors = useMemo(() => [...new Set(visibleElements.flatMap((element) => {
+    const symbol = symbolsByKey.get(element.assetKey)
+    if (!symbol?.configurableColor) return []
+    const state: SymbolVisualState = elementSupportsOnOffState(element) &&
+      runtime.state.onOffStates[element.id] ? 'on' : 'off'
+    return [resolvedSymbolColor(element, state)]
+  }))], [runtime.state.onOffStates, visibleElements])
+  const fallbackGridStyle = {
+    '--grid-origin-x': `${viewportValue.tx}px`,
+    '--grid-origin-y': `${viewportValue.ty}px`,
+    '--grid-screen-step': `${gridScale.screenStep}px`,
+    '--grid-dot-radius': `${gridScale.dotScreenRadius}px`,
+  } as CSSProperties
+
+  return (
+    <div
+      ref={canvasStageRef}
+      className="canvas-stage"
+      style={CANVAS_STAGE_STYLE}
+      data-testid="diagram-monitor-canvas"
+      data-grid-presentation={GRID_PRESENTATION}
+      data-grid-size={diagram.canvas.gridSize}
+      data-grid-zoom={viewportValue.zoom}
+      data-grid-translation-x={viewportValue.tx}
+      data-grid-translation-y={viewportValue.ty}
+      data-grid-density={gridScale.density}
+      data-grid-visible-step={gridScale.worldStep}
+      data-grid-screen-step={gridScale.screenStep}
+      data-grid-screen-dot-radius={gridScale.dotScreenRadius}
+      data-routing-pending={isRouting || undefined}
+      data-route-mode={routeStats?.mode}
+      data-route-duration-ms={routeStats ? routeStats.durationMs.toFixed(2) : undefined}
+      data-render-culling={cullingEnabled || undefined}
+      data-rendered-elements={visibleElements.length}
+      data-rendered-busbars={visibleBusbars.length}
+      data-rendered-routes={visibleRoutes.length}
+      data-monitor-flow-path-count={animationPlaying ? activeFlowPaths.length : 0}
+      data-mode="monitor"
+      data-runtime-scene="readonly"
+    >
+      <div
+        ref={viewportElementRef}
+        className="diagram-viewport"
+        tabIndex={0}
+        aria-label="一次接线图监控画布"
+        onAuxClick={(event) => { if (event.button === 1) event.preventDefault() }}
+        onContextMenu={(event) => event.preventDefault()}
+        onPointerDownCapture={handlePointerDownCapture}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={cancelPointer}
+      >
+        <Canvas
+          className="grid-webgl"
+          orthographic
+          frameloop="demand"
+          dpr={[1, 1.75]}
+          camera={{ position: [0, 0, 1] }}
+          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+          onCreated={({ gl, invalidate }) => {
+            gl.domElement.setAttribute('aria-hidden', 'true')
+            gridInvalidateRef.current = invalidate
+            invalidate()
+          }}
+          fallback={(
+            <div
+              ref={gridFallbackRef}
+              className="grid-fallback"
+              aria-hidden="true"
+              style={fallbackGridStyle}
+            />
+          )}
+        >
+          <GridSurface renderStateRef={gridRenderStateRef} />
+        </Canvas>
+        <svg className="editor-overlay" data-testid="runtime-monitor-overlay" aria-hidden="true">
+          <defs>
+            {routeGroups.flatMap((group) => {
+              const id = pipeFilterIds.get(group.renderKey)
+              const shell = pipeShellsByRenderKey.get(group.renderKey)
+              return id && shell ? [(
+                <CoolingPipeInnerShadowFilter
+                  key={id}
+                  id={id}
+                  points={shell.points}
+                  role={group.coolingLineRole}
+                />
+              )] : []
+            })}
+            {visibleSymbolColors.map((color) => (
+              <SymbolColorFilter
+                key={color}
+                id={symbolColorFilterId(color, filterScope)}
+                color={color}
+              />
+            ))}
+          </defs>
+          <g
+            ref={viewportWorldRef}
+            className="viewport-world"
+            transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}
+            style={{
+              transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})`,
+            }}
+          >
+            <g className="busbar-layer" data-testid="busbar-layer">
+              {visibleBusbars.map((busbar) => {
+                return (
+                  <BusbarVisual
+                    key={busbar.id}
+                    busbar={busbar}
+                  />
+                )
+              })}
+            </g>
+            <g
+              className="monitor-static-flow-layer"
+              data-testid="monitor-static-busbar-layer"
+              aria-hidden="true"
+            >
+              <MonitorStaticFlowLines groups={staticFlowGroups.filter(
+                (group) => group.kind === 'busbar',
+              )} />
+            </g>
+            <g className="connection-layer" data-testid="connection-layer">
+              {routeGroups.map((group) => {
+                const shell = pipeShellsByRenderKey.get(group.renderKey)
+                const filterId = pipeFilterIds.get(group.renderKey)
+                return (
+                  <g
+                    key={group.renderKey}
+                    className="connection-network"
+                    data-network-id={group.networkId}
+                    data-connection-type={group.type}
+                    data-cooling-line-role={group.coolingLineRole}
+                  >
+                    {group.routes.flatMap((route) => {
+                      const casing = renderedPaths.get(route.edgeId)?.bridgeCasingPath
+                      return casing ? [(
+                        <ConnectionBridgeCasing
+                          key={`runtime-bridge:${route.edgeId}`}
+                          path={casing}
+                          type={route.type}
+                          coolingLineRole={group.coolingLineRole}
+                        />
+                      )] : []
+                    })}
+                    {shell && filterId ? (
+                      <CoolingPipeShell
+                        path={shell.path}
+                        type={group.type}
+                        coolingLineRole={group.coolingLineRole ?? 'primary'}
+                        filterId={filterId}
+                      />
+                    ) : null}
+                    <MonitorStaticFlowLines groups={
+                      staticConnectionsByRenderKey.get(group.renderKey) ?? []
+                    } />
+                    {group.routes.map((route) => {
+                      const edge = edgesById.get(route.edgeId)
+                      if (!edge?.flowDirection) return null
+                      return (
+                        <g
+                          key={`runtime-arrow:${route.edgeId}`}
+                          className="connection-edge"
+                          data-connection-type={route.type}
+                          data-cooling-line-role={edge.coolingLineRole}
+                          style={edge.color
+                            ? { '--connection-color': edge.color } as CSSProperties
+                            : undefined}
+                        >
+                          <ConnectionDirectionArrow
+                            path={connectionTerminalArrowPath(
+                              route.points,
+                              edge.flowDirection,
+                              viewportValue.zoom,
+                              isCoolingConnectionType(route.type)
+                                ? COOLING_DIRECTION_ARROW_INSET_SCREEN
+                                : 0,
+                            )}
+                          />
+                        </g>
+                      )
+                    })}
+                  </g>
+                )
+              })}
+              {connections.flatMap((network) => network.nodes.flatMap((node) => {
+                if (node.kind !== 'busbar-tap') return []
+                const busbar = busbarsById.get(node.busbarId)
+                if (!busbar) return []
+                const offset = routed.resolvedBusbarTapOffsets[node.id] ?? node.offset
+                const point = busbarPoint(busbar, offset)
+                if (cullingEnabled && !pointInsideRect(point, renderWorldRect)) return []
+                return [(
+                  <circle
+                    key={node.id}
+                    className="busbar-tap"
+                    data-connection-type="electrical"
+                    data-busbar-id={node.busbarId}
+                    data-busbar-offset={offset}
+                    style={busbar.color
+                      ? { '--busbar-color': busbar.color } as CSSProperties
+                      : undefined}
+                    cx={point.x}
+                    cy={point.y}
+                    r={2.5 / viewportValue.zoom}
+                  />
+                )]
+              }))}
+            </g>
+            {visibleElements.map((element) => (
+              <MonitorElement
+                key={element.id}
+                element={element}
+                asset={assetsByKey.get(element.assetKey)}
+                symbol={symbolsByKey.get(element.assetKey)}
+                zoom={viewportValue.zoom}
+                selected={selectedElementId === element.id}
+                runtime={runtime}
+                drillDownTarget={runtime.navigation[element.id]}
+                onSelect={(elementId) => {
+                  setSelectedElementId(elementId)
+                  onSelectionChange?.([elementId])
+                }}
+                onDrillDown={(elementId) => onElementDrillDown?.(elementId)}
+                filterScope={filterScope}
+              />
+            ))}
+            <g className="element-label-layer" data-testid="element-label-layer">
+              {elementLabels.map((layout) => (
+                <ElementLabelItem key={layout.elementId} layout={layout} />
+              ))}
+              {busbarLabels.map((layout) => (
+                <BusbarLabelItem key={layout.busbarId} layout={layout} />
+              ))}
+              {connectionLabels.map((layout) => (
+                <ConnectionLabelItem key={layout.edgeId} layout={layout} />
+              ))}
+            </g>
+          </g>
+        </svg>
+        {animationPlaying && activeFlowPaths.length > 0 ? (
+          <FlowAnimationLayer
+            paths={activeFlowPaths}
+            viewportRef={viewportRef}
+            invalidateRef={flowInvalidateRef}
+          />
+        ) : null}
+      </div>
+    </div>
+  )
+}))

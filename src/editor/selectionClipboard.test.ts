@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
 import {
   clipboardCanPasteInto,
+  clipboardSelectionBounds,
   centeredSelectionOffset,
   copyConnectionsWithinSelection,
   createEmptySelectionClipboard,
@@ -64,6 +65,7 @@ describe('selection clipboard topology', () => {
       busbars: [],
       connections: [],
       routeWaypoints: [],
+      selectedNodeIds: [],
     }))
   })
 
@@ -95,6 +97,28 @@ describe('selection clipboard topology', () => {
       .toEqual({ x: 328, y: 248 })
   })
 
+  it('centers a node-only copied segment from its free-node bounds', () => {
+    const copiedNetwork: ConnectionNetwork = {
+      id: 'node-only',
+      diagramId: 'diagram-a',
+      type: 'electrical',
+      nodes: [
+        { id: 'left', kind: 'node', x: 16, y: 32 },
+        { id: 'right', kind: 'node', x: 80, y: 32 },
+      ],
+      edges: [{ id: 'left-right', sourceNodeId: 'left', targetNodeId: 'right' }],
+    }
+
+    expect(clipboardSelectionBounds([], [], [copiedNetwork])).toEqual({
+      x: 16,
+      y: 32,
+      width: 64,
+      height: 0,
+    })
+    expect(centeredSelectionOffset([], [], { x: 400, y: 304 }, 8, [copiedNetwork]))
+      .toEqual({ x: 352, y: 272 })
+  })
+
   it('copies only logical edges whose endpoint objects are both selected', () => {
     const copied = copyConnectionsWithinSelection(
       [network],
@@ -115,6 +139,86 @@ describe('selection clipboard topology', () => {
     )
 
     expect(copied).toEqual([])
+  })
+
+  it('copies every segment directly touching a selected node without pulling the next branch', () => {
+    const branched: ConnectionNetwork = {
+      id: 'selected-node-network',
+      diagramId: 'diagram-original',
+      type: 'electrical',
+      nodes: [
+        { id: 'anchor-a', kind: 'element-anchor', elementId: 'element-a', anchorId: 'right' },
+        { id: 'selected-junction', kind: 'node', x: 80, y: 64 },
+        { id: 'boundary-junction', kind: 'node', x: 128, y: 64 },
+        { id: 'anchor-c', kind: 'element-anchor', elementId: 'element-c', anchorId: 'left' },
+      ],
+      edges: [
+        {
+          id: 'anchor-to-selected',
+          sourceNodeId: 'anchor-a',
+          targetNodeId: 'selected-junction',
+          color: '#123456',
+          label: '节点支路',
+          flowDirection: 'reverse',
+        },
+        {
+          id: 'selected-to-boundary',
+          sourceNodeId: 'selected-junction',
+          targetNodeId: 'boundary-junction',
+          coolingLineRole: 'auxiliary',
+        },
+        {
+          id: 'unselected-external-branch',
+          sourceNodeId: 'boundary-junction',
+          targetNodeId: 'anchor-c',
+        },
+      ],
+    }
+
+    const copied = copyConnectionsWithinSelection(
+      [branched],
+      new Set(),
+      new Set(),
+      new Set(['selected-junction']),
+      (_network, node) => node.id === 'anchor-a' ? { x: 32, y: 64 } : null,
+    )
+
+    expect(copied).toHaveLength(1)
+    expect(copied[0].edges.map((edge) => edge.id).sort()).toEqual([
+      'anchor-to-selected',
+      'selected-to-boundary',
+    ])
+    expect(copied[0].nodes).toEqual(expect.arrayContaining([
+      { id: 'anchor-a', kind: 'node', x: 32, y: 64 },
+      { id: 'selected-junction', kind: 'node', x: 80, y: 64 },
+      { id: 'boundary-junction', kind: 'node', x: 128, y: 64 },
+    ]))
+    expect(copied[0].edges[0]).toEqual(expect.objectContaining({
+      color: '#123456',
+      label: '节点支路',
+      flowDirection: 'reverse',
+    }))
+    expect(copied[0].edges.some((edge) => edge.id === 'unselected-external-branch')).toBe(false)
+  })
+
+  it('detaches a selected busbar tap when its host busbar is not selected', () => {
+    const copied = copyConnectionsWithinSelection(
+      [network],
+      new Set(),
+      new Set(),
+      new Set(['tap-b']),
+      (_network, node) => {
+        if (node.id === 'tap-b') return { x: 80, y: 64 }
+        if (node.id === 'node-a') return { x: 32, y: 64 }
+        if (node.id === 'node-c') return { x: 128, y: 64 }
+        return null
+      },
+    )
+
+    expect(copied[0].edges.map((edge) => edge.id).sort()).toEqual(['edge-a-b', 'edge-b-c'])
+    expect(copied[0].nodes.find((node) => node.id === 'tap-b'))
+      .toEqual({ id: 'tap-b', kind: 'node', x: 80, y: 64 })
+    expect(copied[0].nodes.every((node) => node.kind === 'node')).toBe(true)
   })
 
   it('creates fresh topology IDs and remaps element and busbar references', () => {
@@ -245,6 +349,36 @@ describe('selection clipboard topology', () => {
     expect(instantiated[0].edges.find((edge) => edge.crossingLayer === 'upper')).toBeDefined()
     expect(new Set(instantiated[0].edges.map((edge) => edge.logicalConnectionId)).size).toBe(1)
     expect(instantiated[0].edges[0].logicalConnectionId).not.toBe('trunk-logical-edge')
+  })
+
+  it('returns fresh node IDs for restoring the explicitly selected copied nodes', () => {
+    const selectedNodeNetwork: ConnectionNetwork = {
+      id: 'selected-node-network',
+      diagramId: 'diagram-original',
+      type: 'electrical',
+      nodes: [
+        { id: 'selected', kind: 'node', x: 40, y: 48 },
+        { id: 'boundary', kind: 'node', x: 88, y: 48 },
+      ],
+      edges: [{ id: 'segment', sourceNodeId: 'selected', targetNodeId: 'boundary' }],
+    }
+    const nodeIdMap = new Map<string, string>()
+    let id = 0
+    const instantiated = instantiateCopiedConnections(
+      [selectedNodeNetwork],
+      'diagram-copy',
+      new Map(),
+      new Map(),
+      (prefix) => `${prefix}-${++id}`,
+      new Map(),
+      { x: 16, y: 24 },
+      nodeIdMap,
+    )
+
+    expect(nodeIdMap.get('selected')).toBeDefined()
+    expect(nodeIdMap.get('selected')).not.toBe('selected')
+    expect(instantiated[0].nodes.find((node) => node.id === nodeIdMap.get('selected')))
+      .toMatchObject({ kind: 'node', x: 56, y: 72 })
   })
 
   it('copies monitoring configuration and generic border visibility with fresh metric IDs', () => {

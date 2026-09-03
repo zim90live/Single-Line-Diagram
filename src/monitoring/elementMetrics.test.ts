@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { DiagramElement, MonitorMetric } from '../domain/project'
 import {
+  cloneMonitorMetricsWithNewIds,
   createDefaultMonitorTextOptions,
   defaultMonitorMetricAlarm,
   evaluateMonitorMetricAlarm,
@@ -30,6 +31,31 @@ function metric(overrides: Partial<NumberMetric> = {}): NumberMetric {
 }
 
 describe('monitor element metrics', () => {
+  it('clones metric templates with independent metric and text-option ids', () => {
+    const source: MonitorMetric[] = [
+      metric(),
+      {
+        id: 'status',
+        name: '状态',
+        valueType: 'text',
+        textOptions: [
+          { id: 'running', value: '运行', severity: 'normal' },
+          { id: 'stopped', value: '停止', severity: 'major' },
+        ],
+      },
+    ]
+    const first = cloneMonitorMetricsWithNewIds(source)
+    const second = cloneMonitorMetricsWithNewIds(source)
+
+    expect(first.map((item) => item.id)).not.toEqual(source.map((item) => item.id))
+    expect(first.map((item) => item.id)).not.toEqual(second.map((item) => item.id))
+    const firstText = first[1] as Extract<MonitorMetric, { valueType: 'text' }>
+    const secondText = second[1] as Extract<MonitorMetric, { valueType: 'text' }>
+    expect(firstText.textOptions.map((option) => option.id)).not.toEqual(
+      secondText.textOptions.map((option) => option.id),
+    )
+  })
+
   it('evaluates upper and lower alarms using the highest matching severity', () => {
     const upper = metric()
     expect(evaluateMonitorMetricAlarm(upper, 59.9)).toBe('normal')

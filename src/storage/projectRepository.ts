@@ -78,6 +78,37 @@ export const projectRepository: ProjectRepository = {
 export interface MonitorStateRepository {
   getOnOffStates(projectId: string): Promise<Record<string, boolean>>
   setOnOffState(projectId: string, elementId: string, on: boolean): Promise<void>
+  setOnOffStates(projectId: string, states: Record<string, boolean>): Promise<void>
+}
+
+async function persistOnOffStates(projectId: string, states: Record<string, boolean>) {
+  const entries = Object.entries(states)
+  if (!entries.length) return
+  await database.transaction('rw', database.projects, database.monitorSwitchStates, async () => {
+    const updatedAt = new Date().toISOString()
+    await database.monitorSwitchStates.bulkPut(entries.map(([elementId, on]) => ({
+      key: `${projectId}:${elementId}`,
+      projectId,
+      elementId,
+      on,
+      updatedAt,
+    })))
+    const stored = await database.projects.get(projectId)
+    if (!stored) return
+    const elements = stored.document.elements.map((element) => (
+      Object.prototype.hasOwnProperty.call(states, element.id) && elementUsesOnOffState(element)
+        ? {
+            ...element,
+            onOffState: states[element.id] ? 'on' as const : 'off' as const,
+          }
+        : element
+    ))
+    if (elements.every((element, index) => element === stored.document.elements[index])) return
+    await database.projects.put({
+      ...stored,
+      document: { ...stored.document, elements },
+    })
+  })
 }
 
 export const monitorStateRepository: MonitorStateRepository = {
@@ -90,26 +121,10 @@ export const monitorStateRepository: MonitorStateRepository = {
   },
 
   async setOnOffState(projectId, elementId, on) {
-    await database.transaction('rw', database.projects, database.monitorSwitchStates, async () => {
-      await database.monitorSwitchStates.put({
-        key: `${projectId}:${elementId}`,
-        projectId,
-        elementId,
-        on,
-        updatedAt: new Date().toISOString(),
-      })
-      const stored = await database.projects.get(projectId)
-      if (!stored) return
-      const elements = stored.document.elements.map((element) => (
-        element.id === elementId && elementUsesOnOffState(element)
-          ? { ...element, onOffState: on ? 'on' as const : 'off' as const }
-          : element
-      ))
-      if (elements.every((element, index) => element === stored.document.elements[index])) return
-      await database.projects.put({
-        ...stored,
-        document: { ...stored.document, elements },
-      })
-    })
+    await persistOnOffStates(projectId, { [elementId]: on })
+  },
+
+  async setOnOffStates(projectId, states) {
+    await persistOnOffStates(projectId, states)
   },
 }

@@ -14,12 +14,14 @@ import {
   type ConnectionEdge,
   type ConnectionNetwork,
   type DiagramElement,
+  type MonitorMetric,
 } from '../domain/project'
 import {
   collectCanvasColorGroups,
   type CanvasColorCategory,
   type CanvasColorTarget,
 } from '../editor/canvasColors'
+import { DEFAULT_BUSBAR_LABEL_COLOR } from '../editor/busbarLabels'
 import { isCoolingConnectionType } from '../editor/connectionAppearance'
 import {
   DEFAULT_BUSBAR_COLOR,
@@ -54,6 +56,8 @@ import { MonitorMetricsEditor } from './MonitorMetricsEditor'
 interface PropertiesPanelProps {
   selectedElements: DiagramElement[]
   duplicateDeviceIdentifier?: boolean
+  allowExternalSupplyEntry?: boolean
+  allowCoolingFlowSource?: boolean
   selectedBusbars: Busbar[]
   selectedConnection: {
     id: string
@@ -69,12 +73,18 @@ interface PropertiesPanelProps {
   canvasBusbars?: Busbar[]
   canvasConnections?: ConnectionNetwork[]
   onPatch: (elementId: string, patch: Partial<DiagramElement>) => void
+  onPatchElements?: (elementIds: string[], patch: Partial<DiagramElement>) => void
+  onPatchElementMetrics?: (elementIds: string[], metrics: MonitorMetric[]) => void
   onPatchBusbar?: (busbarId: string, patch: Partial<Busbar>) => void
+  onPatchBusbars?: (busbarIds: string[], patch: Partial<Busbar>) => void
+  onBusbarLabelColorPreview?: (busbarId: string, color: string | null) => void
   onPatchConnectionEdge?: (edgeId: string, patch: Partial<ConnectionEdge>) => void
   onPatchConnectionEdges?: (edgeIds: string[], patch: Partial<ConnectionEdge>) => void
+  onPatchConnectionMetrics?: (edgeIds: string[], metrics: MonitorMetric[]) => void
   onResetConnectionRouting?: () => void
   onOffStates?: Record<string, boolean>
   onOnOffStateChange?: (elementId: string, on: boolean) => void
+  onOnOffStatesChange?: (elementIds: string[], on: boolean) => void
   onColorPreview: (
     elementId: string,
     color: string | null,
@@ -82,6 +92,16 @@ interface PropertiesPanelProps {
   ) => void
   onSelectionColorPreview: (color: string | null) => void
   onSelectionColorCommit: (color: string | null) => void
+  onElementSelectionColorPreview?: (
+    elementIds: string[],
+    color: string | null,
+    slot: SymbolColorSlot,
+  ) => void
+  onElementSelectionColorCommit?: (
+    elementIds: string[],
+    color: string | null,
+    slot: SymbolColorSlot,
+  ) => void
   onCanvasColorPreview?: (target: CanvasColorTarget, color: string | null) => void
   onCanvasColorCommit?: (target: CanvasColorTarget, color: string) => void
   onDelete: () => void
@@ -133,7 +153,7 @@ function PropertyToggle({
 }: {
   label: string
   description: string
-  checked: boolean
+  checked: boolean | 'mixed'
   onChange: (checked: boolean) => void
 }) {
   return (
@@ -148,11 +168,99 @@ function PropertyToggle({
         role="switch"
         aria-label={label}
         aria-checked={checked}
-        onClick={() => onChange(!checked)}
+        onClick={() => onChange(checked === 'mixed' ? true : !checked)}
       >
         <span aria-hidden="true" />
       </button>
     </div>
+  )
+}
+
+function mixedBoolean(values: boolean[]): boolean | 'mixed' {
+  return values.every((value) => value === values[0]) ? values[0] : 'mixed'
+}
+
+function monitorMetricTemplateSignature(metrics: MonitorMetric[]) {
+  return JSON.stringify(metrics.map((metric) => {
+    if (metric.valueType === 'text') {
+      const { id: _id, textOptions, ...rest } = metric
+      return {
+        ...rest,
+        textOptions: textOptions.map(({ id: _optionId, ...option }) => option),
+      }
+    }
+    const { id: _id, ...rest } = metric
+    return rest
+  }))
+}
+
+interface BatchMetricSource {
+  id: string
+  label: string
+  metrics: MonitorMetric[]
+}
+
+function BatchMonitorMetricsEditor({
+  sources,
+  onApply,
+}: {
+  sources: BatchMetricSource[]
+  onApply: (metrics: MonitorMetric[]) => void
+}) {
+  const firstMetrics = sources[0]?.metrics ?? []
+  const firstSignature = monitorMetricTemplateSignature(firstMetrics)
+  const sameTemplate = sources.every((source) => (
+    monitorMetricTemplateSignature(source.metrics) === firstSignature
+  ))
+  const [sourceId, setSourceId] = useState(sameTemplate ? '__shared__' : '')
+  const [draft, setDraft] = useState<MonitorMetric[]>(() => (
+    sameTemplate ? structuredClone(firstMetrics) : []
+  ))
+  const ready = sourceId !== ''
+
+  return (
+    <section className="batch-monitor-metrics" aria-label="批量运行指标配置">
+      {!sameTemplate ? (
+        <SelectField
+          label="指标模板"
+          aria-label="指标模板"
+          hint="先选择一个对象的整套配置，或从空白开始；不会自动合并不同指标。"
+          value={sourceId}
+          onChange={(event) => {
+            const nextSourceId = event.currentTarget.value
+            setSourceId(nextSourceId)
+            if (nextSourceId === '__blank__') {
+              setDraft([])
+              return
+            }
+            const source = sources.find((candidate) => candidate.id === nextSourceId)
+            setDraft(structuredClone(source?.metrics ?? []))
+          }}
+        >
+          <option value="" disabled>选择模板来源</option>
+          {sources.map((source) => (
+            <option key={source.id} value={source.id}>{source.label}</option>
+          ))}
+          <option value="__blank__">创建空白配置</option>
+        </SelectField>
+      ) : null}
+      {ready ? (
+        <>
+          <MonitorMetricsEditor metrics={draft} onChange={setDraft} />
+          <Button
+            variant="neutral-soft"
+            onClick={() => onApply(draft)}
+          >
+            应用到 {sources.length} 个对象
+          </Button>
+          <p className="batch-monitor-metrics__note">
+            整套覆盖现有指标，并为每个对象创建独立指标 ID；可一次撤销。
+          </p>
+        </>
+      ) : (
+        <p className="batch-monitor-metrics__note">当前选择包含多种指标配置，尚未选择覆盖模板。</p>
+      )}
+    </section>
   )
 }
 
@@ -512,6 +620,8 @@ function CanvasColorOverview({
 export function PropertiesPanel({
   selectedElements,
   duplicateDeviceIdentifier = false,
+  allowExternalSupplyEntry = false,
+  allowCoolingFlowSource = false,
   selectedBusbars,
   selectedConnection,
   selectedRouteWaypointCount = 0,
@@ -521,15 +631,23 @@ export function PropertiesPanel({
   canvasBusbars = [],
   canvasConnections = [],
   onPatch,
+  onPatchElements = () => undefined,
+  onPatchElementMetrics = () => undefined,
   onPatchBusbar = () => undefined,
+  onPatchBusbars = () => undefined,
+  onBusbarLabelColorPreview = () => undefined,
   onPatchConnectionEdge = () => undefined,
   onPatchConnectionEdges = () => undefined,
+  onPatchConnectionMetrics = () => undefined,
   onResetConnectionRouting = () => undefined,
   onOffStates = {},
   onOnOffStateChange = () => undefined,
+  onOnOffStatesChange = () => undefined,
   onColorPreview,
   onSelectionColorPreview,
   onSelectionColorCommit,
+  onElementSelectionColorPreview = () => undefined,
+  onElementSelectionColorCommit = () => undefined,
   onCanvasColorPreview = () => undefined,
   onCanvasColorCommit = () => undefined,
   onDelete,
@@ -624,6 +742,13 @@ export function PropertiesPanel({
     )
     const busbarCount = selectedBusbars.length
     const connectionCount = selectedConnection?.edges.length ?? 0
+    const busbarMonitorFlowDirections = selectedBusbars.map((busbar) => (
+      busbar.monitorFlowDirection ?? 'auto'
+    ))
+    const selectionBusbarMonitorFlowDirection = busbarMonitorFlowDirections[0] ?? 'auto'
+    const mixedBusbarMonitorFlowDirection = busbarMonitorFlowDirections.some((direction) => (
+      direction !== selectionBusbarMonitorFlowDirection
+    ))
     const connectionFlowDirections = selectedConnection?.edges.map((edge) => (
       edge.flowDirection ?? 'bidirectional'
     )) ?? []
@@ -631,6 +756,17 @@ export function PropertiesPanel({
     const mixedFlowDirection = connectionFlowDirections.some((direction) => (
       direction !== selectionFlowDirection
     ))
+    const connectionExternalSupplyEndpoints = selectedConnection?.edges.map((edge) => (
+      edge.externalSupplyEndpoint ?? 'none'
+    )) ?? []
+    const selectionExternalSupplyEndpoint = connectionExternalSupplyEndpoints[0] ?? 'none'
+    const mixedExternalSupplyEndpoint = connectionExternalSupplyEndpoints.some((endpoint) => (
+      endpoint !== selectionExternalSupplyEndpoint
+    ))
+    const externalSupplyDirectionConflict = selectedConnection?.edges.some((edge) => (
+      (edge.externalSupplyEndpoint === 'source' && edge.flowDirection === 'reverse') ||
+      (edge.externalSupplyEndpoint === 'target' && edge.flowDirection === 'forward')
+    )) === true
     const connectionCrossingLayers = selectedConnection?.edges.map((edge) => (
       edge.crossingLayer ?? 'auto'
     )) ?? []
@@ -694,6 +830,17 @@ export function PropertiesPanel({
           <span>{heading}</span>
         </div>
         <div className="property-form" key={selectionKey}>
+          {busbarCount > 1 && connectionCount === 0 ? (
+            <PropertyToggle
+              label="显示母线标签"
+              description={`同时应用到 ${busbarCount} 条所选母线`}
+              checked={mixedBoolean(selectedBusbars.map((busbar) => busbar.labelVisible !== false))}
+              onChange={(labelVisible) => onPatchBusbars(
+                selectedBusbars.map((busbar) => busbar.id),
+                { labelVisible },
+              )}
+            />
+          ) : null}
           {busbarCount === 1 && connectionCount === 0 ? (
             <>
               <CommittedTextField
@@ -703,6 +850,24 @@ export function PropertiesPanel({
                 onCommit={(label) => onPatchBusbar(selectedBusbars[0].id, {
                   label: label || undefined,
                 })}
+              />
+              <CommittedColorField
+                selectionKey={`${selectedBusbars[0].id}:label-color`}
+                label="标签颜色"
+                value={selectedBusbars[0].labelColor ?? DEFAULT_BUSBAR_LABEL_COLOR}
+                fallback={DEFAULT_BUSBAR_LABEL_COLOR}
+                hasCustomColor={selectedBusbars[0].labelColor !== undefined}
+                onPreview={(color) => onBusbarLabelColorPreview(
+                  selectedBusbars[0].id,
+                  color,
+                )}
+                onCommit={(labelColor) => onPatchBusbar(selectedBusbars[0].id, {
+                  labelColor,
+                })}
+                onRestore={() => {
+                  onBusbarLabelColorPreview(selectedBusbars[0].id, null)
+                  onPatchBusbar(selectedBusbars[0].id, { labelColor: undefined })
+                }}
               />
               <PropertyToggle
                 label="显示母线标签"
@@ -764,6 +929,54 @@ export function PropertiesPanel({
                 onChange={(monitorMetrics) => onPatchConnectionEdge(
                   selectedConnection!.edges[0].id,
                   { monitorMetrics },
+                )}
+              />
+            </>
+          ) : null}
+          {connectionCount > 1 && busbarCount === 0 ? (
+            <>
+              <PropertyToggle
+                label="显示子线标签"
+                description={`同时应用到 ${connectionCount} 条所选子线`}
+                checked={mixedBoolean(selectedConnection!.edges.map((edge) => (
+                  edge.labelVisible !== false
+                )))}
+                onChange={(labelVisible) => onPatchConnectionEdges(
+                  selectedConnection!.edges.map((edge) => edge.id),
+                  { labelVisible },
+                )}
+              />
+              <PropertyToggle
+                label="显示运行数据"
+                description={`同时应用到 ${connectionCount} 条所选子线`}
+                checked={mixedBoolean(selectedConnection!.edges.map((edge) => (
+                  edge.monitorDataVisible === true
+                )))}
+                onChange={(monitorDataVisible) => onPatchConnectionEdges(
+                  selectedConnection!.edges.map((edge) => edge.id),
+                  { monitorDataVisible },
+                )}
+              />
+              <PropertyToggle
+                label="显示指标名称与单位"
+                description={`同时应用到 ${connectionCount} 条所选子线`}
+                checked={mixedBoolean(selectedConnection!.edges.map((edge) => (
+                  edge.monitorMetricLabelsVisible !== false
+                )))}
+                onChange={(monitorMetricLabelsVisible) => onPatchConnectionEdges(
+                  selectedConnection!.edges.map((edge) => edge.id),
+                  { monitorMetricLabelsVisible },
+                )}
+              />
+              <BatchMonitorMetricsEditor
+                sources={selectedConnection!.edges.map((edge, index) => ({
+                  id: edge.id,
+                  label: edge.label?.trim() || `子线 ${index + 1}`,
+                  metrics: edge.monitorMetrics ?? [],
+                }))}
+                onApply={(monitorMetrics) => onPatchConnectionMetrics(
+                  selectedConnection!.edges.map((edge) => edge.id),
+                  monitorMetrics,
                 )}
               />
             </>
@@ -848,6 +1061,91 @@ export function PropertiesPanel({
               <option value="reverse">终点 → 起点</option>
             </SelectField>
           ) : null}
+          {(allowExternalSupplyEntry || allowCoolingFlowSource) &&
+          connectionCount > 0 && busbarCount === 0 ? (
+            <SelectField
+              label={allowCoolingFlowSource ? '水流源头' : '外部供电入口'}
+              aria-label={allowCoolingFlowSource ? '水流源头' : '外部供电入口'}
+              hint={externalSupplyDirectionConflict
+                ? allowCoolingFlowSource
+                  ? '当前通行方向阻断了所选源头，监控模式不会产生水流'
+                  : '当前通行方向阻断了所选入口，监控模式不会产生电流'
+                : connectionCount > 1
+                  ? allowCoolingFlowSource
+                    ? `同时应用到 ${connectionCount} 条所选管路；模拟水流从源头流向其他开放端`
+                    : `同时应用到 ${connectionCount} 条所选子线；显式入口会停用当前子图的自动母线供电`
+                  : allowCoolingFlowSource
+                    ? '从所选端点注入模拟流量；仍受管路方向和泵阀状态约束'
+                    : '父图带电时从所选端点注入；仍受子线通行方向约束'}
+              value={mixedExternalSupplyEndpoint ? 'mixed' : selectionExternalSupplyEndpoint}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'mixed') return
+                const patch: Partial<ConnectionEdge> = {
+                  externalSupplyEndpoint: value === 'none'
+                    ? undefined
+                    : value as 'source' | 'target',
+                }
+                const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
+                if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
+                else onPatchConnectionEdges(edgeIds, patch)
+              }}
+            >
+              {mixedExternalSupplyEndpoint
+                ? <option value="mixed" disabled>
+                    {allowCoolingFlowSource ? '多种源头' : '多种入口'}
+                  </option>
+                : null}
+              <option value="none">
+                {allowCoolingFlowSource ? '不作为源头' : '不作为入口'}
+              </option>
+              <option value="source">起点端</option>
+              <option value="target">终点端</option>
+            </SelectField>
+          ) : null}
+          {busbarCount > 0 && connectionCount === 0 ? (
+            <SelectField
+              label="监控电流方向"
+              aria-label="监控电流方向"
+              hint={busbarCount > 1
+                ? `同时应用到 ${busbarCount} 条所选母线；仅在母线实际带电时生效`
+                : '人工方向覆盖整条母线，但不会凭空产生电源'}
+              value={mixedBusbarMonitorFlowDirection
+                ? 'mixed'
+                : selectionBusbarMonitorFlowDirection}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'mixed') return
+                const patch: Partial<Busbar> = {
+                  monitorFlowDirection: value === 'auto'
+                    ? undefined
+                    : value as 'start-to-end' | 'end-to-start',
+                }
+                const busbarIds = selectedBusbars.map((busbar) => busbar.id)
+                if (busbarIds.length === 1) onPatchBusbar(busbarIds[0], patch)
+                else onPatchBusbars(busbarIds, patch)
+              }}
+            >
+              {mixedBusbarMonitorFlowDirection
+                ? <option value="mixed" disabled>多种方向</option>
+                : null}
+              <option value="auto">自动判定</option>
+              <option value="start-to-end">
+                {busbarCount === 1
+                  ? selectedBusbars[0].orientation === 'horizontal'
+                    ? '左端 → 右端'
+                    : '上端 → 下端'
+                  : '各自起点 → 终点'}
+              </option>
+              <option value="end-to-start">
+                {busbarCount === 1
+                  ? selectedBusbars[0].orientation === 'horizontal'
+                    ? '右端 → 左端'
+                    : '下端 → 上端'
+                  : '各自终点 → 起点'}
+              </option>
+            </SelectField>
+          ) : null}
           <CommittedColorField
             selectionKey={selectionKey}
             label={colorLabel}
@@ -888,6 +1186,142 @@ export function PropertiesPanel({
           <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>
             删除{combined ? '所选线路' : busbarCount > 0 ? '母线' : isNetworkSelection ? '线路网络' : connectionCount > 1 ? '所选子线' : '子线'}
           </Button>
+        </div>
+      </aside>
+    )
+  }
+
+  if (
+    selectedElements.length > 1 &&
+    selectedBusbars.length === 0 &&
+    selectedConnection === null &&
+    selectedRouteWaypointCount === 0 &&
+    selectedJunctionCount === 0
+  ) {
+    const elementIds = selectedElements.map((element) => element.id)
+    const selectionKey = elementIds.slice().sort().join(':')
+    const selectedSymbols = selectedElements.map((element) => symbolsByKey.get(element.assetKey))
+    const sameAssetType = selectedElements.every((element) => (
+      element.assetKey === selectedElements[0].assetKey
+    ))
+    const allGeneric = selectedElements.every((element) => isGenericSymbolKey(element.assetKey))
+    const allUseExternalLabel = selectedElements.every((element) => (
+      !isGenericSymbolKey(element.assetKey)
+    ))
+    const allSupportOnOff = selectedSymbols.every((symbol) => symbolSupportsOnOffState(symbol))
+    const allConfigurableColor = selectedSymbols.every((symbol) => symbol?.configurableColor === true)
+    const stateValues = selectedElements.map((element) => onOffStates[element.id] ?? false)
+    const stateValue = mixedBoolean(stateValues)
+    const heading = sameAssetType
+      ? `${selectedElements.length} 个 ${selectedSymbols[0]?.name ?? selectedElements[0].name}`
+      : `${selectedElements.length} 个图元 · ${new Set(selectedElements.map((element) => element.assetKey)).size} 种类型`
+    const metricSources = selectedElements.map((element, index) => ({
+      id: element.id,
+      label: String(element.properties.tag ?? '').trim() || `${element.name} ${index + 1}`,
+      metrics: element.monitorMetrics ?? [],
+    }))
+    const renderColorField = (
+      slot: SymbolColorSlot,
+      label: string,
+      fallback: string,
+    ) => {
+      const values = selectedElements.map((element) => (
+        slot === 'generic-background'
+          ? resolvedGenericSymbolBackgroundColor(element)
+          : resolvedSymbolColorForSlot(element, slot)
+      ))
+      const value = values[0] ?? fallback
+      const mixed = values.some((color) => color !== value)
+      const property = slot === 'generic-background'
+        ? GENERIC_SYMBOL_BACKGROUND_COLOR_PROPERTY
+        : symbolColorPropertyKey(slot)
+      const hasCustomColor = selectedElements.some((element) => (
+        typeof element.properties[property] === 'string' || (
+          (slot === 'switch-off' || slot === 'switch-on') &&
+          typeof element.properties.color === 'string'
+        )
+      ))
+      return (
+        <CommittedColorField
+          selectionKey={`${selectionKey}:${slot}`}
+          label={label}
+          value={value}
+          fallback={fallback}
+          hasCustomColor={hasCustomColor}
+          mixed={mixed}
+          onPreview={(color) => onElementSelectionColorPreview(elementIds, color, slot)}
+          onCommit={(color) => onElementSelectionColorCommit(elementIds, color, slot)}
+          onRestore={() => onElementSelectionColorCommit(elementIds, null, slot)}
+        />
+      )
+    }
+    return (
+      <aside className="properties-panel" aria-labelledby="properties-title">
+        <div className="panel-heading properties-heading">
+          <h2 id="properties-title">属性</h2>
+          <span>{heading}</span>
+        </div>
+        <div className="property-form" key={selectionKey}>
+          {allUseExternalLabel ? (
+            <PropertyToggle
+              label="显示图元标签"
+              description={`同时应用到 ${selectedElements.length} 个所选图元`}
+              checked={mixedBoolean(selectedElements.map((element) => element.labelVisible !== false))}
+              onChange={(labelVisible) => onPatchElements(elementIds, { labelVisible })}
+            />
+          ) : null}
+          <PropertyToggle
+            label="显示运行数据"
+            description={`同时应用到 ${selectedElements.length} 个所选图元`}
+            checked={mixedBoolean(selectedElements.map((element) => (
+              element.monitorDataVisible === true
+            )))}
+            onChange={(monitorDataVisible) => onPatchElements(elementIds, {
+              monitorDataVisible,
+            })}
+          />
+          <PropertyToggle
+            label="显示指标名称与单位"
+            description={`同时应用到 ${selectedElements.length} 个所选图元`}
+            checked={mixedBoolean(selectedElements.map((element) => (
+              element.monitorMetricLabelsVisible !== false
+            )))}
+            onChange={(monitorMetricLabelsVisible) => onPatchElements(elementIds, {
+              monitorMetricLabelsVisible,
+            })}
+          />
+          <BatchMonitorMetricsEditor
+            sources={metricSources}
+            onApply={(monitorMetrics) => onPatchElementMetrics(elementIds, monitorMetrics)}
+          />
+          {allSupportOnOff ? (
+            <PropertyToggle
+              label="运行状态"
+              description={stateValue === 'mixed'
+                ? '所选设备包含开启与关闭两种状态'
+                : stateValue ? '所选设备当前均为 On' : '所选设备当前均为 Off'}
+              checked={stateValue}
+              onChange={(on) => onOnOffStatesChange(elementIds, on)}
+            />
+          ) : null}
+          {allSupportOnOff ? (
+            <>
+              {renderColorField('switch-off', '关状态颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)}
+              {renderColorField('switch-on', '开状态颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)}
+            </>
+          ) : sameAssetType && allConfigurableColor ? (
+            renderColorField('default', allGeneric ? '虚线框颜色' : '图元颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)
+          ) : null}
+          {allGeneric ? renderColorField(
+            'generic-background',
+            '背景颜色',
+            GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR,
+          ) : null}
+          <div className="property-meta">
+            <span>范围</span>
+            <code>{selectedElements.length} 个手动选择的图元</code>
+          </div>
+          <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除所选</Button>
         </div>
       </aside>
     )

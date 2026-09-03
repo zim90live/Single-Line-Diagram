@@ -6,7 +6,7 @@ import type {
   LineSystemType,
   RouteWaypoint,
 } from '../domain/project'
-import { diagramObjectsBounds, snap, type Point } from './geometry'
+import { diagramObjectsBounds, snap, type Point, type Rect } from './geometry'
 
 export type DiagramClipboardOperation = 'copy' | 'cut'
 
@@ -18,6 +18,7 @@ export interface DiagramSelectionClipboard {
   busbars: Busbar[]
   connections: ConnectionNetwork[]
   routeWaypoints: RouteWaypoint[]
+  selectedNodeIds: string[]
 }
 
 export function createEmptySelectionClipboard(): DiagramSelectionClipboard {
@@ -29,6 +30,7 @@ export function createEmptySelectionClipboard(): DiagramSelectionClipboard {
     busbars: [],
     connections: [],
     routeWaypoints: [],
+    selectedNodeIds: [],
   }
 }
 
@@ -44,12 +46,47 @@ export function centeredSelectionOffset(
   busbars: Busbar[],
   targetCenter: Point,
   gridSize: number,
+  connections: ConnectionNetwork[] = [],
 ): Point {
-  const bounds = diagramObjectsBounds(elements, busbars)
+  const bounds = clipboardSelectionBounds(elements, busbars, connections)
   if (!bounds) return { x: 0, y: 0 }
   return {
     x: snap(targetCenter.x - (bounds.x + bounds.width / 2), gridSize),
     y: snap(targetCenter.y - (bounds.y + bounds.height / 2), gridSize),
+  }
+}
+
+export function clipboardSelectionBounds(
+  elements: DiagramElement[],
+  busbars: Busbar[],
+  connections: ConnectionNetwork[],
+): Rect | null {
+  const objectBounds = diagramObjectsBounds(elements, busbars)
+  const freeNodes = connections.flatMap((network) => network.nodes.flatMap((node) => (
+    node.kind === 'node' ? [node] : []
+  )))
+  if (!objectBounds && !freeNodes.length) return null
+  const minX = Math.min(
+    objectBounds?.x ?? Number.POSITIVE_INFINITY,
+    ...freeNodes.map((node) => node.x),
+  )
+  const minY = Math.min(
+    objectBounds?.y ?? Number.POSITIVE_INFINITY,
+    ...freeNodes.map((node) => node.y),
+  )
+  const maxX = Math.max(
+    objectBounds ? objectBounds.x + objectBounds.width : Number.NEGATIVE_INFINITY,
+    ...freeNodes.map((node) => node.x),
+  )
+  const maxY = Math.max(
+    objectBounds ? objectBounds.y + objectBounds.height : Number.NEGATIVE_INFINITY,
+    ...freeNodes.map((node) => node.y),
+  )
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
   }
 }
 
@@ -82,86 +119,136 @@ function nodeBelongsToSelection(
       : false
 }
 
+function objectSelectionEdgeIds(
+  network: ConnectionNetwork,
+  selectedElementIds: Set<string>,
+  selectedBusbarIds: Set<string>,
+) {
+  const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
+  const selectedTerminalNodeIds = new Set(network.nodes.flatMap((node) => (
+    nodeBelongsToSelection(node, selectedElementIds, selectedBusbarIds)
+      ? [node.id]
+      : []
+  )))
+  let edges = network.edges.filter((edge) => {
+    const source = nodesById.get(edge.sourceNodeId)
+    const target = nodesById.get(edge.targetNodeId)
+    return source && target &&
+      (source.kind === 'node' || selectedTerminalNodeIds.has(source.id)) &&
+      (target.kind === 'node' || selectedTerminalNodeIds.has(target.id))
+  })
+  let pruned = true
+  while (pruned) {
+    const degree = new Map<string, number>()
+    edges.forEach((edge) => {
+      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+      for (let index = 1; index < chain.length; index += 1) {
+        degree.set(chain[index - 1], (degree.get(chain[index - 1]) ?? 0) + 1)
+        degree.set(chain[index], (degree.get(chain[index]) ?? 0) + 1)
+      }
+    })
+    const danglingJunctionIds = new Set(network.nodes.flatMap((node) => (
+      node.kind === 'node' && (degree.get(node.id) ?? 0) < 2 ? [node.id] : []
+    )))
+    const nextEdges = edges.filter((edge) => (
+      !danglingJunctionIds.has(edge.sourceNodeId) &&
+      !danglingJunctionIds.has(edge.targetNodeId) &&
+      !(edge.routeNodeIds ?? []).some((id) => danglingJunctionIds.has(id))
+    ))
+    pruned = nextEdges.length !== edges.length
+    edges = nextEdges
+  }
+  if (!edges.length) return new Set<string>()
+
+  const adjacency = new Map<string, Set<string>>()
+  edges.forEach((edge) => {
+    const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+    for (let index = 1; index < chain.length; index += 1) {
+      const leftId = chain[index - 1]
+      const rightId = chain[index]
+      const left = adjacency.get(leftId) ?? new Set<string>()
+      const right = adjacency.get(rightId) ?? new Set<string>()
+      left.add(rightId)
+      right.add(leftId)
+      adjacency.set(leftId, left)
+      adjacency.set(rightId, right)
+    }
+  })
+  const componentByNodeId = new Map<string, number>()
+  let component = 0
+  adjacency.forEach((_neighbors, startId) => {
+    if (componentByNodeId.has(startId)) return
+    const pending = [startId]
+    while (pending.length) {
+      const nodeId = pending.pop()!
+      if (componentByNodeId.has(nodeId)) continue
+      componentByNodeId.set(nodeId, component)
+      adjacency.get(nodeId)?.forEach((neighborId) => pending.push(neighborId))
+    }
+    component += 1
+  })
+  const selectedTerminalCountByComponent = new Map<number, number>()
+  selectedTerminalNodeIds.forEach((nodeId) => {
+    const componentId = componentByNodeId.get(nodeId)
+    if (componentId === undefined) return
+    selectedTerminalCountByComponent.set(
+      componentId,
+      (selectedTerminalCountByComponent.get(componentId) ?? 0) + 1,
+    )
+  })
+  return new Set(edges.flatMap((edge) => (
+    (selectedTerminalCountByComponent.get(componentByNodeId.get(edge.sourceNodeId)!) ?? 0) >= 2
+      ? [edge.id]
+      : []
+  )))
+}
+
+export type ConnectionNodePointResolver = (
+  network: ConnectionNetwork,
+  node: ConnectionNode,
+) => Point | null | undefined
+
 export function copyConnectionsWithinSelection(
   networks: ConnectionNetwork[],
   selectedElementIds: Set<string>,
   selectedBusbarIds: Set<string>,
+  selectedConnectionNodeIds: Set<string> = new Set(),
+  resolveNodePoint?: ConnectionNodePointResolver,
 ) {
   return networks.flatMap((network) => {
     const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
-    const selectedNodeIds = new Set(network.nodes.flatMap((node) => (
-      nodeBelongsToSelection(node, selectedElementIds, selectedBusbarIds)
-        ? [node.id]
+    const selectedObjectEdgeIds = objectSelectionEdgeIds(
+      network,
+      selectedElementIds,
+      selectedBusbarIds,
+    )
+    const directlySelectedEdgeIds = new Set(network.edges.flatMap((edge) => {
+      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+      return chain.some((nodeId) => selectedConnectionNodeIds.has(nodeId))
+        ? [edge.id]
         : []
-    )))
-    let edges = network.edges.filter((edge) => {
-      const source = nodesById.get(edge.sourceNodeId)
-      const target = nodesById.get(edge.targetNodeId)
-      return source && target &&
-        (source.kind === 'node' || selectedNodeIds.has(source.id)) &&
-        (target.kind === 'node' || selectedNodeIds.has(target.id))
-    })
-    let pruned = true
-    while (pruned) {
-      const degree = new Map<string, number>()
-      edges.forEach((edge) => {
-        const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
-        for (let index = 1; index < chain.length; index += 1) {
-          degree.set(chain[index - 1], (degree.get(chain[index - 1]) ?? 0) + 1)
-          degree.set(chain[index], (degree.get(chain[index]) ?? 0) + 1)
-        }
-      })
-      const danglingJunctionIds = new Set(network.nodes.flatMap((node) => (
-        node.kind === 'node' && (degree.get(node.id) ?? 0) < 2 ? [node.id] : []
-      )))
-      const nextEdges = edges.filter((edge) => (
-        !danglingJunctionIds.has(edge.sourceNodeId) &&
-        !danglingJunctionIds.has(edge.targetNodeId) &&
-        !(edge.routeNodeIds ?? []).some((id) => danglingJunctionIds.has(id))
-      ))
-      pruned = nextEdges.length !== edges.length
-      edges = nextEdges
-    }
+    }))
+    let edges = network.edges.filter((edge) => (
+      selectedObjectEdgeIds.has(edge.id) || directlySelectedEdgeIds.has(edge.id)
+    ))
     if (!edges.length) return []
 
-    const adjacency = new Map<string, Set<string>>()
-    edges.forEach((edge) => {
-      const chain = [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
-      for (let index = 1; index < chain.length; index += 1) {
-        const leftId = chain[index - 1]
-        const rightId = chain[index]
-        const left = adjacency.get(leftId) ?? new Set<string>()
-        const right = adjacency.get(rightId) ?? new Set<string>()
-        left.add(rightId)
-        right.add(leftId)
-        adjacency.set(leftId, left)
-        adjacency.set(rightId, right)
-      }
-    })
-    const componentByNodeId = new Map<string, number>()
-    let component = 0
-    adjacency.forEach((_neighbors, startId) => {
-      if (componentByNodeId.has(startId)) return
-      const pending = [startId]
-      while (pending.length) {
-        const nodeId = pending.pop()!
-        if (componentByNodeId.has(nodeId)) continue
-        componentByNodeId.set(nodeId, component)
-        adjacency.get(nodeId)?.forEach((neighborId) => pending.push(neighborId))
-      }
-      component += 1
-    })
-    const selectedTerminalCountByComponent = new Map<number, number>()
-    selectedNodeIds.forEach((nodeId) => {
-      const componentId = componentByNodeId.get(nodeId)
-      if (componentId === undefined) return
-      selectedTerminalCountByComponent.set(
-        componentId,
-        (selectedTerminalCountByComponent.get(componentId) ?? 0) + 1,
-      )
-    })
+    const detachedPointsByNodeId = new Map<string, Point>()
+    const materializableNode = (nodeId: string) => {
+      const node = nodesById.get(nodeId)
+      if (!node) return false
+      if (
+        node.kind === 'node' ||
+        nodeBelongsToSelection(node, selectedElementIds, selectedBusbarIds)
+      ) return true
+      const point = resolveNodePoint?.(network, node)
+      if (!point) return false
+      detachedPointsByNodeId.set(node.id, point)
+      return true
+    }
     edges = edges.filter((edge) => (
-      (selectedTerminalCountByComponent.get(componentByNodeId.get(edge.sourceNodeId)!) ?? 0) >= 2
+      [edge.sourceNodeId, ...(edge.routeNodeIds ?? []), edge.targetNodeId]
+        .every(materializableNode)
     ))
     if (!edges.length) return []
     const connectedNodeIds = new Set(edges.flatMap((edge) => [
@@ -173,8 +260,13 @@ export function copyConnectionsWithinSelection(
       ...network,
       nodes: network.nodes
         .filter((node) => connectedNodeIds.has(node.id))
-        .map((node) => ({ ...node })),
-      edges: edges.map((edge) => ({ ...edge })),
+        .map((node) => {
+          const detachedPoint = detachedPointsByNodeId.get(node.id)
+          return detachedPoint
+            ? { id: node.id, kind: 'node' as const, ...detachedPoint }
+            : { ...node }
+        }),
+      edges: edges.map((edge) => structuredClone(edge)),
     }]
   })
 }
@@ -193,6 +285,7 @@ export function instantiateCopiedConnections(
   createId: ConnectionIdFactory = createConnectionId,
   routeWaypointIdMap: Map<string, string> = new Map(),
   junctionOffset: Point = { x: 0, y: 0 },
+  copiedNodeIdMap: Map<string, string> = new Map(),
 ) {
   return networks.flatMap((network) => {
     const nodeIdMap = new Map<string, string>()
@@ -200,6 +293,7 @@ export function instantiateCopiedConnections(
       if (node.kind === 'node') {
         const id = routeWaypointIdMap.get(node.id) ?? createId('connection-node')
         nodeIdMap.set(node.id, id)
+        copiedNodeIdMap.set(node.id, id)
         return [{
           ...node,
           id,
@@ -215,6 +309,7 @@ export function instantiateCopiedConnections(
         ? 'connection-node'
         : 'connection-busbar-tap')
       nodeIdMap.set(node.id, id)
+      copiedNodeIdMap.set(node.id, id)
       return [{
         ...node,
         id,

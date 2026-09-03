@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
+import type { Busbar, ConnectionEdge, ConnectionNetwork, DiagramElement } from '../domain/project'
 import { GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR } from '../editor/genericSymbol'
 import { defaultConnectionColor } from '../editor/objectColors'
 import { DEFAULT_CONFIGURABLE_SYMBOL_COLOR } from '../editor/symbolCatalog'
@@ -702,6 +702,60 @@ describe('PropertiesPanel color property', () => {
     expect(onPatchBusbar).toHaveBeenLastCalledWith('busbar-1', { label: undefined })
   })
 
+  it('configures and restores the selected busbar label color', () => {
+    const onPatchBusbar = vi.fn()
+    const onBusbarLabelColorPreview = vi.fn()
+    const selectedBusbar: Busbar = {
+      id: 'busbar-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      label: '市电母线',
+    }
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[selectedBusbar]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchBusbar={onPatchBusbar}
+        onBusbarLabelColorPreview={onBusbarLabelColorPreview}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText('标签颜色 HEX')
+    expect(input).toHaveValue('#B6B8B4')
+    fireEvent.change(input, { target: { value: '#12ab34' } })
+    expect(onBusbarLabelColorPreview).toHaveBeenLastCalledWith('busbar-1', '#12AB34')
+    fireEvent.blur(input)
+    expect(onPatchBusbar).toHaveBeenLastCalledWith('busbar-1', { labelColor: '#12AB34' })
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[{ ...selectedBusbar, labelColor: '#12AB34' }]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchBusbar={onPatchBusbar}
+        onBusbarLabelColorPreview={onBusbarLabelColorPreview}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText('标签颜色 HEX')).toHaveValue('#12AB34')
+    fireEvent.click(screen.getByRole('button', { name: '恢复默认' }))
+    expect(onPatchBusbar).toHaveBeenLastCalledWith('busbar-1', { labelColor: undefined })
+  })
+
   it('toggles only the selected busbar label while preserving its text', async () => {
     const user = userEvent.setup()
     const onPatchBusbar = vi.fn()
@@ -1230,5 +1284,429 @@ describe('PropertiesPanel color property', () => {
     rerender(<PropertiesPanel {...commonProps} selectedConnection={selectedConnection} />)
 
     expect(screen.getByLabelText('子线颜色 HEX')).toHaveValue('#77B4BF')
+  })
+
+  it('batch-edits mixed element toggles, runtime state, and state colors once', async () => {
+    const user = userEvent.setup()
+    const onPatchElements = vi.fn()
+    const onOnOffStatesChange = vi.fn()
+    const onElementSelectionColorCommit = vi.fn()
+    const first = {
+      ...element('switch'),
+      id: 'switch-1',
+      labelVisible: true,
+    }
+    const second = {
+      ...element('switch'),
+      id: 'switch-2',
+      labelVisible: false,
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[first, second]}
+        selectedBusbars={[]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchElements={onPatchElements}
+        onPatchElementMetrics={vi.fn()}
+        onOffStates={{ 'switch-1': false, 'switch-2': true }}
+        onOnOffStatesChange={onOnOffStatesChange}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onElementSelectionColorPreview={vi.fn()}
+        onElementSelectionColorCommit={onElementSelectionColorCommit}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const labelToggle = screen.getByRole('switch', { name: '显示图元标签' })
+    expect(labelToggle).toHaveAttribute('aria-checked', 'mixed')
+    await user.click(labelToggle)
+    expect(onPatchElements).toHaveBeenCalledWith(
+      ['switch-1', 'switch-2'],
+      { labelVisible: true },
+    )
+
+    const stateToggle = screen.getByRole('switch', { name: '运行状态' })
+    expect(stateToggle).toHaveAttribute('aria-checked', 'mixed')
+    await user.click(stateToggle)
+    expect(onOnOffStatesChange).toHaveBeenCalledWith(['switch-1', 'switch-2'], true)
+
+    fireEvent.change(screen.getByLabelText('关状态颜色 HEX'), {
+      target: { value: '#77b4bf' },
+    })
+    fireEvent.blur(screen.getByLabelText('关状态颜色 HEX'))
+    expect(onElementSelectionColorCommit).toHaveBeenCalledWith(
+      ['switch-1', 'switch-2'],
+      '#77B4BF',
+      'switch-off',
+    )
+  })
+
+  it('requires an explicit source before replacing mixed element metric templates', async () => {
+    const user = userEvent.setup()
+    const onPatchElementMetrics = vi.fn()
+    const metric = {
+      id: 'temperature',
+      name: '温度',
+      valueType: 'number' as const,
+      unit: '°C',
+      precision: 1 as const,
+      simulationMin: 0,
+      simulationMax: 100,
+      alarm: { mode: 'upper' as const, minor: 60, major: 75, critical: 90 },
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[
+          { ...element('chwp'), id: 'chwp-1', name: 'CHWP 01', monitorMetrics: [] },
+          { ...element('chwp'), id: 'chwp-2', name: 'CHWP 02', monitorMetrics: [metric] },
+        ]}
+        selectedBusbars={[]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchElementMetrics={onPatchElementMetrics}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: '应用到 2 个对象' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: '指标模板' }), 'chwp-2')
+    await user.click(screen.getByRole('button', { name: '应用到 2 个对象' }))
+    expect(onPatchElementMetrics).toHaveBeenCalledWith(
+      ['chwp-1', 'chwp-2'],
+      [metric],
+    )
+  })
+
+  it('batch-edits child-line visibility and applies one selected metric template', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdges = vi.fn()
+    const onPatchConnectionMetrics = vi.fn()
+    const metric = {
+      id: 'power',
+      name: '功率',
+      valueType: 'number' as const,
+      unit: 'kW',
+      precision: 0 as const,
+      simulationMin: 0,
+      simulationMax: 100,
+      alarm: { mode: 'upper' as const, minor: 60, major: 75, critical: 90 },
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:edge-1,edge-2',
+          type: 'electrical',
+          edges: [
+            {
+              id: 'edge-1',
+              sourceNodeId: 'node-1',
+              targetNodeId: 'node-2',
+              labelVisible: true,
+              monitorMetrics: [metric],
+            },
+            {
+              id: 'edge-2',
+              sourceNodeId: 'node-3',
+              targetNodeId: 'node-4',
+              labelVisible: false,
+            },
+          ],
+        }}
+        onPatch={vi.fn()}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onPatchConnectionMetrics={onPatchConnectionMetrics}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const labelToggle = screen.getByRole('switch', { name: '显示子线标签' })
+    expect(labelToggle).toHaveAttribute('aria-checked', 'mixed')
+    await user.click(labelToggle)
+    expect(onPatchConnectionEdges).toHaveBeenCalledWith(
+      ['edge-1', 'edge-2'],
+      { labelVisible: true },
+    )
+    await user.selectOptions(screen.getByRole('combobox', { name: '指标模板' }), 'edge-1')
+    await user.click(screen.getByRole('button', { name: '应用到 2 个对象' }))
+    expect(onPatchConnectionMetrics).toHaveBeenCalledWith(
+      ['edge-1', 'edge-2'],
+      [metric],
+    )
+  })
+
+  it('batch-edits busbar label visibility through one callback', async () => {
+    const user = userEvent.setup()
+    const onPatchBusbars = vi.fn()
+    const busbar = (id: string, labelVisible: boolean): Busbar => ({
+      id,
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      labelVisible,
+    })
+    render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[busbar('busbar-1', true), busbar('busbar-2', false)]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchBusbars={onPatchBusbars}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const toggle = screen.getByRole('switch', { name: '显示母线标签' })
+    expect(toggle).toHaveAttribute('aria-checked', 'mixed')
+    await user.click(toggle)
+    expect(onPatchBusbars).toHaveBeenCalledWith(
+      ['busbar-1', 'busbar-2'],
+      { labelVisible: true },
+    )
+  })
+
+  it('configures single and batch external supply entry endpoints on power child lines', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdge = vi.fn()
+    const onPatchConnectionEdges = vi.fn()
+    const edge: ConnectionEdge = {
+      id: 'entry-edge',
+      sourceNodeId: 'outside',
+      targetNodeId: 'inside',
+    }
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{ id: edge.id, type: 'electrical', edges: [edge] }}
+        allowExternalSupplyEntry
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const singleEntry = screen.getByRole('combobox', { name: '外部供电入口' })
+    expect(singleEntry).toHaveValue('none')
+    await user.selectOptions(singleEntry, 'source')
+    expect(onPatchConnectionEdge).toHaveBeenCalledWith(edge.id, {
+      externalSupplyEndpoint: 'source',
+    })
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: edge.id,
+          type: 'electrical',
+          edges: [{
+            ...edge,
+            flowDirection: 'reverse',
+            externalSupplyEndpoint: 'source',
+          }],
+        }}
+        allowExternalSupplyEntry
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    const conflictingEntry = screen.getByRole('combobox', { name: '外部供电入口' })
+    expect(conflictingEntry).toHaveAccessibleDescription(
+      '当前通行方向阻断了所选入口，监控模式不会产生电流',
+    )
+    await user.selectOptions(conflictingEntry, 'none')
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      externalSupplyEndpoint: undefined,
+    })
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: 'edges:entry-edge,second-edge',
+          type: 'electrical',
+          edges: [
+            { ...edge, externalSupplyEndpoint: 'source' },
+            {
+              id: 'second-edge',
+              sourceNodeId: 'outside-2',
+              targetNodeId: 'inside-2',
+              externalSupplyEndpoint: 'target',
+            },
+          ],
+        }}
+        allowExternalSupplyEntry
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onPatchConnectionEdges={onPatchConnectionEdges}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    const batchEntry = screen.getByRole('combobox', { name: '外部供电入口' })
+    expect(batchEntry).toHaveValue('mixed')
+    await user.selectOptions(batchEntry, 'target')
+    expect(onPatchConnectionEdges).toHaveBeenCalledWith(
+      ['entry-edge', 'second-edge'],
+      { externalSupplyEndpoint: 'target' },
+    )
+  })
+
+  it('configures cooling line endpoints as water flow sources', async () => {
+    const user = userEvent.setup()
+    const onPatchConnectionEdge = vi.fn()
+    const edge: ConnectionEdge = {
+      id: 'cooling-source-edge',
+      sourceNodeId: 'outside',
+      targetNodeId: 'inside',
+    }
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: edge.id,
+          type: 'cooling-primary-cold',
+          edges: [edge],
+        }}
+        allowCoolingFlowSource
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const source = screen.getByRole('combobox', { name: '水流源头' })
+    expect(source).toHaveValue('none')
+    expect(source).toHaveAccessibleDescription(
+      '从所选端点注入模拟流量；仍受管路方向和泵阀状态约束',
+    )
+    await user.selectOptions(source, 'target')
+    expect(onPatchConnectionEdge).toHaveBeenCalledWith(edge.id, {
+      externalSupplyEndpoint: 'target',
+    })
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[]}
+        selectedConnection={{
+          id: edge.id,
+          type: 'cooling-primary-cold',
+          edges: [{
+            ...edge,
+            flowDirection: 'reverse',
+            externalSupplyEndpoint: 'source',
+          }],
+        }}
+        allowCoolingFlowSource
+        onPatch={vi.fn()}
+        onPatchConnectionEdge={onPatchConnectionEdge}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('combobox', { name: '水流源头' }))
+      .toHaveAccessibleDescription('当前通行方向阻断了所选源头，监控模式不会产生水流')
+  })
+
+  it('sets contextual single and mixed batch busbar monitor flow directions', async () => {
+    const user = userEvent.setup()
+    const onPatchBusbar = vi.fn()
+    const onPatchBusbars = vi.fn()
+    const horizontalBusbar: Busbar = {
+      id: 'busbar-1',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+    }
+    const { rerender } = render(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[horizontalBusbar]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchBusbar={onPatchBusbar}
+        onPatchBusbars={onPatchBusbars}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const singleDirection = screen.getByRole('combobox', { name: '监控电流方向' })
+    expect(screen.getByRole('option', { name: '左端 → 右端' })).toBeInTheDocument()
+    await user.selectOptions(singleDirection, 'start-to-end')
+    expect(onPatchBusbar).toHaveBeenCalledWith('busbar-1', {
+      monitorFlowDirection: 'start-to-end',
+    })
+
+    rerender(
+      <PropertiesPanel
+        selectedElements={[]}
+        selectedBusbars={[
+          { ...horizontalBusbar, monitorFlowDirection: 'start-to-end' },
+          {
+            ...horizontalBusbar,
+            id: 'busbar-2',
+            orientation: 'vertical',
+            monitorFlowDirection: 'end-to-start',
+          },
+        ]}
+        selectedConnection={null}
+        onPatch={vi.fn()}
+        onPatchBusbar={onPatchBusbar}
+        onPatchBusbars={onPatchBusbars}
+        onColorPreview={vi.fn()}
+        onSelectionColorPreview={vi.fn()}
+        onSelectionColorCommit={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const batchDirection = screen.getByRole('combobox', { name: '监控电流方向' })
+    expect(batchDirection).toHaveValue('mixed')
+    await user.selectOptions(batchDirection, 'end-to-start')
+    expect(onPatchBusbars).toHaveBeenCalledWith(['busbar-1', 'busbar-2'], {
+      monitorFlowDirection: 'end-to-start',
+    })
   })
 })

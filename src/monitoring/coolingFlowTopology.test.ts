@@ -133,6 +133,125 @@ function runtime(overrides?: {
 }
 
 describe('cooling closed-loop topology', () => {
+  it('drives visual flow from a configured cooling line source to open boundaries', () => {
+    const sourceNetworks: ConnectionNetwork[] = [{
+      id: 'source-network',
+      diagramId: 'diagram',
+      type: coolingType,
+      nodes: [
+        { id: 'source', kind: 'node', x: 0, y: 0 },
+        { id: 'branch', kind: 'node', x: 8, y: 0 },
+        { id: 'out-a', kind: 'node', x: 16, y: -8 },
+        { id: 'out-b', kind: 'node', x: 16, y: 8 },
+      ],
+      edges: [
+        {
+          id: 'source-pipe',
+          sourceNodeId: 'source',
+          targetNodeId: 'branch',
+          externalSupplyEndpoint: 'source',
+        },
+        { id: 'branch-a', sourceNodeId: 'branch', targetNodeId: 'out-a' },
+        { id: 'branch-b', sourceNodeId: 'branch', targetNodeId: 'out-b' },
+      ],
+    }]
+    const topology = deriveCoolingFlowTopology({
+      elements: [],
+      assets: [],
+      networks: sourceNetworks,
+      runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    })
+
+    expect(topology.edges).toEqual([
+      { edgeId: 'source-pipe', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+      {
+        edgeId: 'branch-a',
+        direction: 'forward',
+        speedMultiplier: 0.707107,
+        flowRate: 50,
+      },
+      {
+        edgeId: 'branch-b',
+        direction: 'forward',
+        speedMultiplier: 0.707107,
+        flowRate: 50,
+      },
+    ])
+  })
+
+  it('stops a configured cooling line source when its pipe direction points inward', () => {
+    const topology = deriveCoolingFlowTopology({
+      elements: [],
+      assets: [],
+      networks: [{
+        id: 'blocked-source-network',
+        diagramId: 'diagram',
+        type: coolingType,
+        nodes: [
+          { id: 'source', kind: 'node', x: 0, y: 0 },
+          { id: 'out', kind: 'node', x: 8, y: 0 },
+        ],
+        edges: [{
+          id: 'blocked-source-pipe',
+          sourceNodeId: 'source',
+          targetNodeId: 'out',
+          flowDirection: 'reverse',
+          externalSupplyEndpoint: 'source',
+        }],
+      }],
+      runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    })
+
+    expect(topology.edges).toEqual([])
+  })
+
+  it('gates configured cooling line sources through valve runtime state', () => {
+    const valveElement = element('valve-1', 'valve')
+    const sourceNetwork: ConnectionNetwork = {
+      id: 'valved-source-network',
+      diagramId: 'diagram',
+      type: coolingType,
+      nodes: [
+        { id: 'source', kind: 'node', x: 0, y: 0 },
+        { id: 'va', kind: 'element-anchor', elementId: 'valve-1', anchorId: 'valve-a' },
+        { id: 'vb', kind: 'element-anchor', elementId: 'valve-1', anchorId: 'valve-b' },
+        { id: 'out', kind: 'node', x: 24, y: 0 },
+      ],
+      edges: [
+        {
+          id: 'source-to-valve',
+          sourceNodeId: 'source',
+          targetNodeId: 'va',
+          externalSupplyEndpoint: 'source',
+        },
+        { id: 'valve-to-out', sourceNodeId: 'vb', targetNodeId: 'out' },
+      ],
+    }
+    const provider = new MockCoolingRuntimeProvider()
+    const open = deriveCoolingFlowTopology({
+      elements: [valveElement],
+      assets: [valveAsset],
+      networks: [sourceNetwork],
+      runtime: provider.getSnapshot({ elements: [valveElement], assets: [valveAsset] }),
+    })
+    expect(open.edges.map((edge) => edge.edgeId)).toEqual([
+      'source-to-valve',
+      'valve-to-out',
+    ])
+
+    const closed = deriveCoolingFlowTopology({
+      elements: [valveElement],
+      assets: [valveAsset],
+      networks: [sourceNetwork],
+      runtime: provider.getSnapshot({
+        elements: [valveElement],
+        assets: [valveAsset],
+        valveOpenOverrides: { 'valve-1': false },
+      }),
+    })
+    expect(closed.edges).toEqual([])
+  })
+
   it('animates the complete pump outlet to inlet loop through an open valve', () => {
     const topology = deriveCoolingFlowTopology({
       elements,

@@ -54,6 +54,7 @@ export type MonitorMetricLabelLine = Omit<
 
 export interface ElementLabelLayoutOptions {
   readings?: MonitorMetricReadings
+  connectedAnchorIdsByElement?: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 const AUTO_PLACEMENT_ORDER: ElementLabelPlacement[] = ['bottom', 'right', 'top', 'left']
@@ -103,12 +104,15 @@ class RectSpatialIndex<T> {
   }
 }
 
-export function estimateLabelTextWidth(text: string) {
+export function estimateLabelTextWidth(
+  text: string,
+  fontSize = ELEMENT_LABEL_FONT_SIZE,
+) {
   let width = 0
   for (const character of text) {
-    if (/\s/u.test(character)) width += ELEMENT_LABEL_FONT_SIZE / 3
-    else if (/^[\x00-\x7F]$/u.test(character)) width += ELEMENT_LABEL_FONT_SIZE * 0.6
-    else width += ELEMENT_LABEL_FONT_SIZE
+    if (/\s/u.test(character)) width += fontSize / 3
+    else if (/^[\x00-\x7F]$/u.test(character)) width += fontSize * 0.6
+    else width += fontSize
   }
   return Math.max(16, Math.ceil(width + 4))
 }
@@ -217,21 +221,23 @@ function candidateBounds(
 function anchorCorridors(
   element: DiagramElement,
   asset: AssetDefinition | undefined,
+  connectedAnchorIds: ReadonlySet<string> | undefined,
 ): Rect[] {
-  if (!asset) return []
-  return asset.anchors.map((anchor) => {
+  if (!asset || !connectedAnchorIds?.size) return []
+  return asset.anchors.flatMap((anchor) => {
+    if (!connectedAnchorIds.has(anchor.id)) return []
     const resolved = resolveElementAnchor(element, asset, anchor)
     const vector = DIRECTION_VECTOR[resolved.direction]
     const end = {
       x: resolved.point.x + vector.x * 24,
       y: resolved.point.y + vector.y * 24,
     }
-    return {
+    return [{
       x: Math.min(resolved.point.x, end.x) - 4,
       y: Math.min(resolved.point.y, end.y) - 4,
       width: Math.abs(end.x - resolved.point.x) + 8,
       height: Math.abs(end.y - resolved.point.y) + 8,
-    }
+    }]
   })
 }
 
@@ -319,7 +325,11 @@ export function layoutElementLabels(
     const metricWidth = monitorMetricLabelWidth(metricLines)
     const labelWidth = Math.max(nameWidth, metricWidth)
     const labelHeight = (Number(Boolean(nameText)) + metricLines.length) * ELEMENT_LABEL_LINE_HEIGHT
-    const corridors = anchorCorridors(element, assetsByKey.get(element.assetKey))
+    const corridors = anchorCorridors(
+      element,
+      assetsByKey.get(element.assetKey),
+      options.connectedAnchorIdsByElement?.get(element.id),
+    )
     const placements = element.labelPlacement
       ? [element.labelPlacement]
       : AUTO_PLACEMENT_ORDER

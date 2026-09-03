@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { DiagramElement } from '../domain/project'
+import type { MonitorMetricDataProvider } from '../runtime/metricDataProvider'
 import { monitorMetricReadingKey } from './elementMetrics'
 import { useMonitorMetricReadings } from './useMonitorMetricReadings'
 
@@ -61,5 +62,26 @@ describe('useMonitorMetricReadings', () => {
     expect(vi.getTimerCount()).toBe(0)
     act(() => vi.advanceTimersByTime(30_000))
     expect(random).toHaveBeenCalledTimes(2)
+  })
+
+  it('accepts an injected provider without forcing the mock refresh timer', () => {
+    vi.useFakeTimers()
+    const key = monitorMetricReadingKey(element.id, 'load')
+    const getSnapshot = vi.fn(() => ({
+      [key]: {
+        elementId: element.id,
+        metricId: 'load',
+        value: 72,
+        severity: 'minor' as const,
+      },
+    }))
+    const provider: MonitorMetricDataProvider = { getSnapshot, refreshMs: null }
+    const { result } = renderHook(() => (
+      useMonitorMetricReadings(true, [element], provider)
+    ))
+
+    expect(result.current[key]).toMatchObject({ value: 72, severity: 'minor' })
+    expect(getSnapshot).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 29 as const
+export const SCHEMA_VERSION = 33 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -22,6 +22,7 @@ export const coolingFlowRoleSchema = z.enum(['inlet', 'outlet'])
 export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
 export const elementOnOffStateSchema = z.enum(['off', 'on'])
 export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
+export const externalSupplyEndpointSchema = z.enum(['source', 'target'])
 export const coolingLineRoleSchema = z.enum(['primary', 'auxiliary'])
 export const connectionCrossingLayerSchema = z.enum(['lower', 'upper'])
 export const connectionPointSchema = z.object({
@@ -187,6 +188,8 @@ export const diagramElementSchema = z.object({
 
 export const busbarOrientationSchema = z.enum(['horizontal', 'vertical'])
 export const busbarLabelEndpointSchema = z.enum(['start', 'end'])
+export const busbarLabelSideSchema = z.enum(['negative', 'positive'])
+export const busbarMonitorFlowDirectionSchema = z.enum(['start-to-end', 'end-to-start'])
 
 export const busbarSchema = z.object({
   id: z.string().min(1),
@@ -200,6 +203,9 @@ export const busbarSchema = z.object({
   label: z.string().trim().min(1).optional(),
   labelVisible: z.boolean().optional(),
   labelEndpoint: busbarLabelEndpointSchema.optional(),
+  labelSide: busbarLabelSideSchema.optional(),
+  labelColor: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
+  monitorFlowDirection: busbarMonitorFlowDirectionSchema.optional(),
 })
 
 export const connectionNodeSchema = z.discriminatedUnion('kind', [
@@ -229,6 +235,7 @@ export const connectionEdgeSchema = z.object({
   targetNodeId: z.string().min(1),
   logicalConnectionId: z.string().min(1).optional(),
   flowDirection: connectionFlowDirectionSchema.optional(),
+  externalSupplyEndpoint: externalSupplyEndpointSchema.optional(),
   coolingLineRole: coolingLineRoleSchema.optional(),
   crossingLayer: connectionCrossingLayerSchema.optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
@@ -611,6 +618,17 @@ export const projectDocumentSchema = z
           metricIds.add(metric.id)
         }
         if (
+          edge.externalSupplyEndpoint !== undefined &&
+          network.type === 'electrical' &&
+          !diagram?.parentId
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: [...networkPath, 'edges', edge.id, 'externalSupplyEndpoint'],
+            message: '外部供电入口只能配置在电力子图的子线上',
+          })
+        }
+        if (
           edge.sourceNodeId === edge.targetNodeId ||
           !nodeIds.has(edge.sourceNodeId) ||
           !nodeIds.has(edge.targetNodeId)
@@ -852,6 +870,8 @@ export type AssetDefinition = z.infer<typeof assetDefinitionSchema>
 export type DiagramElement = z.infer<typeof diagramElementSchema>
 export type BusbarOrientation = z.infer<typeof busbarOrientationSchema>
 export type BusbarLabelEndpoint = z.infer<typeof busbarLabelEndpointSchema>
+export type BusbarLabelSide = z.infer<typeof busbarLabelSideSchema>
+export type BusbarMonitorFlowDirection = z.infer<typeof busbarMonitorFlowDirectionSchema>
 export type Busbar = z.infer<typeof busbarSchema>
 export type ConnectionNode = z.infer<typeof connectionNodeSchema>
 export type ConnectionEdge = z.infer<typeof connectionEdgeSchema>
@@ -1477,11 +1497,202 @@ function repairEditorGeneratedOffGridConnectionNodes(input: Record<string, unkno
   }
 }
 
+function repairEditorGeneratedCoincidentBusbarNodes(input: Record<string, unknown>) {
+  if (!Array.isArray(input.busbars) || !Array.isArray(input.connections)) return input
+  const busbars = input.busbars.filter((value): value is Record<string, unknown> => (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.diagramId === 'string' &&
+    value.type === 'electrical' &&
+    (value.orientation === 'horizontal' || value.orientation === 'vertical') &&
+    typeof value.x === 'number' && Number.isFinite(value.x) &&
+    typeof value.y === 'number' && Number.isFinite(value.y) &&
+    typeof value.length === 'number' && Number.isFinite(value.length)
+  ))
+  if (!busbars.length) return input
+
+  const convertedNodeIds = new Set<string>()
+  const convertedConnections = input.connections.map((value) => {
+    if (
+      !isRecord(value) ||
+      value.type !== 'electrical' ||
+      typeof value.diagramId !== 'string' ||
+      !Array.isArray(value.nodes) ||
+      !Array.isArray(value.edges)
+    ) return value
+    const interiorNodeIds = new Set(value.edges.flatMap((edge) => (
+      isRecord(edge) && Array.isArray(edge.routeNodeIds)
+        ? edge.routeNodeIds.filter((id): id is string => typeof id === 'string')
+        : []
+    )))
+    return {
+      ...value,
+      nodes: value.nodes.map((node) => {
+        const nodeId = isRecord(node) && typeof node.id === 'string' ? node.id : null
+        if (
+          !isRecord(node) ||
+          node.kind !== 'node' ||
+          nodeId === null ||
+          !EDITOR_CONNECTION_NODE_ID_PREFIXES.some((prefix) => nodeId.startsWith(prefix)) ||
+          interiorNodeIds.has(nodeId) ||
+          typeof node.x !== 'number' || !Number.isFinite(node.x) ||
+          typeof node.y !== 'number' || !Number.isFinite(node.y)
+        ) return node
+        const nodeX = node.x
+        const nodeY = node.y
+        const matches = busbars.flatMap((busbar) => {
+          if (busbar.diagramId !== value.diagramId) return []
+          const busbarX = busbar.x as number
+          const busbarY = busbar.y as number
+          const length = busbar.length as number
+          const offset = busbar.orientation === 'horizontal'
+            ? nodeX - busbarX
+            : nodeY - busbarY
+          const onAxis = busbar.orientation === 'horizontal'
+            ? nodeY === busbarY
+            : nodeX === busbarX
+          return onAxis && offset >= 0 && offset <= length
+            ? [{ busbarId: busbar.id as string, offset }]
+            : []
+        })
+        if (matches.length !== 1) return node
+        convertedNodeIds.add(nodeId)
+        return {
+          id: nodeId,
+          kind: 'busbar-tap',
+          busbarId: matches[0].busbarId,
+          offset: matches[0].offset,
+        }
+      }),
+    }
+  })
+  if (!convertedNodeIds.size) return input
+
+  const networks = convertedConnections.filter((value): value is Record<string, unknown> & {
+    nodes: unknown[]
+    edges: unknown[]
+  } => (
+    isRecord(value) && Array.isArray(value.nodes) && Array.isArray(value.edges)
+  ))
+  const parent = new Map(networks.map((_, index) => [index, index]))
+  const find = (index: number): number => {
+    const current = parent.get(index) ?? index
+    if (current === index) return index
+    const root = find(current)
+    parent.set(index, root)
+    return root
+  }
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left)
+    const rightRoot = find(right)
+    if (leftRoot !== rightRoot) parent.set(rightRoot, leftRoot)
+  }
+  const networkIndexByBusbar = new Map<string, number>()
+  networks.forEach((network, networkIndex) => {
+    network.nodes.forEach((node: unknown) => {
+      if (!isRecord(node) || node.kind !== 'busbar-tap' || typeof node.busbarId !== 'string') {
+        return
+      }
+      const existingIndex = networkIndexByBusbar.get(node.busbarId)
+      if (existingIndex === undefined) networkIndexByBusbar.set(node.busbarId, networkIndex)
+      else union(existingIndex, networkIndex)
+    })
+  })
+  const componentIndexes = new Map<number, number[]>()
+  networks.forEach((_, index) => {
+    const root = find(index)
+    const indexes = componentIndexes.get(root) ?? []
+    indexes.push(index)
+    componentIndexes.set(root, indexes)
+  })
+  const networkIndex = new Map<Record<string, unknown>, number>(
+    networks.map((network, index) => [network, index]),
+  )
+  const mergedByFirstIndex = new Map<number, Record<string, unknown>>()
+  const skippedIndexes = new Set<number>()
+  componentIndexes.forEach((indexes) => {
+    if (indexes.length < 2) return
+    const members = indexes.map((index) => networks[index])
+    const allNodes = members.flatMap((network) => network.nodes)
+    const tapsByPosition = new Map<string, Record<string, unknown>[]>()
+    allNodes.forEach((node) => {
+      if (
+        !isRecord(node) ||
+        node.kind !== 'busbar-tap' ||
+        typeof node.busbarId !== 'string' ||
+        typeof node.offset !== 'number'
+      ) return
+      const key = `${node.busbarId}::${node.offset}`
+      const taps = tapsByPosition.get(key) ?? []
+      taps.push(node)
+      tapsByPosition.set(key, taps)
+    })
+    const replacementNodeIds = new Map<string, string>()
+    tapsByPosition.forEach((taps) => {
+      const retained = [...taps].sort((left, right) => (
+        Number(convertedNodeIds.has(left.id as string)) -
+        Number(convertedNodeIds.has(right.id as string)) ||
+        String(left.id).localeCompare(String(right.id))
+      ))[0]
+      taps.forEach((tap) => {
+        if (tap !== retained) replacementNodeIds.set(tap.id as string, retained.id as string)
+      })
+    })
+    const retainedNodeIds = new Set<string>()
+    const nodes = allNodes.filter((node) => {
+      if (!isRecord(node) || typeof node.id !== 'string') return true
+      if (replacementNodeIds.has(node.id) || retainedNodeIds.has(node.id)) return false
+      retainedNodeIds.add(node.id)
+      return true
+    })
+    const edges = members.flatMap((network) => network.edges.flatMap((edge: unknown) => {
+      if (
+        !isRecord(edge) ||
+        typeof edge.sourceNodeId !== 'string' ||
+        typeof edge.targetNodeId !== 'string'
+      ) return [edge]
+      const sourceNodeId = replacementNodeIds.get(edge.sourceNodeId) ?? edge.sourceNodeId
+      const targetNodeId = replacementNodeIds.get(edge.targetNodeId) ?? edge.targetNodeId
+      if (sourceNodeId === targetNodeId) return []
+      const routeNodeIds = Array.isArray(edge.routeNodeIds)
+        ? edge.routeNodeIds.flatMap((id) => {
+            if (typeof id !== 'string') return []
+            const resolvedId = replacementNodeIds.get(id) ?? id
+            return resolvedId === sourceNodeId || resolvedId === targetNodeId ? [] : [resolvedId]
+          })
+        : null
+      return [{
+        ...edge,
+        sourceNodeId,
+        targetNodeId,
+        ...(routeNodeIds ? { routeNodeIds: [...new Set(routeNodeIds)] } : {}),
+      }]
+    }))
+    const firstIndex = indexes[0]
+    mergedByFirstIndex.set(firstIndex, {
+      ...networks[firstIndex],
+      nodes,
+      edges,
+    })
+    indexes.slice(1).forEach((index) => skippedIndexes.add(index))
+  })
+
+  return {
+    ...input,
+    connections: convertedConnections.flatMap((value) => {
+      const index = isRecord(value) ? networkIndex.get(value) : undefined
+      if (index === undefined) return [value]
+      if (skippedIndexes.has(index)) return []
+      return [mergedByFirstIndex.get(index) ?? value]
+    }),
+  }
+}
+
 function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 
@@ -1562,7 +1773,9 @@ function migrateProjectDocument(
     ? migrateNodeBoundedConnectionEdges(withUnifiedConnections)
     : withUnifiedConnections
   const migrated = migrateOnOffStateColors(migrateLegacySwitch(
-    repairEditorGeneratedOffGridConnectionNodes(withNodeBoundedConnectionEdges),
+    repairEditorGeneratedCoincidentBusbarNodes(
+      repairEditorGeneratedOffGridConnectionNodes(withNodeBoundedConnectionEdges),
+    ),
     installedAssets,
   ))
 

@@ -194,6 +194,7 @@ describe('connection topology and routing', () => {
         targetNodeId: 'target',
         routeNodeIds: ['middle-a', 'middle-b'],
         flowDirection: 'forward',
+        externalSupplyEndpoint: 'source',
         crossingLayer: 'upper',
         color: '#123456',
         label: '回路 A',
@@ -219,6 +220,7 @@ describe('connection topology and routing', () => {
         targetNodeId: 'middle-a',
         logicalConnectionId: 'logical-edge',
         flowDirection: 'forward',
+        externalSupplyEndpoint: 'source',
         crossingLayer: 'upper',
         color: '#123456',
       }),
@@ -244,6 +246,12 @@ describe('connection topology and routing', () => {
     ])
     expect(segmented.edges.every((edge) => !('routeNodeIds' in edge))).toBe(true)
     expect(segmented.edges.every((edge) => edge.crossingLayer === 'upper')).toBe(true)
+    expect(segmented.edges.filter((edge) => edge.externalSupplyEndpoint)).toEqual([
+      expect.objectContaining({
+        sourceNodeId: 'source',
+        externalSupplyEndpoint: 'source',
+      }),
+    ])
     expect(segmented.edges.filter((edge) => edge.label === '回路 A')).toHaveLength(1)
     expect(segmented.edges.filter((edge) => edge.monitorMetrics?.length)).toHaveLength(1)
   })
@@ -720,6 +728,78 @@ describe('connection topology and routing', () => {
     expect(preview.edges[0].points.slice(1)).toContainEqual({ x: 128, y: 48 })
   })
 
+  it('keeps untouched route, crossing and tap-offset references during a junction preview', () => {
+    const movedNetwork: ConnectionNetwork = {
+      id: 'preview-moved-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        { id: 'preview-moved-node', kind: 'node', x: 0, y: 0 },
+        { id: 'preview-moved-target', kind: 'node', x: 32, y: 0 },
+      ],
+      edges: [{
+        id: 'preview-moved-edge',
+        sourceNodeId: 'preview-moved-node',
+        targetNodeId: 'preview-moved-target',
+      }],
+    }
+    const untouchedNetwork: ConnectionNetwork = {
+      id: 'preview-untouched-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        { id: 'preview-untouched-source', kind: 'node', x: 0, y: 64 },
+        { id: 'preview-untouched-target', kind: 'node', x: 32, y: 64 },
+      ],
+      edges: [{
+        id: 'preview-untouched-edge',
+        sourceNodeId: 'preview-untouched-source',
+        targetNodeId: 'preview-untouched-target',
+      }],
+    }
+    const routed = {
+      edges: [
+        {
+          networkId: movedNetwork.id,
+          edgeId: 'preview-moved-edge',
+          type: 'electrical' as const,
+          sourceNodeId: 'preview-moved-node',
+          targetNodeId: 'preview-moved-target',
+          points: [{ x: 0, y: 0 }, { x: 32, y: 0 }],
+          order: 0,
+        },
+        {
+          networkId: untouchedNetwork.id,
+          edgeId: 'preview-untouched-edge',
+          type: 'electrical' as const,
+          sourceNodeId: 'preview-untouched-source',
+          targetNodeId: 'preview-untouched-target',
+          points: [{ x: 0, y: 64 }, { x: 32, y: 64 }],
+          order: 1,
+        },
+      ],
+      crossings: [],
+      invalidEdgeIds: [],
+      resolvedBusbarTapOffsets: {},
+    }
+    const previewMovedNetwork: ConnectionNetwork = {
+      ...movedNetwork,
+      nodes: movedNetwork.nodes.map((node) => node.id === 'preview-moved-node'
+        ? { ...node, x: 8 }
+        : node),
+    }
+    const preview = previewConnectionRoutesForDiagram(
+      routed,
+      [movedNetwork, untouchedNetwork],
+      [previewMovedNetwork, untouchedNetwork],
+      [],
+      [],
+      [],
+      8,
+    )
+
+    expect(preview.edges[0]).not.toBe(routed.edges[0])
+    expect(preview.edges[1]).toBe(routed.edges[1])
+    expect(preview.crossings).toBe(routed.crossings)
+    expect(preview.resolvedBusbarTapOffsets).toBe(routed.resolvedBusbarTapOffsets)
+  })
+
   it('routes a hovered target anchor directly without searching inside its symbol obstacle', () => {
     const source = powerElement('hover-source', 0, 0)
     const target = powerElement('hover-target', 160, 160)
@@ -1090,6 +1170,42 @@ describe('connection topology and routing', () => {
     routes.forEach((route) => {
       expect(geometry.get(route.edgeId)).toEqual({ route })
     })
+  })
+
+  it('reuses unchanged branch-key sets across drag preview frames', () => {
+    const routes = [
+      {
+        networkId: 'stable-branch-network',
+        edgeId: 'stable-left',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'left',
+        targetNodeId: 'branch',
+        points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
+        order: 0,
+      },
+      {
+        networkId: 'stable-branch-network',
+        edgeId: 'stable-right',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'branch',
+        targetNodeId: 'right',
+        points: [{ x: 16, y: 0 }, { x: 32, y: 0 }],
+        order: 1,
+      },
+      {
+        networkId: 'stable-branch-network',
+        edgeId: 'stable-down',
+        type: 'cooling-primary-cold' as const,
+        sourceNodeId: 'branch',
+        targetNodeId: 'down',
+        points: [{ x: 16, y: 0 }, { x: 16, y: 16 }],
+        order: 2,
+      },
+    ]
+    const first = connectionRouteBranchPointKeys(routes)
+    const second = connectionRouteBranchPointKeys(routes.map((route) => ({ ...route })), first)
+
+    expect(second.get('stable-branch-network')).toBe(first.get('stable-branch-network'))
   })
 
   it('samples the same rounded cooling corner used by the SVG display path', () => {

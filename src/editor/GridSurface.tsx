@@ -1,9 +1,11 @@
 import { useMemo, useRef, type RefObject } from 'react'
 import { useThree } from '@react-three/fiber'
-import { Vector2, type ShaderMaterial } from 'three'
+import { Color, Vector2, type ShaderMaterial } from 'three'
 
 import type { DiagramViewport } from '../domain/project'
 import { GRID_DOT_SCREEN_RADIUS } from './gridScale'
+
+export const GRID_BACKGROUND_COLOR = '#000000'
 
 const vertexShader = `
   void main() {
@@ -17,6 +19,7 @@ const fragmentShader = `
   uniform float uPixelRatio;
   uniform float uZoom;
   uniform float uGrid;
+  uniform vec3 uBackgroundColor;
 
   float gridDot(vec2 world, float spacing, float screenRadius) {
     vec2 cell = fract(world / spacing + 0.5) - 0.5;
@@ -36,9 +39,8 @@ const fragmentShader = `
     );
     vec2 world = (screen - uTranslation) / uZoom;
     float dot = gridDot(world, uGrid, ${GRID_DOT_SCREEN_RADIUS.toFixed(2)});
-    vec3 background = vec3(0.071, 0.075, 0.086);
     vec3 dotColor = vec3(0.25, 0.25, 0.25);
-    vec3 color = mix(background, dotColor, dot * 0.60);
+    vec3 color = mix(uBackgroundColor, dotColor, dot * 0.60);
     gl_FragColor = vec4(color, 1.0);
   }
 `
@@ -68,6 +70,7 @@ export function GridSurface({ renderStateRef }: GridSurfaceProps) {
       uPixelRatio: { value: gl.getPixelRatio() },
       uZoom: { value: initialRenderState?.viewport.zoom ?? 1 },
       uGrid: { value: initialRenderState?.worldStep ?? 8 },
+      uBackgroundColor: { value: new Color(GRID_BACKGROUND_COLOR) },
     }),
     [],
   )

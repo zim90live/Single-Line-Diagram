@@ -144,22 +144,27 @@ export function constrainAnchorDrag(
   pointer: Pick<AnchorPoint, 'x' | 'y'>,
   asset: Pick<AssetDefinition, 'intrinsicWidth' | 'intrinsicHeight'>,
 ): AnchorPoint {
-  const snap = (value: number, maximum: number) =>
-    Math.min(maximum - EDITOR_GRID_SIZE, Math.max(EDITOR_GRID_SIZE, Math.round(value / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE))
-
-  if (anchor.direction === 'top' || anchor.direction === 'bottom') {
-    return {
-      x: snap(pointer.x, asset.intrinsicWidth),
-      y: anchor.direction === 'top' ? 0 : asset.intrinsicHeight,
-      direction: anchor.direction,
-    }
-  }
-
-  return {
-    x: anchor.direction === 'left' ? 0 : asset.intrinsicWidth,
-    y: snap(pointer.y, asset.intrinsicHeight),
+  const legalPoints = getLegalAnchorPoints(asset)
+  const currentPoint: AnchorPoint = {
+    x: anchor.x,
+    y: anchor.y,
     direction: anchor.direction,
   }
+  const distanceSquared = (point: Pick<AnchorPoint, 'x' | 'y'>) => (
+    (point.x - pointer.x) ** 2 + (point.y - pointer.y) ** 2
+  )
+
+  return legalPoints.reduce((closest, candidate) => {
+    const candidateDistance = distanceSquared(candidate)
+    const closestDistance = distanceSquared(closest)
+    if (candidateDistance < closestDistance) return candidate
+    if (
+      candidateDistance === closestDistance &&
+      candidate.direction === anchor.direction &&
+      closest.direction !== anchor.direction
+    ) return candidate
+    return closest
+  }, currentPoint)
 }
 
 export function transformAnchorToElement(

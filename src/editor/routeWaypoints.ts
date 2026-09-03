@@ -2,25 +2,16 @@ import type {
   ConnectionNetwork,
   RouteWaypoint,
 } from '../domain/project'
+import { routeWaypointsForNetworks } from '../runtime/diagramRuntime'
 import { snap, type Point, type Rect } from './geometry'
 import { compactOrthogonalPoints, type RoutedConnectionEdge } from './connections'
+
+export { routeWaypointsForNetworks } from '../runtime/diagramRuntime'
 
 const EPSILON = 0.0001
 
 function pointsEqual(left: Point, right: Point) {
   return Math.abs(left.x - right.x) < EPSILON && Math.abs(left.y - right.y) < EPSILON
-}
-
-export function routeWaypointsForNetworks(networks: ConnectionNetwork[]): RouteWaypoint[] {
-  const points = new Map<string, RouteWaypoint>()
-  networks.forEach((network) => {
-    const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
-    network.edges.forEach((edge) => (edge.routeNodeIds ?? []).forEach((id) => {
-      const node = nodesById.get(id)
-      if (node?.kind === 'node') points.set(id, { id, x: node.x, y: node.y })
-    }))
-  })
-  return [...points.values()]
 }
 
 export function syncRouteWaypointsToNetworks(

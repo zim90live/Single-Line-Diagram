@@ -97,13 +97,18 @@ describe('project repository', () => {
     await monitorStateRepository.setOnOffState(document.project.id, 'switch-1', true)
     await monitorStateRepository.setOnOffState(document.project.id, '2-wv-1', false)
 
+    await monitorStateRepository.setOnOffStates(document.project.id, {
+      'switch-1': false,
+      '2-wv-1': true,
+    })
+
     expect(await monitorStateRepository.getOnOffStates(document.project.id)).toEqual({
-      'switch-1': true,
-      '2-wv-1': false,
+      'switch-1': false,
+      '2-wv-1': true,
     })
     expect((await projectRepository.get(document.project.id))?.elements).toMatchObject([
-      { id: 'switch-1', onOffState: 'on' },
-      { id: '2-wv-1', onOffState: 'off' },
+      { id: 'switch-1', onOffState: 'off' },
+      { id: '2-wv-1', onOffState: 'on' },
     ])
 
     await projectRepository.delete(document.project.id)

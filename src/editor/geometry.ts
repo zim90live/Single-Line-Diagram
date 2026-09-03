@@ -87,50 +87,65 @@ export function translateDiagramSelection(
   const translated = (value: number, offset: number) => (
     gridSize === undefined ? value + offset : snap(value + offset, gridSize)
   )
-  return {
-    elements: elements.map((element) => selection.elementIds.has(element.id)
-      ? {
-          ...element,
-          x: translated(element.x, effectiveDelta.x),
-          y: translated(element.y, effectiveDelta.y),
-        }
-      : element),
-    busbars: busbars.map((busbar) => selection.busbarIds.has(busbar.id)
-      ? {
-          ...busbar,
-          x: translated(busbar.x, effectiveDelta.x),
-          y: translated(busbar.y, effectiveDelta.y),
-        }
-      : busbar),
-    connections: connections.map((network) => ({
-      ...network,
-      nodes: network.nodes.map((node) => {
-        if (!selection.nodeIds.has(node.id)) return node
-        if (node.kind === 'node') {
-          return {
-            ...node,
-            x: translated(node.x, effectiveDelta.x),
-            y: translated(node.y, effectiveDelta.y),
-          }
-        }
-        if (node.kind !== 'busbar-tap' || selection.busbarIds.has(node.busbarId)) return node
-        const busbar = busbarsById.get(node.busbarId)
-        if (!busbar) return node
-        const axisDelta = busbar.orientation === 'horizontal'
-          ? effectiveDelta.x
-          : effectiveDelta.y
-        return { ...node, offset: translated(node.offset, axisDelta) }
-      }),
-    })),
-    routeWaypoints: routeWaypoints.map((waypoint) => (
-      selection.routeWaypointIds.has(waypoint.id)
+  const translatedElements = selection.elementIds.size
+    ? elements.map((element) => selection.elementIds.has(element.id)
         ? {
-            ...waypoint,
-            x: translated(waypoint.x, effectiveDelta.x),
-            y: translated(waypoint.y, effectiveDelta.y),
+            ...element,
+            x: translated(element.x, effectiveDelta.x),
+            y: translated(element.y, effectiveDelta.y),
           }
-        : waypoint
-    )),
+        : element)
+    : elements
+  const translatedBusbars = selection.busbarIds.size
+    ? busbars.map((busbar) => selection.busbarIds.has(busbar.id)
+        ? {
+            ...busbar,
+            x: translated(busbar.x, effectiveDelta.x),
+            y: translated(busbar.y, effectiveDelta.y),
+          }
+        : busbar)
+    : busbars
+  const translatedConnections = selection.nodeIds.size
+    ? connections.map((network) => {
+        let changed = false
+        const nodes = network.nodes.map((node) => {
+          if (!selection.nodeIds.has(node.id)) return node
+          if (node.kind === 'node') {
+            changed = true
+            return {
+              ...node,
+              x: translated(node.x, effectiveDelta.x),
+              y: translated(node.y, effectiveDelta.y),
+            }
+          }
+          if (node.kind !== 'busbar-tap' || selection.busbarIds.has(node.busbarId)) return node
+          const busbar = busbarsById.get(node.busbarId)
+          if (!busbar) return node
+          const axisDelta = busbar.orientation === 'horizontal'
+            ? effectiveDelta.x
+            : effectiveDelta.y
+          changed = true
+          return { ...node, offset: translated(node.offset, axisDelta) }
+        })
+        return changed ? { ...network, nodes } : network
+      })
+    : connections
+  const translatedRouteWaypoints = selection.routeWaypointIds.size
+    ? routeWaypoints.map((waypoint) => (
+        selection.routeWaypointIds.has(waypoint.id)
+          ? {
+              ...waypoint,
+              x: translated(waypoint.x, effectiveDelta.x),
+              y: translated(waypoint.y, effectiveDelta.y),
+            }
+          : waypoint
+      ))
+    : routeWaypoints
+  return {
+    elements: translatedElements,
+    busbars: translatedBusbars,
+    connections: translatedConnections,
+    routeWaypoints: translatedRouteWaypoints,
   }
 }
 

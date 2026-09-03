@@ -89,6 +89,657 @@ describe('monitor power flow topology', () => {
     expect(flow.edges).toEqual([])
   })
 
+  it('injects an energized parent feed at a detail busbar and terminates at Cabinet', () => {
+    const detailElements: DiagramElement[] = [
+      { id: 'tap', diagramId: 'd', assetKey: 'tap-off-unit', name: 'Tap-off Unit', x: 0, y: 0, width: 32, height: 32, rotation: 0, properties: {}, extensions: {} },
+      { id: 'cabinet', diagramId: 'd', assetKey: 'cabinet-device', name: 'Cabinet', x: 0, y: 80, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
+    ]
+    const detailBusbar: Busbar = {
+      id: 'detail-busbar', diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 0, length: 160,
+    }
+    const detailNetwork: ConnectionNetwork = {
+      id: 'detail-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'busbar-tap', kind: 'busbar-tap', busbarId: 'detail-busbar', offset: 16 },
+        { id: 'tap-in', kind: 'element-anchor', elementId: 'tap', anchorId: 'top' },
+        { id: 'tap-out', kind: 'element-anchor', elementId: 'tap', anchorId: 'bottom' },
+        { id: 'cabinet-in', kind: 'element-anchor', elementId: 'cabinet', anchorId: 'top' },
+      ],
+      edges: [
+        { id: 'detail-input', sourceNodeId: 'tap-in', targetNodeId: 'busbar-tap' },
+        { id: 'detail-output', sourceNodeId: 'tap-out', targetNodeId: 'cabinet-in' },
+      ],
+    }
+
+    expect(derivePowerFlowTopology({
+      elements: detailElements,
+      busbars: [detailBusbar],
+      networks: [detailNetwork],
+      switchStates: {},
+    }).edges).toEqual([])
+
+    const flow = derivePowerFlowTopology({
+      elements: detailElements,
+      busbars: [detailBusbar],
+      networks: [detailNetwork],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'detail-input', direction: 'reverse' },
+      { edgeId: 'detail-output', direction: 'forward' },
+    ])
+    expect(flow.energizedElementIds).toEqual(new Set(['tap', 'cabinet']))
+  })
+
+  it('keeps both independent Cabinet incomers active instead of crossing through the load', () => {
+    const cabinet: DiagramElement = {
+      id: 'dual-feed-cabinet',
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: 'Cabinet',
+      x: 0,
+      y: 80,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const network: ConnectionNetwork = {
+      id: 'dual-feed-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'feed-a-source', kind: 'node', x: 0, y: 0 },
+        { id: 'cabinet-a', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'a' },
+        { id: 'feed-b-source', kind: 'node', x: 80, y: 0 },
+        { id: 'feed-b-middle-1', kind: 'node', x: 80, y: 32 },
+        { id: 'feed-b-middle-2', kind: 'node', x: 80, y: 64 },
+        { id: 'cabinet-b', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'b' },
+      ],
+      edges: [
+        {
+          id: 'cabinet-feed-a',
+          sourceNodeId: 'feed-a-source',
+          targetNodeId: 'cabinet-a',
+          flowDirection: 'forward',
+          externalSupplyEndpoint: 'source',
+        },
+        {
+          id: 'cabinet-feed-b-1',
+          sourceNodeId: 'feed-b-source',
+          targetNodeId: 'feed-b-middle-1',
+          flowDirection: 'forward',
+          externalSupplyEndpoint: 'source',
+        },
+        {
+          id: 'cabinet-feed-b-2',
+          sourceNodeId: 'feed-b-middle-1',
+          targetNodeId: 'feed-b-middle-2',
+          flowDirection: 'forward',
+        },
+        {
+          id: 'cabinet-feed-b-3',
+          sourceNodeId: 'feed-b-middle-2',
+          targetNodeId: 'cabinet-b',
+          flowDirection: 'forward',
+        },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [],
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'cabinet-feed-a', direction: 'forward' },
+      { edgeId: 'cabinet-feed-b-1', direction: 'forward' },
+      { edgeId: 'cabinet-feed-b-2', direction: 'forward' },
+      { edgeId: 'cabinet-feed-b-3', direction: 'forward' },
+    ])
+    expect(flow.energizedElementIds).toContain(cabinet.id)
+  })
+
+  it('keeps an unavailable redundant Cabinet incomer inactive', () => {
+    const cabinet: DiagramElement = {
+      id: 'redundant-cabinet',
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: 'Cabinet',
+      x: 0,
+      y: 80,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const busbars: Busbar[] = [
+      {
+        id: 'live-busbar', diagramId: 'd', type: 'electrical',
+        orientation: 'horizontal', x: 0, y: 0, length: 80,
+      },
+      {
+        id: 'dead-busbar', diagramId: 'd', type: 'electrical',
+        orientation: 'horizontal', x: 0, y: 40, length: 80,
+      },
+    ]
+    const network: ConnectionNetwork = {
+      id: 'redundant-cabinet-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'outside', kind: 'node', x: 0, y: 0 },
+        { id: 'live-tap', kind: 'busbar-tap', busbarId: 'live-busbar', offset: 0 },
+        { id: 'dead-tap', kind: 'busbar-tap', busbarId: 'dead-busbar', offset: 0 },
+        { id: 'cabinet-a', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'a' },
+        { id: 'cabinet-b', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'b' },
+      ],
+      edges: [
+        {
+          id: 'live-entry',
+          sourceNodeId: 'outside',
+          targetNodeId: 'live-tap',
+          flowDirection: 'forward',
+          externalSupplyEndpoint: 'source',
+        },
+        {
+          id: 'live-cabinet-feed',
+          sourceNodeId: 'live-tap',
+          targetNodeId: 'cabinet-a',
+          flowDirection: 'forward',
+        },
+        {
+          id: 'dead-cabinet-feed',
+          sourceNodeId: 'dead-tap',
+          targetNodeId: 'cabinet-b',
+          flowDirection: 'forward',
+        },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars,
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'live-entry', direction: 'forward' },
+      { edgeId: 'live-cabinet-feed', direction: 'forward' },
+    ])
+    expect(flow.edges).not.toContainEqual(expect.objectContaining({
+      edgeId: 'dead-cabinet-feed',
+    }))
+    expect(flow.energizedElementIds).toContain(cabinet.id)
+  })
+
+  it('treats Cabinet as a terminal target outside detail diagrams too', () => {
+    const cabinet: DiagramElement = {
+      id: 'top-level-cabinet',
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: 'Cabinet',
+      x: 80,
+      y: 0,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const topLevelNetwork: ConnectionNetwork = {
+      id: 'top-level-cabinet-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'grid-output', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'cabinet-input', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'a' },
+      ],
+      edges: [{
+        id: 'top-level-cabinet-feed',
+        sourceNodeId: 'grid-output',
+        targetNodeId: 'cabinet-input',
+      }],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [elements[0], cabinet],
+      busbars: [],
+      networks: [topLevelNetwork],
+      switchStates: {},
+    })
+
+    expect(flow.edges).toEqual([{
+      edgeId: 'top-level-cabinet-feed',
+      direction: 'forward',
+    }])
+    expect(flow.energizedElementIds).toContain(cabinet.id)
+  })
+
+  it('uses explicit child-line entries instead of automatically energizing every busbar', () => {
+    const cabinet: DiagramElement = {
+      id: 'detail-cabinet', diagramId: 'd', assetKey: 'cabinet-device', name: 'Cabinet',
+      x: 0, y: 80, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const busbar: Busbar = {
+      id: 'detail-busbar', diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 40, length: 80,
+    }
+    const explicitEntryNetwork: ConnectionNetwork = {
+      id: 'explicit-entry-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'explicit-outside', kind: 'node', x: 0, y: 0 },
+        { id: 'explicit-inside', kind: 'node', x: 40, y: 0 },
+      ],
+      edges: [{
+        id: 'explicit-entry',
+        sourceNodeId: 'explicit-outside',
+        targetNodeId: 'explicit-inside',
+        flowDirection: 'forward',
+        externalSupplyEndpoint: 'source',
+      }],
+    }
+    const automaticBusbarNetwork: ConnectionNetwork = {
+      id: 'automatic-busbar-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'automatic-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 0 },
+        {
+          id: 'automatic-cabinet',
+          kind: 'element-anchor',
+          elementId: cabinet.id,
+          anchorId: 'top',
+        },
+      ],
+      edges: [{
+        id: 'automatic-busbar-feed',
+        sourceNodeId: 'automatic-tap',
+        targetNodeId: 'automatic-cabinet',
+      }],
+    }
+
+    expect(derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [busbar],
+      networks: [explicitEntryNetwork, automaticBusbarNetwork],
+      switchStates: {},
+      externalSupply: true,
+    }).edges).toEqual([{ edgeId: 'explicit-entry', direction: 'forward' }])
+
+    expect(derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [busbar],
+      networks: [explicitEntryNetwork, automaticBusbarNetwork],
+      switchStates: {},
+      externalSupply: false,
+    }).edges).toEqual([])
+  })
+
+  it('can inject external supply from the target endpoint of a child line', () => {
+    const cabinet: DiagramElement = {
+      id: 'reverse-entry-cabinet',
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: 'Cabinet',
+      x: 0,
+      y: 80,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const network: ConnectionNetwork = {
+      id: 'reverse-entry-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        {
+          id: 'cabinet-anchor',
+          kind: 'element-anchor',
+          elementId: cabinet.id,
+          anchorId: 'top',
+        },
+        { id: 'outside', kind: 'node', x: 0, y: 0 },
+      ],
+      edges: [{
+        id: 'reverse-entry',
+        sourceNodeId: 'cabinet-anchor',
+        targetNodeId: 'outside',
+        externalSupplyEndpoint: 'target',
+      }],
+    }
+
+    expect(derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [],
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    }).edges).toEqual([{ edgeId: 'reverse-entry', direction: 'reverse' }])
+  })
+
+  it('fills an explicitly supplied detail busbar from its entry tap to both physical ends', () => {
+    const detailElements: DiagramElement[] = ['left-cabinet', 'right-cabinet'].map((id) => ({
+      id,
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: id,
+      x: 0,
+      y: 80,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+    const busbar: Busbar = {
+      id: 'explicit-busbar', diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 40, length: 160,
+    }
+    const network: ConnectionNetwork = {
+      id: 'explicit-busbar-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'outside', kind: 'node', x: 80, y: 0 },
+        { id: 'left-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 32 },
+        { id: 'entry-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 80 },
+        { id: 'right-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 128 },
+        { id: 'left-load', kind: 'element-anchor', elementId: 'left-cabinet', anchorId: 'in' },
+        { id: 'right-load', kind: 'element-anchor', elementId: 'right-cabinet', anchorId: 'in' },
+      ],
+      edges: [
+        {
+          id: 'explicit-entry',
+          sourceNodeId: 'outside',
+          targetNodeId: 'entry-tap',
+          flowDirection: 'forward',
+          externalSupplyEndpoint: 'source',
+        },
+        { id: 'left-load-edge', sourceNodeId: 'left-tap', targetNodeId: 'left-load' },
+        { id: 'right-load-edge', sourceNodeId: 'right-tap', targetNodeId: 'right-load' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: detailElements,
+      busbars: [busbar],
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.busbarSegments).toEqual([
+      expect.objectContaining({
+        busbarId: busbar.id,
+        start: { x: 80, y: 40 },
+        end: { x: 32, y: 40 },
+      }),
+      expect.objectContaining({
+        busbarId: busbar.id,
+        start: { x: 80, y: 40 },
+        end: { x: 128, y: 40 },
+      }),
+      {
+        id: `busbar-flow:tail-start:${busbar.id}`,
+        busbarId: busbar.id,
+        start: { x: 32, y: 40 },
+        end: { x: 0, y: 40 },
+      },
+      {
+        id: `busbar-flow:tail-end:${busbar.id}`,
+        busbarId: busbar.id,
+        start: { x: 128, y: 40 },
+        end: { x: 160, y: 40 },
+      },
+    ])
+  })
+
+  it('keeps explicitly directed parallel busbar incomers into an energized detail device', () => {
+    const ups: DiagramElement = {
+      id: 'ups', diagramId: 'd', assetKey: 'ups', name: 'UPS',
+      x: 0, y: 80, width: 48, height: 48, rotation: 0,
+      properties: {}, extensions: {},
+    }
+    const busbar: Busbar = {
+      id: 'parallel-busbar', diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 40, length: 128,
+    }
+    const network: ConnectionNetwork = {
+      id: 'parallel-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'outside', kind: 'node', x: 96, y: 0 },
+        { id: 'bidirectional-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 16 },
+        { id: 'left-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 32 },
+        { id: 'right-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 48 },
+        { id: 'entry-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 96 },
+        { id: 'ups-left', kind: 'element-anchor', elementId: ups.id, anchorId: 'left-in' },
+        { id: 'ups-right', kind: 'element-anchor', elementId: ups.id, anchorId: 'right-in' },
+        { id: 'ups-out', kind: 'element-anchor', elementId: ups.id, anchorId: 'out' },
+        { id: 'ups-bidirectional', kind: 'element-anchor', elementId: ups.id, anchorId: 'spare' },
+        { id: 'load', kind: 'node', x: 40, y: 160 },
+      ],
+      edges: [
+        {
+          id: 'explicit-entry',
+          sourceNodeId: 'outside',
+          targetNodeId: 'entry-tap',
+          flowDirection: 'forward',
+          externalSupplyEndpoint: 'source',
+        },
+        {
+          id: 'tr04-uos01',
+          sourceNodeId: 'ups-left',
+          targetNodeId: 'left-tap',
+          flowDirection: 'reverse',
+        },
+        {
+          id: 'capacity-line',
+          sourceNodeId: 'ups-right',
+          targetNodeId: 'right-tap',
+          flowDirection: 'reverse',
+        },
+        {
+          id: 'bidirectional-spare',
+          sourceNodeId: 'bidirectional-tap',
+          targetNodeId: 'ups-bidirectional',
+        },
+        {
+          id: 'ups-output',
+          sourceNodeId: 'ups-out',
+          targetNodeId: 'load',
+          flowDirection: 'forward',
+        },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [ups],
+      busbars: [busbar],
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual(expect.arrayContaining([
+      { edgeId: 'tr04-uos01', direction: 'reverse' },
+      { edgeId: 'capacity-line', direction: 'reverse' },
+      { edgeId: 'ups-output', direction: 'forward' },
+    ]))
+    expect(flow.edges).not.toContainEqual({
+      edgeId: 'bidirectional-spare',
+      direction: 'forward',
+    })
+  })
+
+  it('treats multiple detail busbar entries as one external source boundary', () => {
+    const detailElements: DiagramElement[] = ['a-left', 'a-right', 'b-left', 'b-right'].map((id) => ({
+      id,
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: id,
+      x: 0,
+      y: 0,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+    const busbars: Busbar[] = [
+      {
+        id: 'busbar-a', diagramId: 'd', type: 'electrical',
+        orientation: 'horizontal', x: 0, y: 0, length: 80,
+      },
+      {
+        id: 'busbar-b', diagramId: 'd', type: 'electrical',
+        orientation: 'horizontal', x: 0, y: 80, length: 80,
+      },
+    ]
+    const network: ConnectionNetwork = {
+      id: 'ring-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'a-0', kind: 'busbar-tap', busbarId: 'busbar-a', offset: 0 },
+        { id: 'a-80', kind: 'busbar-tap', busbarId: 'busbar-a', offset: 80 },
+        { id: 'b-0', kind: 'busbar-tap', busbarId: 'busbar-b', offset: 0 },
+        { id: 'b-80', kind: 'busbar-tap', busbarId: 'busbar-b', offset: 80 },
+        ...detailElements.map((element) => ({
+          id: `${element.id}-anchor`,
+          kind: 'element-anchor' as const,
+          elementId: element.id,
+          anchorId: 'power',
+        })),
+      ],
+      edges: [
+        { id: 'a-left-edge', sourceNodeId: 'a-0', targetNodeId: 'a-left-anchor' },
+        { id: 'a-right-edge', sourceNodeId: 'a-80', targetNodeId: 'a-right-anchor' },
+        { id: 'b-left-edge', sourceNodeId: 'b-0', targetNodeId: 'b-left-anchor' },
+        { id: 'b-right-edge', sourceNodeId: 'b-80', targetNodeId: 'b-right-anchor' },
+        { id: 'ring-link', sourceNodeId: 'a-80', targetNodeId: 'b-80' },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: detailElements,
+      busbars,
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.busbarSegments).toEqual([
+      expect.objectContaining({
+        busbarId: 'busbar-a',
+        start: { x: 0, y: 0 },
+        end: { x: 80, y: 0 },
+      }),
+      expect.objectContaining({
+        busbarId: 'busbar-b',
+        start: { x: 0, y: 80 },
+        end: { x: 80, y: 80 },
+      }),
+    ])
+    expect(flow.edges).not.toContainEqual(expect.objectContaining({ edgeId: 'ring-link' }))
+  })
+
+  it('uses a free output node as the terminating load of an externally fed UPS detail', () => {
+    const ups: DiagramElement = {
+      id: 'ups-detail', diagramId: 'd', assetKey: 'ups', name: 'UPS',
+      x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const detailBusbar: Busbar = {
+      id: 'ups-busbar', diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: 0, length: 160,
+    }
+    const upsNetwork: ConnectionNetwork = {
+      id: 'ups-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'ups-busbar-tap', kind: 'busbar-tap', busbarId: 'ups-busbar', offset: 16 },
+        { id: 'ups-input', kind: 'element-anchor', elementId: 'ups-detail', anchorId: 'top' },
+        { id: 'ups-output', kind: 'element-anchor', elementId: 'ups-detail', anchorId: 'bottom' },
+        { id: 'free-output', kind: 'node', x: 24, y: 96 },
+      ],
+      edges: [
+        {
+          id: 'ups-input-line',
+          sourceNodeId: 'ups-input',
+          targetNodeId: 'ups-busbar-tap',
+          flowDirection: 'reverse',
+        },
+        {
+          id: 'ups-output-line',
+          sourceNodeId: 'ups-output',
+          targetNodeId: 'free-output',
+          flowDirection: 'forward',
+        },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [ups],
+      busbars: [detailBusbar],
+      networks: [upsNetwork],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'ups-input-line', direction: 'reverse' },
+      { edgeId: 'ups-output-line', direction: 'forward' },
+    ])
+  })
+
+  it('injects external power at a directed free input boundary', () => {
+    const ups: DiagramElement = {
+      id: 'detached-ups', diagramId: 'd', assetKey: 'ups', name: 'UPS',
+      x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const detachedNetwork: ConnectionNetwork = {
+      id: 'detached-ups-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'free-input', kind: 'node', x: 24, y: -48 },
+        { id: 'detached-ups-input', kind: 'element-anchor', elementId: 'detached-ups', anchorId: 'top' },
+        { id: 'detached-ups-output', kind: 'element-anchor', elementId: 'detached-ups', anchorId: 'bottom' },
+        { id: 'free-output', kind: 'node', x: 24, y: 96 },
+      ],
+      edges: [
+        {
+          id: 'detached-input-line',
+          sourceNodeId: 'detached-ups-input',
+          targetNodeId: 'free-input',
+          flowDirection: 'reverse',
+        },
+        {
+          id: 'detached-output-line',
+          sourceNodeId: 'detached-ups-output',
+          targetNodeId: 'free-output',
+          flowDirection: 'forward',
+        },
+      ],
+    }
+
+    const flow = derivePowerFlowTopology({
+      elements: [ups],
+      busbars: [],
+      networks: [detachedNetwork],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.edges).toEqual([
+      { edgeId: 'detached-input-line', direction: 'reverse' },
+      { edgeId: 'detached-output-line', direction: 'forward' },
+    ])
+  })
+
   it('treats Generator and Battery as sources and FM as a terminating target', () => {
     const roleElements: DiagramElement[] = [
       { id: 'generator', diagramId: 'd', assetKey: 'generator', name: 'Generator', x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {} },
@@ -462,5 +1113,70 @@ describe('monitor power flow topology', () => {
       { edgeId: 'feed', direction: 'forward' },
       { edgeId: 'load', direction: 'forward' },
     ])
+  })
+
+  it('uses a manual busbar direction as the external entry and animates its full length', () => {
+    const cabinet: DiagramElement = {
+      id: 'detail-cabinet',
+      diagramId: 'd',
+      assetKey: 'cabinet-device',
+      name: 'Cabinet',
+      x: 0,
+      y: 96,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+    const busbar: Busbar = {
+      id: 'manual-busbar',
+      diagramId: 'd',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 64,
+      length: 192,
+      monitorFlowDirection: 'end-to-start',
+    }
+    const network: ConnectionNetwork = {
+      id: 'manual-busbar-network',
+      diagramId: 'd',
+      type: 'electrical',
+      nodes: [
+        { id: 'left-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 32 },
+        { id: 'right-tap', kind: 'busbar-tap', busbarId: busbar.id, offset: 160 },
+        {
+          id: 'cabinet-input',
+          kind: 'element-anchor',
+          elementId: cabinet.id,
+          anchorId: 'top',
+        },
+      ],
+      edges: [{ id: 'cabinet-feed', sourceNodeId: 'left-tap', targetNodeId: 'cabinet-input' }],
+    }
+
+    expect(derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [busbar],
+      networks: [network],
+      switchStates: {},
+    }).busbarSegments).toEqual([])
+
+    const flow = derivePowerFlowTopology({
+      elements: [cabinet],
+      busbars: [busbar],
+      networks: [network],
+      switchStates: {},
+      externalSupply: true,
+    })
+
+    expect(flow.busbarSegments).toEqual([{
+      id: `busbar-flow:manual:${busbar.id}`,
+      busbarId: busbar.id,
+      start: { x: 192, y: 64 },
+      end: { x: 0, y: 64 },
+    }])
+    expect(flow.edges).toEqual([{ edgeId: 'cabinet-feed', direction: 'forward' }])
   })
 })

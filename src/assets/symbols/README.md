@@ -21,7 +21,9 @@
 ## 当前专业分类
 
 - 冷却：包括 CPD、TMU。
-- 电力：包括 FM、Cabinet、Tap-off Unit A、Tap-off Unit B、Tap-off Unit、算力 POD、动力 POD。
+- 电力：包括 FM、Battery、Battery-group、UPS、UPS-group、Cabinet、Tap-off Unit A、Tap-off Unit B、Tap-off Unit、算力 POD、动力 POD。
+- `Battery-group.svg` 显示为 Battery-group，使用稳定键 `battery-group`，是 48×48 的独立普通电力图元；首版无预置锚点、改色或运行状态，不继承现有 Battery 的监控 Source 角色。
+- `UPS-group.svg` 显示为 UPS-group，使用稳定键 `ups-group`，是 48×48 的独立普通电力图元；首版无预置锚点、改色、运行状态或子图下探关系，不继承现有 UPS 的实例或监控语义。
 - 新 `Cabinet.svg` 显示为 Cabinet，使用稳定键 `cabinet-device`。原 `Cabinet A.svg` / `Cabinet B.svg` 的显示名分别为 Tap-off Unit A / B，继续使用历史键 `cabinet` / `cabinet-b`；三者是独立图元，不使用实例水平翻转互相转换。
 - `Tap-off Unit.svg` 显示为 Tap-off Unit，使用稳定键 `tap-off-unit`，是 Tap-off Unit A/B 的 32×32 子图元。当前作为独立实例使用，不自动嵌入或跟随 A/B，首版不预置锚点；右侧属性面板允许修改或恢复单一实例颜色。
 - 已保存项目重新打开或导入时，以本目录登记的稳定 `assetKey` 同步当前分类与素材源；一般保留已有锚点，PHE 旧竖版锚点仅迁移坐标和方向并保留 ID、类型及接线引用。

@@ -32,7 +32,6 @@ import { Button, IconButton, StatusTag, TextField } from './components/ui'
 import type { DiagramDropPosition } from './domain/diagramHierarchy'
 import {
   elementUsesOnOffState,
-  getDiagramPath,
   parseProjectDocument,
   projectOnOffStates,
   withOnOffStateSnapshot,
@@ -50,14 +49,17 @@ import {
 } from './editor/DiagramCanvas'
 import { getAnchorTypeLabel } from './editor/anchors'
 import { getAdaptiveGridScale } from './editor/gridScale'
-import { routeWaypointsForNetworks } from './editor/routeWaypoints'
 import { symbolAssets } from './editor/symbolCatalog'
-import { deriveCoolingFlowTopology } from './monitoring/coolingFlowTopology'
 import {
   DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT,
-  MockCoolingRuntimeProvider,
   clampCoolingPumpOutputPower,
 } from './monitoring/coolingRuntime'
+import { createDiagramRuntimeView } from './runtime/diagramRuntime'
+import {
+  createDiagramRuntimeState,
+  evaluateCoolingRuntime,
+} from './runtime/runtimeState'
+import type { DiagramRuntimeContext } from './runtime/types'
 import {
   monitorStateRepository,
   projectRepository,
@@ -164,7 +166,7 @@ export default function App() {
   const editorRef = useRef<DiagramCanvasHandle>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const monitorStateRevisionRef = useRef(0)
-  const coolingRuntimeProviderRef = useRef(new MockCoolingRuntimeProvider())
+  const monitorStateWriteRevisionsRef = useRef<Record<string, number>>({})
   const [openPanel, setOpenPanel] = useState(false)
   const [savedProjects, setSavedProjects] = useState<ProjectSummary[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
@@ -209,27 +211,38 @@ export default function App() {
     }, 2600)
   }, [])
 
-  const currentDiagram = document.diagrams.find((diagram) => diagram.id === currentDiagramId)
-  const currentLine = document.lineSystems.find(
-    (lineSystem) => lineSystem.id === currentDiagram?.lineSystemId,
+  const runtimeView = useMemo(
+    () => createDiagramRuntimeView(document, currentDiagramId),
+    [currentDiagramId, document],
   )
-  const diagramPath = getDiagramPath(document, currentDiagramId)
-  const currentElements = useMemo(
-    () => document.elements.filter((element) => element.diagramId === currentDiagramId),
-    [currentDiagramId, document.elements],
-  )
-  const currentConnections = useMemo(
-    () => document.connections.filter((network) => network.diagramId === currentDiagramId),
-    [currentDiagramId, document.connections],
-  )
-  const currentRouteWaypoints = useMemo(
-    () => routeWaypointsForNetworks(currentConnections),
-    [currentConnections],
-  )
-  const currentBusbars = useMemo(
-    () => document.busbars.filter((busbar) => busbar.diagramId === currentDiagramId),
-    [currentDiagramId, document.busbars],
-  )
+  const currentDiagram = runtimeView?.diagram
+  const currentLine = runtimeView?.lineSystem
+  const diagramPath = runtimeView?.path ?? []
+  const currentElements = runtimeView?.elements ?? []
+  const currentConnections = runtimeView?.connections ?? []
+  const currentRouteWaypoints = runtimeView?.routeWaypoints ?? []
+  const currentBusbars = runtimeView?.busbars ?? []
+  const runtimeState = useMemo(() => createDiagramRuntimeState({
+    document,
+    diagramId: currentDiagramId,
+    active: workspaceMode === 'monitor',
+    onOffStates,
+    coolingPumpRunningStates,
+    coolingPumpOutputPowerStates,
+    coolingValveOpenStates,
+  }), [
+    coolingPumpOutputPowerStates,
+    coolingPumpRunningStates,
+    coolingValveOpenStates,
+    currentDiagramId,
+    document,
+    onOffStates,
+    workspaceMode,
+  ])
+  const runtime = useMemo<DiagramRuntimeContext>(() => ({
+    state: runtimeState,
+    navigation: runtimeView?.navigation ?? {},
+  }), [runtimeState, runtimeView?.navigation])
   const selectedElements = useMemo(
     () => document.elements.filter((element) => selectedElementIds.includes(element.id)),
     [document.elements, selectedElementIds],
@@ -242,55 +255,21 @@ export default function App() {
   const selectedMonitorAsset = selectedMonitorElement
     ? currentAssetsByKey.get(selectedMonitorElement.assetKey)
     : undefined
-  const coolingRuntimeSnapshot = useMemo(() => {
-    const persistentValveOpenStates = Object.fromEntries(currentElements.flatMap((element) => (
-      ['valve', 'check-valve'].includes(
-        currentAssetsByKey.get(element.assetKey)?.coolingDeviceRole ?? '',
-      ) && elementUsesOnOffState(element)
-        ? [[element.id, onOffStates[element.id] ?? false] as const]
-        : []
-    )))
-    return coolingRuntimeProviderRef.current.getSnapshot({
-      elements: currentElements,
-      assets: document.assets,
-      pumpRunningOverrides: coolingPumpRunningStates,
-      pumpOutputPowerOverrides: coolingPumpOutputPowerStates,
-      valveOpenOverrides: {
-        ...coolingValveOpenStates,
-        ...persistentValveOpenStates,
-      },
-    })
-  }, [
-    coolingPumpOutputPowerStates,
-    coolingPumpRunningStates,
-    coolingValveOpenStates,
-    currentAssetsByKey,
+  const coolingRuntime = useMemo(() => evaluateCoolingRuntime({
+    active: workspaceMode === 'monitor' && currentLine?.type === 'cooling',
+    elements: currentElements,
+    assets: document.assets,
+    connections: currentConnections,
+    state: runtimeState,
+  }), [
+    currentConnections,
     currentElements,
+    currentLine?.type,
     document.assets,
-    onOffStates,
+    runtimeState,
+    workspaceMode,
   ])
-  const coolingFlowTopology = useMemo(() => (
-    workspaceMode === 'monitor' && currentLine?.type === 'cooling'
-  )
-    ? deriveCoolingFlowTopology({
-        elements: currentElements,
-        assets: document.assets,
-        networks: currentConnections,
-        runtime: coolingRuntimeSnapshot,
-      })
-    : {
-        edges: [],
-        diagnostics: [],
-        activePumpElementIds: new Set<string>(),
-        pumpFlowRates: {},
-      }, [
-        coolingRuntimeSnapshot,
-        currentConnections,
-        currentElements,
-        currentLine?.type,
-        document.assets,
-        workspaceMode,
-      ])
+  const coolingFlowTopology = coolingRuntime.topology
   const duplicateDeviceIdentifier = useMemo(() => {
     if (selectedElements.length !== 1) return false
     const tag = selectedElements[0].properties.tag
@@ -331,6 +310,12 @@ export default function App() {
     (symbolKey: string) => editorRef.current?.insertSymbol(symbolKey),
     [],
   )
+  const handleMonitorElementDrillDown = useCallback((elementId: string) => {
+    const target = runtime.navigation[elementId]
+    if (!target) return
+    setSelectedElementIds([])
+    setCurrentDiagram(target.diagramId)
+  }, [runtime.navigation, setCurrentDiagram, setSelectedElementIds])
 
   const handleCreateDiagram = useCallback((parentId: string) => {
     const result = createDiagram(parentId)
@@ -396,6 +381,7 @@ export default function App() {
     let cancelled = false
     const revision = monitorStateRevisionRef.current + 1
     monitorStateRevisionRef.current = revision
+    monitorStateWriteRevisionsRef.current = {}
     const documentStates = projectOnOffStates(document)
     const legacyStateElementIds = new Set(document.elements.flatMap((element) => (
       elementUsesOnOffState(element) && element.onOffState === undefined
@@ -433,20 +419,44 @@ export default function App() {
     setAnchorEditorAssetKey(null)
   }
 
-  const handleOnOffStateChange = (elementId: string, on: boolean) => {
-    const previous = onOffStates[elementId] ?? false
-    monitorStateRevisionRef.current += 1
-    setOnOffStates((current) => ({ ...current, [elementId]: on }))
-    syncElementOnOffStates({ [elementId]: on })
-    void monitorStateRepository
-      .setOnOffState(document.project.id, elementId, on)
+  const handleOnOffStatesChange = (elementIds: string[], on: boolean) => {
+    const uniqueElementIds = [...new Set(elementIds)]
+    if (!uniqueElementIds.length) return
+    const previous = Object.fromEntries(uniqueElementIds.map((elementId) => (
+      [elementId, onOffStates[elementId] ?? false]
+    )))
+    const next = Object.fromEntries(uniqueElementIds.map((elementId) => [elementId, on]))
+    const revision = monitorStateRevisionRef.current + 1
+    monitorStateRevisionRef.current = revision
+    uniqueElementIds.forEach((elementId) => {
+      monitorStateWriteRevisionsRef.current[elementId] = revision
+    })
+    setOnOffStates((current) => ({ ...current, ...next }))
+    syncElementOnOffStates(next)
+    const save = uniqueElementIds.length === 1
+      ? monitorStateRepository.setOnOffState(
+          document.project.id,
+          uniqueElementIds[0],
+          on,
+        )
+      : monitorStateRepository.setOnOffStates(document.project.id, next)
+    void save
       .catch((error) => {
-        setOnOffStates((current) => (
-          current[elementId] === on ? { ...current, [elementId]: previous } : current
+        const rollbackElementIds = uniqueElementIds.filter((elementId) => (
+          monitorStateWriteRevisionsRef.current[elementId] === revision
         ))
-        syncElementOnOffStates({ [elementId]: previous })
+        if (!rollbackElementIds.length) return
+        const rollback = Object.fromEntries(rollbackElementIds.map((elementId) => (
+          [elementId, previous[elementId]]
+        )))
+        setOnOffStates((current) => ({ ...current, ...rollback }))
+        syncElementOnOffStates(rollback)
         showToast(error instanceof Error ? error.message : 'On/Off 状态保存失败。', 'danger')
       })
+  }
+
+  const handleOnOffStateChange = (elementId: string, on: boolean) => {
+    handleOnOffStatesChange([elementId], on)
   }
 
   const handleCoolingRuntimeStateChange = (
@@ -740,10 +750,7 @@ export default function App() {
               ref={editorRef}
               mode={workspaceMode}
               animationPlaying={animationPlaying}
-              onOffStates={onOffStates}
-              coolingPumpRunningStates={coolingPumpRunningStates}
-              coolingPumpOutputPowerStates={coolingPumpOutputPowerStates}
-              coolingValveOpenStates={coolingValveOpenStates}
+              runtime={runtime}
               diagramId={currentDiagramId}
               lineSystemType={currentLine?.type ?? 'cooling'}
               documentEpoch={documentEpoch}
@@ -756,6 +763,7 @@ export default function App() {
               routeWaypoints={currentRouteWaypoints}
               onDiagramChange={handleDiagramChange}
               onSelectionChange={setSelectedElementIds}
+              onElementDrillDown={handleMonitorElementDrillDown}
               onCommandStateChange={setCommandState}
               onActionMessage={showToast}
             />
@@ -869,6 +877,8 @@ export default function App() {
 
         {workspaceMode === 'edit' ? <PropertiesPanel
           duplicateDeviceIdentifier={duplicateDeviceIdentifier}
+          allowExternalSupplyEntry={currentLine?.type === 'power' && Boolean(currentDiagram.parentId)}
+          allowCoolingFlowSource={currentLine?.type === 'cooling'}
           selectedElements={selectedElements}
           selectedBusbars={selectedBusbars}
           selectedConnection={selectedConnection}
@@ -882,13 +892,27 @@ export default function App() {
           canvasConnections={currentConnections}
           onOffStates={onOffStates}
           onOnOffStateChange={handleOnOffStateChange}
+          onOnOffStatesChange={handleOnOffStatesChange}
           onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
+          onPatchElements={(elementIds, patch) => (
+            editorRef.current?.updateElements(elementIds, patch)
+          )}
+          onPatchElementMetrics={(elementIds, metrics) => (
+            editorRef.current?.updateElementMetrics(elementIds, metrics)
+          )}
           onPatchBusbar={(busbarId, patch) => editorRef.current?.updateBusbar(busbarId, patch)}
+          onPatchBusbars={(busbarIds, patch) => editorRef.current?.updateBusbars(busbarIds, patch)}
+          onBusbarLabelColorPreview={(busbarId, color) => (
+            editorRef.current?.previewBusbarLabelColor(busbarId, color)
+          )}
           onPatchConnectionEdge={(edgeId, patch) => (
             editorRef.current?.updateConnectionEdge(edgeId, patch)
           )}
           onPatchConnectionEdges={(edgeIds, patch) => (
             editorRef.current?.updateConnectionEdges(edgeIds, patch)
+          )}
+          onPatchConnectionMetrics={(edgeIds, metrics) => (
+            editorRef.current?.updateConnectionEdgeMetrics(edgeIds, metrics)
           )}
           onResetConnectionRouting={() => editorRef.current?.resetSelectedConnectionRouting()}
           onColorPreview={(elementId, color, slot) => (
@@ -896,6 +920,12 @@ export default function App() {
           )}
           onSelectionColorPreview={(color) => editorRef.current?.previewSelectionColor(color)}
           onSelectionColorCommit={(color) => editorRef.current?.updateSelectionColor(color)}
+          onElementSelectionColorPreview={(elementIds, color, slot) => (
+            editorRef.current?.previewElementSelectionColor(elementIds, color, slot)
+          )}
+          onElementSelectionColorCommit={(elementIds, color, slot) => (
+            editorRef.current?.updateElementSelectionColor(elementIds, color, slot)
+          )}
           onCanvasColorPreview={(target, color) => (
             editorRef.current?.previewCanvasColor(target, color)
           )}

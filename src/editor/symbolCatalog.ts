@@ -110,6 +110,7 @@ const metadata: SymbolMetadata[] = [
   { file: 'TMU.png', name: 'TMU', category: '冷却', width: 64, height: 96 },
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
+  { file: 'Battery-group.svg', name: 'Battery-group', category: '电力', width: 48, height: 48 },
   { file: 'Generator.svg', name: 'Generator', category: '电力', width: 48, height: 48, configurableColor: true },
   { file: 'Grid.svg', name: 'Grid', category: '电力', width: 48, height: 48, configurableColor: true },
   {
@@ -125,6 +126,7 @@ const metadata: SymbolMetadata[] = [
   },
   { file: 'Transformer.svg', name: 'Transformer', category: '电力', width: 64, height: 64, configurableColor: true },
   { file: 'UPS.svg', name: 'UPS', category: '电力', width: 48, height: 48 },
+  { file: 'UPS-group.svg', name: 'UPS-group', category: '电力', width: 48, height: 48 },
   { file: 'CPD.png', name: 'CPD', category: '冷却', width: 80, height: 80 },
   { file: 'Cabinet.svg', key: 'cabinet-device', name: 'Cabinet', category: '电力', width: 48, height: 48 },
   { file: 'Cabinet A.svg', key: 'cabinet', name: 'Tap-off Unit A', category: '电力', width: 48, height: 48 },

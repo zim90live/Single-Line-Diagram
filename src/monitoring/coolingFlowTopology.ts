@@ -63,6 +63,7 @@ export interface CoolingFlowTopology {
 }
 
 const FLOW_EPSILON = 1e-5
+const COOLING_LINE_SOURCE_FLOW = 100
 
 function directCoolingTypesCompatible(left: AnchorType, right: AnchorType) {
   return left !== 'electrical' &&
@@ -159,6 +160,44 @@ function findShortestNodePath({
     }
   }
   return null
+}
+
+function reachableNodeIds(adjacency: Map<string, string[]>, sourceNodeId: string) {
+  const reachable = new Set<string>([sourceNodeId])
+  const queue = [sourceNodeId]
+  for (let index = 0; index < queue.length; index += 1) {
+    for (const nextNodeId of adjacency.get(queue[index]) ?? []) {
+      if (reachable.has(nextNodeId)) continue
+      reachable.add(nextNodeId)
+      queue.push(nextNodeId)
+    }
+  }
+  return reachable
+}
+
+function openCoolingBoundaryNodeIds(
+  links: CoolingHydraulicLink[],
+  activeLinkIds: Set<string>,
+  nodesById: Map<string, ConnectionNode>,
+  excludedNodeIds: Set<string>,
+) {
+  const neighbors = new Map<string, Set<string>>()
+  for (const link of links) {
+    if (!activeLinkIds.has(link.id)) continue
+    const startNeighbors = neighbors.get(link.startNodeId) ?? new Set<string>()
+    startNeighbors.add(link.endNodeId)
+    neighbors.set(link.startNodeId, startNeighbors)
+    const endNeighbors = neighbors.get(link.endNodeId) ?? new Set<string>()
+    endNeighbors.add(link.startNodeId)
+    neighbors.set(link.endNodeId, endNeighbors)
+  }
+  return [...neighbors].flatMap(([nodeId, adjacentNodeIds]) => (
+    adjacentNodeIds.size === 1 &&
+    nodesById.get(nodeId)?.kind === 'node' &&
+    !excludedNodeIds.has(nodeId)
+      ? [nodeId]
+      : []
+  )).sort()
 }
 
 function addHydraulicLink(
@@ -286,6 +325,15 @@ export function deriveCoolingFlowTopology({
   const assetsByKey = new Map(assets.map((asset) => [asset.key, asset]))
   const nodes = coolingNetworks.flatMap((network) => network.nodes)
   const nodesById = new Map(nodes.map((node) => [node.id, node]))
+  const configuredSourceNodeIds = [...new Set(coolingNetworks.flatMap((network) => (
+    network.edges.flatMap((edge) => {
+      if (!edge.externalSupplyEndpoint) return []
+      const nodeId = edge.externalSupplyEndpoint === 'source'
+        ? edge.sourceNodeId
+        : edge.targetNodeId
+      return nodesById.has(nodeId) ? [nodeId] : []
+    })
+  )))].sort()
   const nodeTypesById = new Map(coolingNetworks.flatMap((network) => (
     network.nodes.map((node) => [node.id, network.type] as const)
   )))
@@ -485,6 +533,28 @@ export function deriveCoolingFlowTopology({
         pump.targetNodeId,
         (injections.get(pump.targetNodeId) ?? 0) - pump.targetFlow,
       )
+    }
+    const openBoundaryNodeIds = openCoolingBoundaryNodeIds(
+      hydraulicLinks,
+      activeLinkIds,
+      nodesById,
+      new Set(configuredSourceNodeIds),
+    )
+    for (const sourceNodeId of configuredSourceNodeIds) {
+      const reachable = reachableNodeIds(adjacency, sourceNodeId)
+      const targets = openBoundaryNodeIds.filter((nodeId) => reachable.has(nodeId))
+      if (!targets.length) continue
+      injections.set(
+        sourceNodeId,
+        (injections.get(sourceNodeId) ?? 0) + COOLING_LINE_SOURCE_FLOW,
+      )
+      const targetFlow = COOLING_LINE_SOURCE_FLOW / targets.length
+      for (const targetNodeId of targets) {
+        injections.set(
+          targetNodeId,
+          (injections.get(targetNodeId) ?? 0) - targetFlow,
+        )
+      }
     }
     pressures = solveHydraulicPressures(hydraulicLinks, activeLinkIds, injections)
     const blocked = hydraulicLinks.filter((link) => {

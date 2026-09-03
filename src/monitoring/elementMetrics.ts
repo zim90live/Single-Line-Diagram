@@ -79,6 +79,23 @@ export function createDefaultMonitorTextOptions(): MonitorMetricTextOption[] {
   ]
 }
 
+export function cloneMonitorMetricsWithNewIds(metrics: MonitorMetric[]): MonitorMetric[] {
+  return metrics.map((metric) => {
+    const id = `monitor-metric-${crypto.randomUUID()}`
+    if (metric.valueType === 'text') {
+      return {
+        ...metric,
+        id,
+        textOptions: metric.textOptions.map((option) => ({
+          ...option,
+          id: `monitor-state-${crypto.randomUUID()}`,
+        })),
+      }
+    }
+    return { ...metric, id }
+  })
+}
+
 export function evaluateMonitorMetricAlarm(
   metric: MonitorMetric,
   value: number,

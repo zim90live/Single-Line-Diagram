@@ -464,7 +464,7 @@ export function MonitorMetricsEditor({
         </div>
       )}
       {metrics.length >= 5 ? (
-        <span className="monitor-metric-editor__limit">每个图元最多 5 项</span>
+        <span className="monitor-metric-editor__limit">每个对象最多 5 项</span>
       ) : null}
     </section>
   )

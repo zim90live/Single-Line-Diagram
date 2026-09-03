@@ -65,8 +65,17 @@ describe('element label layout', () => {
     expect(labelPlacementForPointer(current, { x: 120, y: 20 })).toBe('right')
   })
 
-  it('moves the automatic label away from an outgoing anchor corridor', () => {
-    const [layout] = layoutElementLabels([element()], new Map([[asset.key, asset]]))
+  it('does not avoid an anchor corridor until that anchor is connected', () => {
+    const assets = new Map([[asset.key, asset]])
+    const [unconnectedLayout] = layoutElementLabels([element()], assets)
+    expect(unconnectedLayout.placement).toBe('bottom')
+
+    const [layout] = layoutElementLabels([element()], assets, {
+      connectedAnchorIdsByElement: new Map([[
+        'element-1',
+        new Set(['bottom-anchor']),
+      ]]),
+    })
     expect(layout.placement).not.toBe('bottom')
   })
 

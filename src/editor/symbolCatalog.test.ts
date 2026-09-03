@@ -19,8 +19,34 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every active symbol from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(25)
+    expect(symbolCatalog).toHaveLength(27)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
+  })
+
+  it('registers Battery-group as an independent 48 by 48 power symbol', () => {
+    expect(symbolsByKey.get('battery-group')).toMatchObject({
+      name: 'Battery-group',
+      source: 'src/assets/symbols/Battery-group.svg',
+      category: '电力',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+      configurableColor: false,
+      anchors: [],
+      renderMode: 'image',
+    })
+  })
+
+  it('registers UPS-group as an independent 48 by 48 power symbol', () => {
+    expect(symbolsByKey.get('ups-group')).toMatchObject({
+      name: 'UPS-group',
+      source: 'src/assets/symbols/UPS-group.svg',
+      category: '电力',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+      configurableColor: false,
+      anchors: [],
+      renderMode: 'image',
+    })
   })
 
   it('registers TMU as a 64 by 96 cooling PNG symbol', () => {
@@ -173,6 +199,8 @@ describe('symbol catalog', () => {
     expect(symbolsByKey.get('cpd')?.category).toBe('冷却')
     expect(symbolsByKey.get('tmu')?.category).toBe('冷却')
     expect(symbolsByKey.get('fm')?.category).toBe('电力')
+    expect(symbolsByKey.get('battery-group')?.category).toBe('电力')
+    expect(symbolsByKey.get('ups-group')?.category).toBe('电力')
     expect(symbolsByKey.get('cabinet')?.category).toBe('电力')
     expect(symbolsByKey.get('cabinet-b')?.category).toBe('电力')
     expect(symbolsByKey.get('compute-pod')?.category).toBe('电力')

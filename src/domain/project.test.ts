@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  busbarSchema,
   connectionEdgeSchema,
   createDefaultProject,
   EDITOR_GRID_SIZE,
@@ -22,6 +23,194 @@ const asset = {
 }
 
 describe('project document', () => {
+  it('persists configurable busbar label colors and migrates v32 to the default color', () => {
+    expect(busbarSchema.parse({
+      id: 'colored-label-busbar',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      labelColor: '#12ab34',
+    }).labelColor).toBe('#12ab34')
+    expect(() => busbarSchema.parse({
+      id: 'invalid-label-color-busbar',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      labelColor: 'red',
+    })).toThrow()
+
+    const legacy = createDefaultProject('v32 母线标签颜色兼容', [asset]) as unknown as {
+      schemaVersion: number
+    }
+    legacy.schemaVersion = 32
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.busbars.every((busbar) => busbar.labelColor === undefined)).toBe(true)
+  })
+
+  it('persists busbar label sides and migrates v31 labels to the default side', () => {
+    expect(busbarSchema.parse({
+      id: 'labelled-busbar',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      label: '主母线',
+      labelEndpoint: 'start',
+      labelSide: 'positive',
+    }).labelSide).toBe('positive')
+    expect(() => busbarSchema.parse({
+      id: 'invalid-label-side',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      labelSide: 'center',
+    })).toThrow()
+
+    const legacy = createDefaultProject('v31 母线标签侧向兼容', [asset]) as unknown as {
+      schemaVersion: number
+      busbars: Array<Record<string, unknown>>
+    }
+    legacy.schemaVersion = 31
+    legacy.busbars = [{
+      id: 'legacy-labelled-busbar',
+      diagramId: (legacy as unknown as ReturnType<typeof createDefaultProject>)
+        .lineSystems.find((line) => line.type === 'power')!.rootDiagramId,
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      label: '旧母线',
+      labelEndpoint: 'end',
+    }]
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.busbars[0].labelSide).toBeUndefined()
+    migrated.busbars[0].labelSide = 'positive'
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(migrated))).busbars[0])
+      .toMatchObject({ labelEndpoint: 'end', labelSide: 'positive' })
+  })
+
+  it('persists manual busbar monitor flow directions and migrates v29 as automatic', () => {
+    expect(busbarSchema.parse({
+      id: 'manual-busbar',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      monitorFlowDirection: 'end-to-start',
+    }).monitorFlowDirection).toBe('end-to-start')
+    expect(() => busbarSchema.parse({
+      id: 'invalid-busbar',
+      diagramId: 'diagram-1',
+      type: 'electrical',
+      orientation: 'horizontal',
+      x: 0,
+      y: 0,
+      length: 160,
+      monitorFlowDirection: 'left-to-right',
+    })).toThrow()
+
+    const legacy = createDefaultProject('v29 母线电流方向兼容', [asset]) as unknown as {
+      schemaVersion: number
+    }
+    legacy.schemaVersion = 29
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.busbars.every((busbar) => (
+      busbar.monitorFlowDirection === undefined
+    ))).toBe(true)
+  })
+
+  it('persists explicit source endpoints on electrical child lines and cooling lines', () => {
+    expect(connectionEdgeSchema.parse({
+      id: 'external-entry',
+      sourceNodeId: 'outside',
+      targetNodeId: 'inside',
+      externalSupplyEndpoint: 'source',
+    }).externalSupplyEndpoint).toBe('source')
+    expect(() => connectionEdgeSchema.parse({
+      id: 'invalid-entry',
+      sourceNodeId: 'outside',
+      targetNodeId: 'inside',
+      externalSupplyEndpoint: 'middle',
+    })).toThrow()
+
+    const document = createDefaultProject('子图外部供电入口', [asset])
+    const powerLine = document.lineSystems.find((line) => line.type === 'power')!
+    const childDiagram = document.diagrams.find((diagram) => (
+      diagram.lineSystemId === powerLine.id && diagram.parentId
+    ))!
+    document.connections.push({
+      id: 'external-entry-network',
+      diagramId: childDiagram.id,
+      type: 'electrical',
+      nodes: [
+        { id: 'outside', kind: 'node', x: 0, y: 0 },
+        { id: 'inside', kind: 'node', x: 8, y: 0 },
+      ],
+      edges: [{
+        id: 'external-entry',
+        sourceNodeId: 'outside',
+        targetNodeId: 'inside',
+        externalSupplyEndpoint: 'source',
+      }],
+    })
+    expect(parseProjectDocument(document).connections.at(-1)?.edges[0]
+      .externalSupplyEndpoint).toBe('source')
+
+    const coolingLine = document.lineSystems.find((line) => line.type === 'cooling')!
+    const coolingDiagram = document.diagrams.find((diagram) => (
+      diagram.lineSystemId === coolingLine.id && !diagram.parentId
+    ))!
+    document.connections.push({
+      id: 'cooling-source-network',
+      diagramId: coolingDiagram.id,
+      type: 'cooling-primary-cold',
+      nodes: [
+        { id: 'cooling-source', kind: 'node', x: 0, y: 0 },
+        { id: 'cooling-inside', kind: 'node', x: 8, y: 0 },
+      ],
+      edges: [{
+        id: 'cooling-source-edge',
+        sourceNodeId: 'cooling-source',
+        targetNodeId: 'cooling-inside',
+        externalSupplyEndpoint: 'source',
+      }],
+    })
+    expect(parseProjectDocument(document).connections.at(-1)?.edges[0]
+      .externalSupplyEndpoint).toBe('source')
+
+    const invalidTopLevel = structuredClone(document)
+    invalidTopLevel.connections.find((network) => (
+      network.id === 'external-entry-network'
+    ))!.diagramId = document.diagrams.find((diagram) => (
+      diagram.lineSystemId === powerLine.id && !diagram.parentId
+    ))!.id
+    expect(() => parseProjectDocument(invalidTopLevel))
+      .toThrow('外部供电入口只能配置在电力子图的子线上')
+
+    const legacy = createDefaultProject('v30 外部入口兼容', [asset]) as unknown as {
+      schemaVersion: number
+    }
+    legacy.schemaVersion = 30
+    expect(parseProjectDocument(legacy).schemaVersion).toBe(SCHEMA_VERSION)
+  })
+
   it('persists cooling line roles and treats legacy lines as primary', () => {
     expect(connectionEdgeSchema.parse({
       id: 'auxiliary-edge',
@@ -1130,6 +1319,18 @@ describe('project document', () => {
       intrinsicWidth: 32,
       intrinsicHeight: 32,
     }
+    const batteryGroup = {
+      ...tapUnitA,
+      key: 'battery-group',
+      name: 'Battery-group',
+      source: 'src/assets/symbols/Battery-group.svg',
+    }
+    const upsGroup = {
+      ...tapUnitA,
+      key: 'ups-group',
+      name: 'UPS-group',
+      source: 'src/assets/symbols/UPS-group.svg',
+    }
     const generic = {
       ...tapUnitA,
       key: 'generic',
@@ -1204,7 +1405,16 @@ describe('project document', () => {
       },
     )
 
-    const installedAssets = [tapUnitA, tapUnitB, cabinet, tapOffUnit, generic, tmu]
+    const installedAssets = [
+      tapUnitA,
+      tapUnitB,
+      cabinet,
+      tapOffUnit,
+      batteryGroup,
+      upsGroup,
+      generic,
+      tmu,
+    ]
     const parsed = parseProjectDocument(document, installedAssets)
 
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
@@ -1216,6 +1426,8 @@ describe('project document', () => {
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(tapUnitB)
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-device')).toEqual(cabinet)
     expect(parsed.assets.find((candidate) => candidate.key === 'tap-off-unit')).toEqual(tapOffUnit)
+    expect(parsed.assets.find((candidate) => candidate.key === 'battery-group')).toEqual(batteryGroup)
+    expect(parsed.assets.find((candidate) => candidate.key === 'ups-group')).toEqual(upsGroup)
     expect(parsed.assets.find((candidate) => candidate.key === 'generic')).toEqual(generic)
     expect(parsed.assets.find((candidate) => candidate.key === 'tmu')).toEqual(tmu)
     expect(parsed.elements.map((element) => element.name)).toEqual([
@@ -1763,6 +1975,100 @@ describe('project document', () => {
     const invalidTap = document.connections[0].nodes.find((node) => node.kind === 'busbar-tap')
     if (invalidTap?.kind === 'busbar-tap') invalidTap.offset = 200
     expect(() => parseProjectDocument(document)).toThrow('必须位于母线范围内')
+  })
+
+  it('repairs editor-created free endpoints that coincide with a busbar', () => {
+    const electricalAsset = {
+      ...asset,
+      category: '电力',
+      anchors: [{
+        id: 'electrical-anchor',
+        name: '电路 1',
+        x: 32,
+        y: 64,
+        direction: 'bottom' as const,
+        type: 'electrical' as const,
+      }],
+    }
+    const document = createDefaultProject('母线同点兼容', [electricalAsset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.elements.push(
+      {
+        id: 'existing-device', diagramId, assetKey: electricalAsset.key, name: '既有设备',
+        x: 0, y: -96, width: 64, height: 64, rotation: 0, properties: {}, extensions: {},
+      },
+      {
+        id: 'legacy-device', diagramId, assetKey: electricalAsset.key, name: '旧线路设备',
+        x: 64, y: 32, width: 64, height: 64, rotation: 180, properties: {}, extensions: {},
+      },
+      {
+        id: 'duplicate-device', diagramId, assetKey: electricalAsset.key, name: '同点旧线路设备',
+        x: 128, y: 32, width: 64, height: 64, rotation: 180, properties: {}, extensions: {},
+      },
+    )
+    document.busbars.push({
+      id: 'busbar-1', diagramId, type: 'electrical', orientation: 'horizontal',
+      x: 0, y: 0, length: 192,
+    })
+    document.connections.push(
+      {
+        id: 'busbar-network', diagramId, type: 'electrical',
+        nodes: [
+          { id: 'existing-anchor', kind: 'element-anchor', elementId: 'existing-device', anchorId: 'electrical-anchor' },
+          { id: 'existing-tap', kind: 'busbar-tap', busbarId: 'busbar-1', offset: 32 },
+        ],
+        edges: [{ id: 'existing-edge', sourceNodeId: 'existing-anchor', targetNodeId: 'existing-tap' }],
+      },
+      {
+        id: 'legacy-network', diagramId, type: 'electrical',
+        nodes: [
+          { id: 'connection-node-legacy-busbar-end', kind: 'node', x: 96, y: 0 },
+          { id: 'legacy-anchor', kind: 'element-anchor', elementId: 'legacy-device', anchorId: 'electrical-anchor' },
+        ],
+        edges: [{
+          id: 'legacy-edge',
+          sourceNodeId: 'legacy-anchor',
+          targetNodeId: 'connection-node-legacy-busbar-end',
+          flowDirection: 'reverse',
+        }],
+      },
+      {
+        id: 'legacy-duplicate-network', diagramId, type: 'electrical',
+        nodes: [
+          { id: 'connection-node-legacy-existing-end', kind: 'node', x: 32, y: 0 },
+          { id: 'duplicate-anchor', kind: 'element-anchor', elementId: 'duplicate-device', anchorId: 'electrical-anchor' },
+        ],
+        edges: [{
+          id: 'legacy-duplicate-edge',
+          sourceNodeId: 'duplicate-anchor',
+          targetNodeId: 'connection-node-legacy-existing-end',
+        }],
+      },
+    )
+
+    const parsed = parseProjectDocument(document)
+    expect(parsed.connections).toHaveLength(1)
+    expect(parsed.connections[0].nodes).toContainEqual({
+      id: 'connection-node-legacy-busbar-end',
+      kind: 'busbar-tap',
+      busbarId: 'busbar-1',
+      offset: 96,
+    })
+    expect(parsed.connections[0].edges).toContainEqual({
+      id: 'legacy-edge',
+      sourceNodeId: 'legacy-anchor',
+      targetNodeId: 'connection-node-legacy-busbar-end',
+      flowDirection: 'reverse',
+    })
+    expect(parsed.connections[0].nodes.some((node) => (
+      node.id === 'connection-node-legacy-existing-end'
+    ))).toBe(false)
+    expect(parsed.connections[0].edges).toContainEqual({
+      id: 'legacy-duplicate-edge',
+      sourceNodeId: 'duplicate-anchor',
+      targetNodeId: 'existing-tap',
+    })
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed)
   })
 
   it('round-trips an explicit child line between different busbars and rejects self-links', () => {

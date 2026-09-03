@@ -75,6 +75,45 @@ function networkIndexById(networks: ConnectionNetwork[], networkId: string) {
   return networks.findIndex((network) => network.id === networkId)
 }
 
+function busbarOffsetAtPoint(busbar: Busbar, point: Point) {
+  const end = busbarPoint(busbar, busbar.length)
+  if (!pointOnSegment(point, busbar, end)) return null
+  return busbar.orientation === 'horizontal'
+    ? point.x - busbar.x
+    : point.y - busbar.y
+}
+
+function mergeNetworksSharingBusbar(
+  networks: ConnectionNetwork[],
+  busbarId: string,
+  preferredNetworkId: string,
+) {
+  const affectedIndexes = networks.flatMap((network, index) => (
+    network.nodes.some((node) => (
+      node.kind === 'busbar-tap' && node.busbarId === busbarId
+    )) ? [index] : []
+  ))
+  if (affectedIndexes.length < 2) return networks
+  const affectedNetworks = affectedIndexes.map((index) => networks[index])
+  if (resolveConnectionType(affectedNetworks.map((network) => network.type)) !== 'electrical') {
+    return null
+  }
+  const preferredIndex = affectedIndexes.find((index) => (
+    networks[index].id === preferredNetworkId
+  )) ?? affectedIndexes[0]
+  const merged: ConnectionNetwork = {
+    ...networks[preferredIndex],
+    type: 'electrical',
+    nodes: uniqueNodes(affectedNetworks.flatMap((network) => network.nodes)),
+    edges: affectedNetworks.flatMap((network) => network.edges),
+  }
+  const affectedIndexSet = new Set(affectedIndexes)
+  return networks.flatMap((network, index) => {
+    if (index === preferredIndex) return [merged]
+    return affectedIndexSet.has(index) ? [] : [network]
+  })
+}
+
 export interface RouteJunctionTarget {
   networkId: string
   point: Point
@@ -512,6 +551,59 @@ export function mergeCollidingConnectionPoints({
   const mergedJunctionIds: string[] = []
   const absorbedNodeIds: string[] = []
   for (const point of candidatePoints.values()) {
+    const existingTapsAtPoint = nextNetworks.flatMap((network) => (
+      network.nodes.flatMap((node) => {
+        if (node.kind !== 'busbar-tap') return []
+        const busbar = busbarsById.get(node.busbarId)
+        return busbar && pointsEqual(busbarPoint(busbar, node.offset), point)
+          ? [{ network, node }]
+          : []
+      })
+    ))
+    const movedFreeNodesAtPoint = nextNetworks.flatMap((network) => (
+      network.nodes.flatMap((node) => (
+        node.kind === 'node' && movedJunctionIds.has(node.id) && pointsEqual(node, point)
+          ? [{ network, node }]
+          : []
+      ))
+    )).sort((left, right) => left.node.id.localeCompare(right.node.id))
+    if (!existingTapsAtPoint.length && movedFreeNodesAtPoint.length) {
+      const matchingBusbars = busbars.flatMap((busbar) => {
+        const offset = busbarOffsetAtPoint(busbar, point)
+        return offset === null ? [] : [{ busbar, offset }]
+      })
+      if (matchingBusbars.length > 1) return null
+      const attachment = matchingBusbars[0]
+      if (attachment) {
+        const target = movedFreeNodesAtPoint[0]
+        if (resolveConnectionType([target.network.type, attachment.busbar.type]) !== 'electrical') {
+          return null
+        }
+        nextNetworks = nextNetworks.map((network) => (
+          network.id !== target.network.id
+            ? network
+            : {
+                ...network,
+                nodes: network.nodes.map((node) => node.id === target.node.id
+                  ? {
+                      id: node.id,
+                      kind: 'busbar-tap' as const,
+                      busbarId: attachment.busbar.id,
+                      offset: attachment.offset,
+                    }
+                  : node),
+              }
+        ))
+        const mergedByBusbar = mergeNetworksSharingBusbar(
+          nextNetworks,
+          attachment.busbar.id,
+          target.network.id,
+        )
+        if (!mergedByBusbar) return null
+        nextNetworks = mergedByBusbar
+        mergedJunctionIds.push(target.node.id)
+      }
+    }
     let collidingWaypointIds = new Set(nextRouteWaypoints.flatMap((waypoint) => (
       pointsEqual(waypoint, point) ? [waypoint.id] : []
     )))
@@ -664,6 +756,11 @@ export function deleteConnectionJunctions(
       : edge.flowDirection === 'reverse'
         ? { flowDirection: 'forward' as const }
         : {}),
+    ...(edge.externalSupplyEndpoint === 'source'
+      ? { externalSupplyEndpoint: 'target' as const }
+      : edge.externalSupplyEndpoint === 'target'
+        ? { externalSupplyEndpoint: 'source' as const }
+        : {}),
     ...(edge.labelEndpoint === 'source'
       ? { labelEndpoint: 'target' as const }
       : edge.labelEndpoint === 'target'
@@ -717,6 +814,18 @@ export function deleteConnectionJunctions(
       : edgeChain(other).reverse()
     const mergedChain = [...baseChain.slice(0, -1), ...otherChain.slice(1)]
     const orientedBase = baseReversed ? reverseEdgeProperties(base) : base
+    const configuredExternalSourceNodeIds = new Set(endpointEdges.flatMap((edge) => (
+      edge.externalSupplyEndpoint === 'source'
+        ? [edge.sourceNodeId]
+        : edge.externalSupplyEndpoint === 'target'
+          ? [edge.targetNodeId]
+          : []
+    )))
+    const mergedExternalSupplyEndpoint = configuredExternalSourceNodeIds.has(mergedChain[0])
+      ? 'source' as const
+      : configuredExternalSourceNodeIds.has(mergedChain.at(-1)!)
+        ? 'target' as const
+        : undefined
     const allAuxiliary = endpointEdges.every((edge) => edge.coolingLineRole === 'auxiliary')
     const mergedCrossingLayer = endpointEdges.some((edge) => edge.crossingLayer === 'upper')
       ? 'upper' as const
@@ -727,6 +836,7 @@ export function deleteConnectionJunctions(
       routeNodeIds: _routeNodeIds,
       coolingLineRole: _coolingLineRole,
       crossingLayer: _crossingLayer,
+      externalSupplyEndpoint: _externalSupplyEndpoint,
       ...edgeWithoutRouteNodes
     } = orientedBase
     const mergedEdge: ConnectionEdge = {
@@ -735,6 +845,9 @@ export function deleteConnectionJunctions(
       targetNodeId: mergedChain.at(-1)!,
       ...(allAuxiliary ? { coolingLineRole: 'auxiliary' as const } : {}),
       ...(mergedCrossingLayer ? { crossingLayer: mergedCrossingLayer } : {}),
+      ...(mergedExternalSupplyEndpoint
+        ? { externalSupplyEndpoint: mergedExternalSupplyEndpoint }
+        : {}),
       ...(mergedChain.length > 2 ? { routeNodeIds: mergedChain.slice(1, -1) } : {}),
     }
     const removedEdgeIds = new Set(endpointEdges.map((edge) => edge.id))

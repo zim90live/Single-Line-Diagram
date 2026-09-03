@@ -84,7 +84,7 @@ describe('symbol anchor geometry', () => {
     expect(isAutomaticAnchorName('主进线', 'electrical')).toBe(false)
   })
 
-  it('keeps a dragged anchor on its original edge and snaps to 8px', () => {
+  it('moves a dragged anchor across all edges and snaps to the nearest legal point', () => {
     const anchor: SymbolAnchor = {
       id: 'anchor-1',
       name: '通用 1',
@@ -94,6 +94,21 @@ describe('symbol anchor geometry', () => {
       type: 'cooling-general',
     }
     expect(constrainAnchorDrag(anchor, { x: 39, y: 70 }, asset)).toEqual({
+      x: 40,
+      y: 80,
+      direction: 'bottom',
+    })
+    expect(constrainAnchorDrag(anchor, { x: 190, y: 41 }, asset)).toEqual({
+      x: 200,
+      y: 40,
+      direction: 'right',
+    })
+    expect(constrainAnchorDrag(anchor, { x: -20, y: 55 }, asset)).toEqual({
+      x: 0,
+      y: 56,
+      direction: 'left',
+    })
+    expect(constrainAnchorDrag(anchor, { x: 39, y: -20 }, asset)).toEqual({
       x: 40,
       y: 0,
       direction: 'top',
