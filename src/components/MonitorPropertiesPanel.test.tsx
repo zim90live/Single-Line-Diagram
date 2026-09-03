@@ -79,4 +79,28 @@ describe('monitor properties panel', () => {
 
     expect(screen.getByText('选择可控设备')).toBeInTheDocument()
   })
+
+  it('labels Supply and Load state as running or standby in monitor mode', async () => {
+    const user = userEvent.setup()
+    const onOnOffChange = vi.fn()
+    render(
+      <MonitorPropertiesPanel
+        selectedElement={{ ...element, id: 'supply-1', assetKey: 'supply', name: 'Supply' }}
+        asset={{ ...pumpAsset, key: 'supply', name: 'Supply', category: '电力', coolingDeviceRole: undefined }}
+        onOff={false}
+        pumpRunning
+        pumpOutputPower={100}
+        pumpFlowRate={0}
+        valveOpen
+        onOnOffChange={onOnOffChange}
+        onPumpRunningChange={vi.fn()}
+        onPumpOutputPowerChange={vi.fn()}
+        onValveOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('当前待机')).toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: '运行状态' }))
+    expect(onOnOffChange).toHaveBeenCalledWith(true)
+  })
 })

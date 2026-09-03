@@ -3,10 +3,17 @@ import { memo, type CSSProperties, type PointerEvent, type ReactNode } from 'rea
 import type {
   AnchorType,
   Busbar,
+  ConnectionFlowDirection,
   CoolingLineRole,
   DiagramElement,
+  MonitorAlarmSeverity,
 } from '../domain/project'
-import type { MonitorStaticFlowLineGroup } from '../monitoring/flowPresentation'
+import {
+  FLOW_ANIMATION_STYLES,
+  FLOW_CHILD_LINE_SCREEN_WIDTH,
+  type MonitorFlowPath,
+  type MonitorStaticFlowLineGroup,
+} from '../monitoring/flowPresentation'
 import type { BusbarLabelLayout } from './busbarLabels'
 import {
   COOLING_PIPE_INNER_SHADOW_BLUR,
@@ -19,6 +26,8 @@ import {
 import type { ConnectionLabelLayout } from './connectionLabels'
 import { busbarEndPoint, pathData } from './connections'
 import {
+  ELEMENT_LABEL_LINE_HEIGHT,
+  estimateLabelTextWidth,
   elementDeviceIdentifier,
   type ElementLabelLayout,
 } from './elementLabels'
@@ -26,7 +35,7 @@ import {
   fitGenericSymbolTag,
   genericSymbolDisplayedWidth,
 } from './genericSymbol'
-import type { Point } from './geometry'
+import type { Point, Rect } from './geometry'
 import {
   DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
   getSymbolDisplayUrl,
@@ -79,6 +88,36 @@ export const MonitorStaticFlowLines = memo(function MonitorStaticFlowLines({
       vectorEffect={group.widthSpace === 'screen' ? 'non-scaling-stroke' : undefined}
     />
   ))
+})
+
+export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
+  paths,
+}: {
+  paths: MonitorFlowPath[]
+}) {
+  return paths.map((path) => {
+    const style = FLOW_ANIMATION_STYLES[path.style ?? 'power']
+    const speed = style.baseSpeed * Math.max(0, path.speedMultiplier ?? 1)
+    const period = style.dashLength + style.gapLength
+    return (
+      <path
+        key={path.id}
+        className="monitor-animated-flow-line"
+        d={pathData(path.points)}
+        stroke={style.color}
+        strokeWidth={path.worldWidth ?? path.screenWidth ?? FLOW_CHILD_LINE_SCREEN_WIDTH}
+        strokeDasharray={`${style.dashLength} ${style.gapLength}`}
+        strokeOpacity={style.opacity}
+        strokeLinecap="butt"
+        strokeLinejoin="round"
+        vectorEffect={path.worldWidth === undefined ? 'non-scaling-stroke' : undefined}
+        style={{
+          '--monitor-flow-dash-offset': `${-period}px`,
+          '--monitor-flow-cycle-duration': speed > 0 ? `${period / speed}s` : '0s',
+        } as CSSProperties}
+      />
+    )
+  })
 })
 
 export interface BusbarVisualProps {
@@ -224,6 +263,62 @@ export const ConnectionDirectionArrow = memo(function ConnectionDirectionArrow({
   )
 })
 
+export interface DiagramConnectionVisualProps {
+  edgeId: string
+  networkId: string
+  type: AnchorType
+  color?: string
+  flowDirection?: ConnectionFlowDirection
+  coolingLineRole?: CoolingLineRole
+  selected?: boolean
+  interactive?: boolean
+  linePath: string
+  directionArrowPath?: string
+  nodeRegistry?: { current: Map<string, SVGGElement> }
+  lineUnderlay?: ReactNode
+  children?: ReactNode
+}
+
+export const DiagramConnectionVisual = memo(function DiagramConnectionVisual({
+  edgeId,
+  networkId,
+  type,
+  color,
+  flowDirection,
+  coolingLineRole,
+  selected = false,
+  interactive = false,
+  linePath,
+  directionArrowPath = '',
+  nodeRegistry,
+  lineUnderlay,
+  children,
+}: DiagramConnectionVisualProps) {
+  return (
+    <g
+      ref={(node) => {
+        if (!nodeRegistry) return
+        if (node) nodeRegistry.current.set(edgeId, node)
+        else nodeRegistry.current.delete(edgeId)
+      }}
+      className="connection-edge"
+      data-edge-id={edgeId}
+      data-network-id={networkId}
+      data-connection-type={type}
+      data-flow-direction={flowDirection}
+      data-cooling-line-role={coolingLineRole}
+      data-selected={selected || undefined}
+      data-interactive={interactive || undefined}
+      style={color ? { '--connection-color': color } as CSSProperties : undefined}
+    >
+      {lineUnderlay}
+      <path className="connection-edge__line" d={linePath} />
+      <ConnectionDirectionArrow path={directionArrowPath} />
+      {children}
+    </g>
+  )
+})
+
 export interface ElementLabelItemProps {
   layout: ElementLabelLayout
   interactive?: boolean
@@ -234,12 +329,25 @@ export interface ElementLabelItemProps {
       elementId: string,
     ) => void
   }
+  metricPointerDownRef?: MetricPointerDownRef
+}
+
+export interface MetricPointerDownRef {
+  current: (
+    event: PointerEvent<SVGRectElement>,
+    ownerId: string,
+    metricId: string,
+  ) => void
 }
 
 export const MetricLabelRows = memo(function MetricLabelRows({
   rows,
+  ownerId,
+  metricPointerDownRef,
 }: {
   rows: ElementLabelLayout['metricRows']
+  ownerId?: string
+  metricPointerDownRef?: MetricPointerDownRef
 }) {
   return rows.map((row) => (
     <g
@@ -256,6 +364,22 @@ export const MetricLabelRows = memo(function MetricLabelRows({
           width={row.valueBounds.width}
           height={row.valueBounds.height}
           rx={2}
+        />
+      ) : null}
+      {ownerId && metricPointerDownRef ? (
+        <rect
+          className="element-metric-row__hit"
+          data-metric-id={row.metricId}
+          x={row.valueBounds.x}
+          y={row.valueBounds.y}
+          width={row.valueBounds.width}
+          height={row.valueBounds.height}
+          rx={2}
+          onPointerDown={(event) => metricPointerDownRef.current(
+            event,
+            ownerId,
+            row.metricId,
+          )}
         />
       ) : null}
       {row.labelVisible ? (
@@ -285,11 +409,139 @@ export const MetricLabelRows = memo(function MetricLabelRows({
   ))
 })
 
+export interface CompositeMetricLabelValue {
+  id: string
+  text: string
+  severity?: MonitorAlarmSeverity
+}
+
+export interface CompositeMetricLabelRow {
+  id: string
+  labelText: string
+  values: CompositeMetricLabelValue[]
+}
+
+export interface CompositeElementLabelItemProps {
+  labelId: string
+  ariaLabel: string
+  title: string
+  bounds: Rect
+  rows: CompositeMetricLabelRow[]
+}
+
+const COMPOSITE_METRIC_VALUE_GAP = 4
+
+/**
+ * Uses the same label typography and alarm presentation as configured canvas
+ * metrics, while allowing a display-only row to contain multiple values.
+ */
+export const CompositeElementLabelItem = memo(function CompositeElementLabelItem({
+  labelId,
+  ariaLabel,
+  title,
+  bounds,
+  rows,
+}: CompositeElementLabelItemProps) {
+  const valueColumnCount = rows.reduce((count, row) => Math.max(count, row.values.length), 0)
+  const valueColumnWidths = Array.from({ length: valueColumnCount }, (_, columnIndex) => (
+    rows.reduce((width, row) => {
+      const valueOffset = valueColumnCount - row.values.length
+      const value = row.values[columnIndex - valueOffset]
+      return value ? Math.max(width, estimateLabelTextWidth(value.text)) : width
+    }, 0)
+  ))
+  const valueColumnsWidth = valueColumnWidths.reduce((sum, width) => sum + width, 0) +
+    Math.max(0, valueColumnCount - 1) * COMPOSITE_METRIC_VALUE_GAP
+  const valuesStartX = bounds.x + bounds.width - valueColumnsWidth
+
+  return (
+    <g
+      className="element-label composite-element-label"
+      data-label-id={labelId}
+      role="group"
+      aria-label={ariaLabel}
+    >
+      <rect
+        className="element-label__hit"
+        x={bounds.x}
+        y={bounds.y}
+        width={bounds.width}
+        height={bounds.height}
+      />
+      <text
+        className="element-label__text"
+        x={bounds.x + 2}
+        y={bounds.y + 11}
+      >
+        {title}
+      </text>
+      {rows.map((row, rowIndex) => {
+        const rowY = bounds.y + (rowIndex + 1) * ELEMENT_LABEL_LINE_HEIGHT
+        const textY = rowY + 11
+        const valueOffset = valueColumnCount - row.values.length
+        return (
+          <g className="element-metric-row composite-element-label__row" key={row.id}>
+            <text
+              className="element-metric-row__label"
+              x={bounds.x + 2}
+              y={textY}
+            >
+              {row.labelText}
+            </text>
+            {row.values.map((value, valueIndex) => {
+              const columnIndex = valueOffset + valueIndex
+              const columnX = valuesStartX + valueColumnWidths
+                .slice(0, columnIndex)
+                .reduce((sum, width) => sum + width + COMPOSITE_METRIC_VALUE_GAP, 0)
+              const severity = value.severity ?? 'normal'
+              return (
+                <g
+                  className="composite-element-label__value"
+                  data-severity={severity}
+                  key={value.id}
+                >
+                  {severity !== 'normal' ? (
+                    <rect
+                      className="element-metric-row__alarm-background"
+                      data-severity={severity}
+                      x={columnX}
+                      y={rowY}
+                      width={valueColumnWidths[columnIndex]}
+                      height={ELEMENT_LABEL_LINE_HEIGHT}
+                      rx={2}
+                    />
+                  ) : null}
+                  <text
+                    className="element-metric-row__reading"
+                    data-severity={severity}
+                    x={columnX + valueColumnWidths[columnIndex] - 2}
+                    y={textY}
+                    textAnchor="end"
+                    aria-label={`${row.labelText} ${value.text}`}
+                  >
+                    <tspan
+                      className="element-metric-row__value"
+                      data-severity={severity}
+                    >
+                      {value.text}
+                    </tspan>
+                  </text>
+                </g>
+              )
+            })}
+          </g>
+        )
+      })}
+    </g>
+  )
+})
+
 export const ElementLabelItem = memo(function ElementLabelItem({
   layout,
   interactive = false,
   selected = false,
   pointerDownRef,
+  metricPointerDownRef,
 }: ElementLabelItemProps) {
   return (
     <g
@@ -318,7 +570,11 @@ export const ElementLabelItem = memo(function ElementLabelItem({
           {layout.nameText}
         </text>
       ) : null}
-      <MetricLabelRows rows={layout.metricRows} />
+      <MetricLabelRows
+        rows={layout.metricRows}
+        ownerId={layout.elementId}
+        metricPointerDownRef={metricPointerDownRef}
+      />
     </g>
   )
 })
@@ -392,6 +648,7 @@ export interface ConnectionLabelItemProps {
       edgeId: string,
     ) => void
   }
+  metricPointerDownRef?: MetricPointerDownRef
 }
 
 export const ConnectionLabelItem = memo(function ConnectionLabelItem({
@@ -399,6 +656,7 @@ export const ConnectionLabelItem = memo(function ConnectionLabelItem({
   interactive = false,
   selected = false,
   pointerDownRef,
+  metricPointerDownRef,
 }: ConnectionLabelItemProps) {
   return (
     <g
@@ -431,7 +689,11 @@ export const ConnectionLabelItem = memo(function ConnectionLabelItem({
           {layout.nameText}
         </text>
       ) : null}
-      <MetricLabelRows rows={layout.metricRows} />
+      <MetricLabelRows
+        rows={layout.metricRows}
+        ownerId={layout.edgeId}
+        metricPointerDownRef={metricPointerDownRef}
+      />
     </g>
   )
 })

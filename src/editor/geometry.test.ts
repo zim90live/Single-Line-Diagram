@@ -118,6 +118,19 @@ describe('editor geometry', () => {
     )).toBe(false)
   })
 
+  it('treats Switch monitor interaction and persisted state as element history changes', () => {
+    const switchElement = createElement({ assetKey: 'switch' })
+
+    expect(elementsEqual(
+      [switchElement],
+      [{ ...switchElement, monitorInteraction: 'device-panel' }],
+    )).toBe(false)
+    expect(elementsEqual(
+      [switchElement],
+      [{ ...switchElement, onOffState: 'on' }],
+    )).toBe(false)
+  })
+
   it('includes complete busbars in marquee selection and mixed bounds', () => {
     const busbar: Busbar = {
       id: 'busbar-1',

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 33 as const
+export const SCHEMA_VERSION = 35 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -21,6 +21,7 @@ export const coolingDeviceRoleSchema = z.enum(['pump', 'valve', 'check-valve'])
 export const coolingFlowRoleSchema = z.enum(['inlet', 'outlet'])
 export const elementLabelPlacementSchema = z.enum(['top', 'right', 'bottom', 'left'])
 export const elementOnOffStateSchema = z.enum(['off', 'on'])
+export const elementMonitorInteractionSchema = z.enum(['control', 'device-panel'])
 export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
 export const externalSupplyEndpointSchema = z.enum(['source', 'target'])
 export const coolingLineRoleSchema = z.enum(['primary', 'auxiliary'])
@@ -179,6 +180,9 @@ export const diagramElementSchema = z.object({
   monitorMetricLabelsVisible: z.boolean().optional(),
   monitorMetrics: z.array(monitorMetricSchema).max(5, '每个图元最多配置 5 项运行指标').optional(),
   onOffState: elementOnOffStateSchema.optional(),
+  monitorInteraction: elementMonitorInteractionSchema.optional(),
+  coolingPumpRunning: z.boolean().optional(),
+  coolingPumpOutputPower: z.number().finite().min(0).max(100).optional(),
   properties: z.record(
     z.string(),
     z.union([z.string(), z.number(), z.boolean(), z.null()]),
@@ -507,8 +511,14 @@ export const projectDocumentSchema = z
       }
       for (const [property, label] of [
         ['color', '颜色'],
-        ['switchOffColor', '关状态颜色'],
-        ['switchOnColor', '开状态颜色'],
+        [
+          'switchOffColor',
+          elementUsesRunningStandbyState(element) ? '待机状态颜色' : '关状态颜色',
+        ],
+        [
+          'switchOnColor',
+          elementUsesRunningStandbyState(element) ? '运行状态颜色' : '开状态颜色',
+        ],
         ['genericBackgroundColor', '背景颜色'],
       ] as const) {
         const value = element.properties[property]
@@ -860,6 +870,7 @@ export type CoolingDeviceRole = z.infer<typeof coolingDeviceRoleSchema>
 export type CoolingFlowRole = z.infer<typeof coolingFlowRoleSchema>
 export type ElementLabelPlacement = z.infer<typeof elementLabelPlacementSchema>
 export type ElementOnOffState = z.infer<typeof elementOnOffStateSchema>
+export type ElementMonitorInteraction = z.infer<typeof elementMonitorInteractionSchema>
 export type MonitorMetricPrecision = z.infer<typeof monitorMetricPrecisionSchema>
 export type MonitorAlarmSeverity = z.infer<typeof monitorAlarmSeveritySchema>
 export type MonitorMetricAlarm = z.infer<typeof monitorMetricAlarmSchema>
@@ -887,16 +898,43 @@ export type DiagramViewport = Diagram['canvas']['viewport']
 export type LineSystem = z.infer<typeof lineSystemSchema>
 export type ProjectDocument = z.infer<typeof projectDocumentSchema>
 
-export const ON_OFF_STATE_ASSET_KEYS = new Set(['switch', '2-wv', 'cv'])
+export const ON_OFF_STATE_ASSET_KEYS = new Set(['switch', '2-wv', 'cv', 'supply', 'load'])
+export const RUNNING_STANDBY_STATE_ASSET_KEYS = new Set(['supply', 'load'])
 
 export function elementUsesOnOffState(element: Pick<DiagramElement, 'assetKey'>) {
   return ON_OFF_STATE_ASSET_KEYS.has(element.assetKey)
 }
 
+export function resolvedElementMonitorInteraction(
+  element: Pick<DiagramElement, 'assetKey' | 'monitorInteraction'>,
+): ElementMonitorInteraction {
+  return element.assetKey === 'switch' && element.monitorInteraction === 'device-panel'
+    ? 'device-panel'
+    : 'control'
+}
+
+export function elementUsesRunningStandbyState(element: Pick<DiagramElement, 'assetKey'>) {
+  return RUNNING_STANDBY_STATE_ASSET_KEYS.has(element.assetKey)
+}
+
+export function defaultElementOnOffState(
+  element: Pick<DiagramElement, 'assetKey'>,
+): ElementOnOffState {
+  return elementUsesRunningStandbyState(element) ? 'on' : 'off'
+}
+
+export function resolvedElementOnOffState(
+  element: Pick<DiagramElement, 'assetKey' | 'onOffState'>,
+  runtimeState?: boolean,
+) {
+  if (runtimeState !== undefined) return runtimeState
+  return (element.onOffState ?? defaultElementOnOffState(element)) === 'on'
+}
+
 export function projectOnOffStates(document: ProjectDocument) {
   return Object.fromEntries(document.elements.flatMap((element) => (
     elementUsesOnOffState(element)
-      ? [[element.id, element.onOffState === 'on'] as const]
+      ? [[element.id, resolvedElementOnOffState(element)] as const]
       : []
   )))
 }
@@ -910,7 +948,7 @@ export function withOnOffStateSnapshot(
     if (!elementUsesOnOffState(element)) return element
     const on = Object.prototype.hasOwnProperty.call(states, element.id)
       ? states[element.id]
-      : element.onOffState === 'on'
+      : resolvedElementOnOffState(element)
     const onOffState: ElementOnOffState = on ? 'on' : 'off'
     if (element.onOffState === onOffState) return element
     changed = true
@@ -1692,7 +1730,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 

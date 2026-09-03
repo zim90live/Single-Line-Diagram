@@ -1,1 +1,4 @@
-export { useMonitorMetricReadings } from '../runtime/useMonitorMetricReadings'
+export {
+  useMonitorMetricReadings,
+  useMonitorMetricRuntimeSnapshot,
+} from '../runtime/useMonitorMetricReadings'

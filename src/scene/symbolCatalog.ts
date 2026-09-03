@@ -29,12 +29,14 @@ export interface SymbolDefinition extends AssetDefinition {
   intrinsicHeight: number
   configurableColor: boolean
   defaultColor?: string
+  stateMode?: SymbolStateMode
   defaultState?: SymbolVisualState
   stateUrls?: Partial<Record<SymbolVisualState, string>>
   renderMode: 'image' | 'generic-frame'
 }
 
 export type SymbolVisualState = 'off' | 'on'
+export type SymbolStateMode = 'on-off' | 'running-standby'
 export type SymbolColorSlot = 'default' | 'switch-off' | 'switch-on' | 'generic-background'
 
 export const DEFAULT_CONFIGURABLE_SYMBOL_COLOR = '#777777'
@@ -49,6 +51,7 @@ interface SymbolMetadata {
   width: number
   height: number
   configurableColor?: boolean
+  stateMode?: SymbolStateMode
   defaultState?: SymbolVisualState
   stateFiles?: Partial<Record<SymbolVisualState, string>>
   renderMode?: SymbolDefinition['renderMode']
@@ -111,6 +114,11 @@ const metadata: SymbolMetadata[] = [
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
   { file: 'Battery-group.svg', name: 'Battery-group', category: '电力', width: 48, height: 48 },
+  { file: 'Supply.svg', key: 'supply', name: 'Supply', category: '电力', width: 48, height: 48, configurableColor: true, stateMode: 'running-standby', defaultState: 'on' },
+  { file: 'Load.svg', key: 'load', name: 'Load', category: '电力', width: 48, height: 48, configurableColor: true, stateMode: 'running-standby', defaultState: 'on' },
+  { file: 'AC-AC Converter.svg', key: 'ac-ac-converter', name: 'AC-AC Converter', category: '电力', width: 48, height: 48 },
+  { file: 'Rectifier.svg', key: 'rectifier', name: 'Rectifier', category: '电力', width: 48, height: 48 },
+  { file: 'Inverter.svg', key: 'inverter', name: 'Inverter', category: '电力', width: 48, height: 48 },
   { file: 'Generator.svg', name: 'Generator', category: '电力', width: 48, height: 48, configurableColor: true },
   { file: 'Grid.svg', name: 'Grid', category: '电力', width: 48, height: 48, configurableColor: true },
   {
@@ -191,6 +199,7 @@ export const symbolCatalog: SymbolDefinition[] = metadata.map((symbol) => ({
   anchors: symbol.anchors?.map((anchor) => ({ ...anchor })) ?? [],
   configurableColor: symbol.configurableColor ?? false,
   defaultColor: symbol.configurableColor ? DEFAULT_CONFIGURABLE_SYMBOL_COLOR : undefined,
+  stateMode: symbol.stateMode ?? (symbol.stateFiles ? 'on-off' : undefined),
   defaultState: symbol.defaultState,
   stateUrls: symbol.stateFiles
     ? Object.fromEntries(
@@ -210,10 +219,8 @@ export function normalizeSymbolColor(value: unknown) {
 
 export function symbolSupportsOnOffState(
   symbol: SymbolDefinition | undefined,
-): symbol is SymbolDefinition & {
-  stateUrls: Record<SymbolVisualState, string>
-} {
-  return Boolean(symbol?.stateUrls?.off && symbol.stateUrls.on)
+): symbol is SymbolDefinition & { stateMode: SymbolStateMode } {
+  return Boolean(symbol?.stateMode)
 }
 
 export function elementSupportsOnOffState(element: DiagramElement) {

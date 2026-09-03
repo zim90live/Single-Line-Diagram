@@ -118,6 +118,55 @@ describe('HierarchyPanel', () => {
     expect(screen.queryByRole('button', { name: /^删除图纸 / })).not.toBeInTheDocument()
   })
 
+  it('filters the read-only monitoring tree while preserving matching ancestors', () => {
+    const document = createDefaultProject('层级面板测试')
+    const target = document.diagrams.find((diagram) => diagram.level === 'device')!
+    target.name = '唯一监控图纸'
+
+    render(
+      <HierarchyPanel
+        document={document}
+        currentDiagramId={document.lineSystems[0].rootDiagramId}
+        onSelectDiagram={vi.fn()}
+      />,
+    )
+
+    const search = screen.getByRole('searchbox', { name: '搜索监控图纸' })
+    fireEvent.change(search, { target: { value: '唯一监控' } })
+
+    expect(screen.getByText('唯一监控图纸', { exact: true })).toBeInTheDocument()
+    expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(1)
+
+    fireEvent.change(search, { target: { value: '不存在的图纸' } })
+    expect(screen.getByText('没有匹配的图纸')).toBeInTheDocument()
+  })
+
+  it('keeps the monitoring tree search pattern available while editing', () => {
+    const document = createDefaultProject('层级面板测试')
+    const target = document.diagrams.find((diagram) => diagram.level === 'device')!
+    target.name = '编辑目标图纸'
+
+    render(
+      <HierarchyPanel
+        document={document}
+        currentDiagramId={document.lineSystems[0].rootDiagramId}
+        editable
+        onSelectDiagram={vi.fn()}
+        onCreateDiagram={vi.fn(() => null)}
+        onRenameDiagram={vi.fn(() => true)}
+        onMoveDiagram={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索图纸层级' }), {
+      target: { value: '编辑目标' },
+    })
+
+    expect(screen.getByText('编辑目标图纸', { exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '新增下级图纸' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重命名当前图纸' })).toBeInTheDocument()
+  })
+
   it('deletes a non-root row without selecting it and protects line roots', () => {
     const document = createDefaultProject('层级面板测试')
     const coolingRootId = document.lineSystems[0].rootDiagramId

@@ -1,23 +1,78 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aidc.local/schemas/diagram-theme.schema.json",
+  "title": "AIDC diagram theme",
   "type": "object",
-  "required": ["name", "tokens", "recipes"],
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "name", "description", "css", "groups", "recipes"],
   "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "const": 2 },
     "name": { "type": "string", "minLength": 1 },
-    "tokens": { "$ref": "#/$defs/entries" },
-    "recipes": { "$ref": "#/$defs/entries" }
+    "description": { "type": "string", "minLength": 1 },
+    "css": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selector", "layerOrder", "root"],
+      "properties": {
+        "selector": { "const": "[data-aidc-theme]" },
+        "layerOrder": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "root": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/declaration" } }
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["foundation", "semantic", "domain", "component"],
+      "properties": {
+        "foundation": { "$ref": "#/$defs/entries" },
+        "semantic": { "$ref": "#/$defs/entries" },
+        "domain": { "$ref": "#/$defs/entries" },
+        "component": { "$ref": "#/$defs/entries" }
+      }
+    },
+    "recipes": { "$ref": "#/$defs/recipes" }
   },
   "$defs": {
+    "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "tokenType": {
+      "enum": ["color", "dimension", "number", "font-family", "font-weight", "duration", "cubic-bezier", "shadow", "text-style"]
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["property", "value"],
+      "properties": {
+        "property": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 }
+      }
+    },
     "entries": {
       "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
       "additionalProperties": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["type", "value"],
         "properties": {
-          "type": { "type": "string", "minLength": 1 },
+          "type": { "$ref": "#/$defs/tokenType" },
           "value": { "type": "string", "minLength": 1 }
-        },
-        "additionalProperties": false
+        }
+      }
+    },
+    "recipes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "token"],
+        "properties": {
+          "type": { "$ref": "#/$defs/tokenType" },
+          "token": { "$ref": "#/$defs/identifier" }
+        }
       }
     }
   }

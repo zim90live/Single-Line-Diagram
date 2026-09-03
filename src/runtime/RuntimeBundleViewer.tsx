@@ -4,10 +4,12 @@ import { projectOnOffStates } from '../domain/project'
 import type { DiagramMonitorCanvasHandle } from './DiagramMonitorCanvas'
 import { DiagramRuntimeViewer } from './DiagramRuntimeViewer'
 import {
+  createDemoSimulationManifest,
   createDiagramRuntimeViewFromBundle,
   type DiagramRuntimeBundle,
 } from './runtimeBundle'
 import { createDiagramRuntimeState } from './runtimeState'
+import { DemoMonitorMetricDataProvider } from './demoMetricDataProvider'
 import type {
   DiagramRuntimeProviders,
   DiagramRuntimeState,
@@ -51,6 +53,18 @@ export const RuntimeBundleViewer = memo(forwardRef<
     () => projectOnOffStates(bundle.document),
     [bundle.document],
   )
+  const simulation = useMemo(
+    () => bundle.simulation ?? createDemoSimulationManifest(bundle.document),
+    [bundle.document, bundle.simulation],
+  )
+  const demoMetricProvider = useMemo(() => new DemoMonitorMetricDataProvider({
+    seed: simulation.seed,
+    anomalyAssignments: simulation.anomalyAssignments,
+  }), [simulation.anomalyAssignments, simulation.seed])
+  const resolvedProviders = useMemo<DiagramRuntimeProviders>(() => ({
+    ...providers,
+    metrics: providers?.metrics ?? demoMetricProvider,
+  }), [demoMetricProvider, providers])
   const runtimeState = useMemo(() => {
     const derived = createDiagramRuntimeState({
       document: bundle.document,
@@ -79,8 +93,8 @@ export const RuntimeBundleViewer = memo(forwardRef<
   const runtime = useMemo(() => ({
     state: runtimeState,
     navigation: view?.navigation ?? {},
-    providers,
-  }), [providers, runtimeState, view?.navigation])
+    providers: resolvedProviders,
+  }), [resolvedProviders, runtimeState, view?.navigation])
 
   if (!view) return null
 

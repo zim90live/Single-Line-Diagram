@@ -4,8 +4,13 @@ import type {
   AssetDefinition,
   DiagramElement,
 } from '../domain/project'
+import { createDefaultProject } from '../domain/project'
 import type { CoolingRuntimeInput, CoolingRuntimeProvider } from '../monitoring/coolingRuntime'
-import { createCoolingRuntimeSnapshot } from './runtimeState'
+import {
+  applyDemoDeviceStatesToRuntime,
+  createCoolingRuntimeSnapshot,
+  createDiagramRuntimeState,
+} from './runtimeState'
 import type { DiagramRuntimeState } from './types'
 
 const valveAsset: AssetDefinition = {
@@ -34,6 +39,43 @@ const valveElement: DiagramElement = {
 }
 
 describe('diagram runtime state', () => {
+  it('hydrates saved pump controls and lets explicit host overrides win', () => {
+    const pumpAsset: AssetDefinition = {
+      ...valveAsset,
+      key: 'cwp',
+      name: 'CWP',
+      coolingDeviceRole: 'pump',
+    }
+    const document = createDefaultProject('水泵运行快照', [pumpAsset])
+    document.elements = [{
+      ...valveElement,
+      id: 'pump-a',
+      assetKey: 'cwp',
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 35,
+    }]
+
+    const persisted = createDiagramRuntimeState({
+      document,
+      diagramId: document.diagrams[0].id,
+      active: true,
+      onOffStates: {},
+    })
+    expect(persisted.coolingPumpRunningStates).toEqual({ 'pump-a': false })
+    expect(persisted.coolingPumpOutputPowerStates).toEqual({ 'pump-a': 35 })
+
+    const overridden = createDiagramRuntimeState({
+      document,
+      diagramId: document.diagrams[0].id,
+      active: true,
+      onOffStates: {},
+      coolingPumpRunningStates: { 'pump-a': true },
+      coolingPumpOutputPowerStates: { 'pump-a': 80 },
+    })
+    expect(overridden.coolingPumpRunningStates).toEqual({ 'pump-a': true })
+    expect(overridden.coolingPumpOutputPowerStates).toEqual({ 'pump-a': 80 })
+  })
+
   it('adapts persisted On/Off valve state before invoking an injected provider', () => {
     let capturedInput: CoolingRuntimeInput | undefined
     const getSnapshot = vi.fn((input: CoolingRuntimeInput) => {
@@ -59,5 +101,47 @@ describe('diagram runtime state', () => {
     expect(snapshot).toMatchObject({ source: 'telemetry', timestamp: 123 })
     expect(getSnapshot).toHaveBeenCalledOnce()
     expect(capturedInput?.valveOpenOverrides).toEqual({ 'valve-a': false })
+  })
+
+  it('stops an offline pump unless a host supplied an explicit runtime override', () => {
+    const pumpAsset: AssetDefinition = {
+      ...valveAsset,
+      key: 'chwp',
+      name: 'CHWP',
+      coolingDeviceRole: 'pump',
+    }
+    const pumpElement: DiagramElement = {
+      ...valveElement,
+      id: 'pump-a',
+      assetKey: 'chwp',
+    }
+    const base: DiagramRuntimeState = {
+      onOffStates: {},
+      coolingPumpRunningStates: {},
+      coolingPumpOutputPowerStates: {},
+      coolingValveOpenStates: {},
+      powerExternalSupplyActive: false,
+    }
+    const offline = {
+      'pump-a': {
+        health: 'offline' as const,
+        operation: 'stopped' as const,
+        online: false,
+        faultCode: 'communication-offline',
+      },
+    }
+
+    expect(applyDemoDeviceStatesToRuntime({
+      state: base,
+      elements: [pumpElement],
+      assets: [pumpAsset],
+      deviceStates: offline,
+    }).coolingPumpRunningStates['pump-a']).toBe(false)
+    expect(applyDemoDeviceStatesToRuntime({
+      state: { ...base, coolingPumpRunningStates: { 'pump-a': true } },
+      elements: [pumpElement],
+      assets: [pumpAsset],
+      deviceStates: offline,
+    }).coolingPumpRunningStates['pump-a']).toBe(true)
   })
 })

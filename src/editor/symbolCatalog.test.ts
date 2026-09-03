@@ -19,8 +19,40 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every active symbol from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(27)
+    expect(symbolCatalog).toHaveLength(32)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
+  })
+
+  it('registers five new 48 by 48 power symbols and only makes Supply and Load configurable', () => {
+    expect([
+      'supply',
+      'load',
+      'ac-ac-converter',
+      'rectifier',
+      'inverter',
+    ].map((key) => {
+      const symbol = symbolsByKey.get(key)
+      return {
+        key: symbol?.key,
+        name: symbol?.name,
+        category: symbol?.category,
+        width: symbol?.intrinsicWidth,
+        height: symbol?.intrinsicHeight,
+        configurableColor: symbol?.configurableColor,
+        defaultColor: symbol?.defaultColor,
+        stateMode: symbol?.stateMode,
+        defaultState: symbol?.defaultState,
+      }
+    })).toEqual([
+      { key: 'supply', name: 'Supply', category: '电力', width: 48, height: 48, configurableColor: true, defaultColor: DEFAULT_CONFIGURABLE_SYMBOL_COLOR, stateMode: 'running-standby', defaultState: 'on' },
+      { key: 'load', name: 'Load', category: '电力', width: 48, height: 48, configurableColor: true, defaultColor: DEFAULT_CONFIGURABLE_SYMBOL_COLOR, stateMode: 'running-standby', defaultState: 'on' },
+      { key: 'ac-ac-converter', name: 'AC-AC Converter', category: '电力', width: 48, height: 48, configurableColor: false, defaultColor: undefined, stateMode: undefined, defaultState: undefined },
+      { key: 'rectifier', name: 'Rectifier', category: '电力', width: 48, height: 48, configurableColor: false, defaultColor: undefined, stateMode: undefined, defaultState: undefined },
+      { key: 'inverter', name: 'Inverter', category: '电力', width: 48, height: 48, configurableColor: false, defaultColor: undefined, stateMode: undefined, defaultState: undefined },
+    ])
+    expect(getSymbolStateUrl(symbolsByKey.get('supply')!, 'off')).toBe(
+      getSymbolStateUrl(symbolsByKey.get('supply')!, 'on'),
+    )
   })
 
   it('registers Battery-group as an independent 48 by 48 power symbol', () => {
@@ -159,6 +191,8 @@ describe('symbol catalog', () => {
         '2-wv',
         'cv',
         'mp',
+        'supply',
+        'load',
         'generator',
         'grid',
         'switch',

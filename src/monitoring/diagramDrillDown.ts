@@ -58,7 +58,7 @@ function elementsForNamedChild(
   }
 
   if (family === 'ups') {
-    const candidates = elements.filter((element) => element.assetKey === 'ups')
+    const candidates = elements.filter((element) => element.assetKey === 'ups-group')
     if (!side || candidates.length < 2) return candidates
     const distinctCenters = [...new Set(candidates.map(centerX))].sort((left, right) => left - right)
     const targetCenter = side === 'left' ? distinctCenters[0] : distinctCenters.at(-1)

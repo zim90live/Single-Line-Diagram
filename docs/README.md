@@ -22,6 +22,8 @@
 | [ROUTING_QUALITY_DESIGN_BRIEF.md](ROUTING_QUALITY_DESIGN_BRIEF.md) | 母线节点固定位置、锚点方向感知和完整路径评分方案 | 默认路由质量、母线节点或稳定性规则变化时 |
 | [MONITOR_FLOW_ANIMATION_DESIGN.md](MONITOR_FLOW_ANIMATION_DESIGN.md) | 后续电流/水流动画的分层、路径复用和性能约束 | 监控流动表达、动画规模或性能基线变化时 |
 | [MONITOR_RUNTIME_ARCHITECTURE.md](MONITOR_RUNTIME_ARCHITECTURE.md) | 监控模式迁移到其他 React 项目的运行时分层、公共接口、数据 Provider 和后续导出包边界 | 监控代码拆分、跨项目复用或运行时导出策略变化时 |
+| [DEMO_RUNTIME_SIMULATION_DESIGN.md](DEMO_RUNTIME_SIMULATION_DESIGN.md) | 可移植拟真演示运行时、设备指标档案、异常预算、确定性场景和 RuntimeBundle 演进方案 | 模拟状态、设备范围、故障分配或跨项目演示策略变化时 |
+| [../DESIGN_SYSTEM_PORT.md](../DESIGN_SYSTEM_PORT.md) | AIDC `97ecddf` Token、组件与业务 UI Pattern 的迁移映射和后续规则 | 设计真源、基础组件或迁移范围变化时 |
 | [BATCH_PROPERTY_EDITING_DESIGN_BRIEF.md](BATCH_PROPERTY_EDITING_DESIGN_BRIEF.md) | 手动多选图元、母线和子线后的共同属性、混合值、指标模板与事务边界 | 批量选择范围、共同属性或覆盖语义变化时 |
 | [COOLING_PIPELINE_DIRECTION_DESIGN_BRIEF.md](COOLING_PIPELINE_DIRECTION_DESIGN_BRIEF.md) | 制冷管路统一静态样式、三层方向语义、闭合回路模拟与无遥测验收方案 | 制冷管路样式、方向约束、水泵端口或水流模拟规则变化时 |
 | [COOLING_VISUAL_FLOW_SIMULATION_DESIGN.md](COOLING_VISUAL_FLOW_SIMULATION_DESIGN.md) | 无遥测阶段的泵功率控制、等阻力视觉流量、监控属性面板与非物理边界 | 制冷模拟流量、泵阀控制、动画速度或压力边界变化时 |
@@ -46,6 +48,15 @@
 
 ## 最近同步
 
+- 2026-09-03：Schema v35 将 CWP、CHWP 及其他显式 `pump` 实例的启停状态和输出功率纳入项目存档；编辑与监控面板共用同一控制组件和实例快照，任一模式调整都会标记 dirty。保存、JSON、复制与 RuntimeBundle v2 均保留，旧存档默认运行/100%，高频读数仍不持久化。详见 KD-142 与 `COOLING_VISUAL_FLOW_SIMULATION_DESIGN.md`。
+- 2026-09-03：按用户澄清，将编辑与监控业务的工作区外壳统一为 AIDC `97ecddf` 监控模式：280px 监控树、360px 检查器、90% 面板/30px 模糊/无阴影、参考树与返回 SVG、透明路径区和低描边命令控件；编辑管理与素材能力保留但改用监控视觉组合。详见 KD-139 与 `DESIGN_SYSTEM_PORT.md`。
+- 2026-09-03：电力素材库新增 48×48 Supply、Load、AC-AC Converter、Rectifier、Inverter；Supply 与 Load 增加默认运行的“运行 / 待机”双态及两套独立颜色，支持编辑/监控切换、保存和 RuntimeBundle 导出，待机演示功率与负载率归零。其他三项保持附件原始配色且无状态入口；五类设备均不自动取得 Source/Target、拓扑截断、预置锚点或父子绑定语义。详见 KD-140 与 `DEMO_RUNTIME_SIMULATION_DESIGN.md`。
+- 2026-09-03：校准 UPS L 演示：修复 `ups-group` 父图元未被供电下探识别导致的整页无电流动画；锂电组 SOC 稳定保持 `82–98%`，备电时间改为由同一 SOC 快照派生并保持强正相关，三级异常底色调整为更明亮的黄/橙/红。详见 KD-137 与 `DEMO_RUNTIME_SIMULATION_DESIGN.md`。
+- 2026-09-03：根据第二轮视觉反馈校正沉浸式 HUD：移除统一渐变与常驻内描边，编辑树、路径、检查器和监控树改用各自单色半透明材质；编辑树恢复整行深灰选择态和紧凑图标层级，监控树改为无阴影、低对比行状态并增加无边框搜索。右侧信息块和只读元数据去除非必要外框，表单焦点与错误边界保留。详见 KD-136 与 `DESIGN_SYSTEM_PORT.md`。
+- 2026-09-03：根据视觉反馈补齐 AIDC `97ecddf` 的沉浸式工作区 Pattern：画布铺满应用，64px 半透明顶栏以及 4px 贴边的编辑/监控树、路径、命令、缩放与右侧检查器改为悬浮 HUD；树行、层级缩进、图标、选中态和面板材质同步校准。详见 KD-135 与 `DESIGN_SYSTEM_PORT.md`。
+- 2026-09-03：完成 AIDC `97ecddf` 设计系统迁移：`theme.json` 成为作用域化 Token/Recipe 唯一真源，基础组件补齐为九个视觉原语及 Pressable/TabList 语义辅助，Topbar、树、画布 HUD 和右侧面板改用共享组件；冷却、电力与告警值独立置于 Domain Token 层。详见 KD-134 与 `DESIGN_SYSTEM_PORT.md`。
+- 2026-09-03：完成确定性 Demo Runtime Engine 核心实现：所有现有设备使用版本化演示范围，每张非空图纸稳定分配极少数异常；On/Off、Supply/Load 运行/待机、泵阀、离线、指标与流动拓扑保持一致，播放暂停冻结数据。RuntimeBundle 升级到 v2 并固化种子、档案版本、指标语义和故障分配，v1 继续兼容；旧手工范围保留但不再主导标准演示。全量 456 项测试通过、1 项跳过，生产构建通过；详见 KD-133 与 `DEMO_RUNTIME_SIMULATION_DESIGN.md`。
+- 2026-09-03：图元与节点间子线的运行指标改为名称列、数据列独立测量；所有行共享最长数值/文本状态宽度、统一右对齐和异常背景宽度，设备标识、子线标题或指标名称不再拉宽数据列。母线既有 14px 四态标题布局不变，详见 KD-132 与 `MONITOR_ELEMENT_METRICS_DESIGN.md`。
 - 2026-09-03：完成共享场景与路由目录迁移：几何/视口、点阵、手势、线路表现、连接几何、三类标签布局、素材目录归入 `scene/`，正式路由调度、Worker 和 Hook 归入 `runtime/`；`runtime/scene/monitoring` 产品代码不再导入 `editor/`，旧路径保留兼容重导出。详见 KD-131。
 - 2026-09-03：编辑画布与监控画布共用 `DiagramScenePrimitives`、`connectionScene` 与纯数据 `flowPresentation`，统一图元主体、三类标签、母线基线/节点、颜色与冷却滤镜、线路渲染分组、最终显示路径、静态流动分组、桥面/管壳、方向箭头及相关拓扑派生。编辑事件继续通过稳定 ref/children 或画布包裹层注入，纯场景派生不加载 Three，运行时入口不携带编辑命令。详见 KD-130。
 - 2026-09-03：跨项目 React 入口和当前产品监控模式统一使用 `DiagramMonitorCanvas`，直接渲染 RuntimeView 的线路、图元、标签、点阵和流动动画，并保留下探选择及中键/空格/触控板视口手势；只有编辑模式实例化 `DiagramCanvas`。详见 KD-129 和 `MONITOR_RUNTIME_ARCHITECTURE.md`。
@@ -70,7 +81,7 @@
 - 2026-09-01：电力素材库新增用户提供的 48×48 Cabinet；原 Cabinet A/B 的显示名改为 Tap-off Unit A/B，历史稳定键、锚点和接线保持，新 Cabinet 使用独立键。旧默认实例名定向更新，自定义名称不变，Schema 保持 v29。详见 KD-107。
 - 2026-09-01：母线接入点在用户口径中统一为“节点”，保存位置直接作为实际位置；支持 hover、选择/框选、沿母线及混合移动、双击起线和删除，同点接线复用一个节点。母线缩短不得越过节点并单次 Toast，Schema 保持 v29。详见 KD-106。
 - 2026-09-01：编辑模式的非根图纸行在 hover 或键盘聚焦时于右侧显示删除图标；点击立即删除目标及完整子树，同步清理图元、母线与连接网络，当前图纸被删时回到原上级。根图与监控模式无入口，Schema 保持 v29。详见 KD-105。
-- 2026-09-01：监控模式的水泵停止后改用用户提供的统一深色 `PumpOff.png`，重新运行或返回编辑模式时恢复原设备素材；替换复用原尺寸、旋转、锚点、接线和标签。泵状态仍为会话态，Schema 保持 v29。详见 KD-104。
+- 2026-09-01：监控模式的水泵停止后改用用户提供的统一深色 `PumpOff.png`，重新运行或返回编辑模式时恢复原设备素材；替换复用原尺寸、旋转、锚点、接线和标签。当时泵状态为会话态、Schema v29；其存储边界已于 2026-09-03 由 KD-142 / Schema v35 取代。详见 KD-104。
 - 2026-09-01：CDU 已换用用户提供的 192×96 横版 SVG，画布逻辑尺寸同步由 96×96 调整为 192×96；旧项目的实例、缩放、旋转位置和锚点会一次性迁移并保留接线引用，Schema 保持 v29。详见 KD-103。
 - 2026-09-01：节点间子线新增整线“下层 / 自动 / 上层”跨线层级，纯子线多选可批量设置；编辑、监控静态与动画按同一最终顺序处理拱桥和遮罩。Schema 升至 v29，旧项目默认自动；子线跨母线、真正节点/分叉、拓扑与流量不变。详见 KD-102。
 - 2026-09-01：冷却素材库稳定键 `tmu` 已换用用户最新提供的 640×960 透明 PNG，画布逻辑尺寸最终修订为 64×96；旧 48×64、72×96 默认实例与边缘锚点定向升级，主动缩放实例保持尺寸。首版仍不预置锚点或冷却设备角色，Schema 保持 v28。详见 KD-101。

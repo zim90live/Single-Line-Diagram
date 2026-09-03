@@ -1,8 +1,14 @@
 @layer components {
-  :where(.aidc-button, .aidc-icon-button) {
+  /* Canonical primitives. Feature CSS may lay these out, but may not restate
+     their visual structure or interaction states. */
+  :where(.aidc-button) {
     display: inline-flex;
+    min-width: 0;
+    min-height: var(--recipe-button-height);
+    padding: 0 var(--recipe-button-padding-right, var(--recipe-button-padding-x)) 0 var(--recipe-button-padding-left, var(--recipe-button-padding-x));
     align-items: center;
     justify-content: center;
+    gap: var(--recipe-button-gap);
     border: 1px solid var(--recipe-button-border);
     border-radius: var(--recipe-button-radius);
     color: var(--recipe-button-fg);
@@ -12,128 +18,254 @@
     transition: color var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart), border-color var(--duration-standard) var(--ease-out-quart);
   }
 
-  :where(.aidc-button) {
-    min-height: var(--recipe-button-height);
-    padding: 0 var(--recipe-button-padding-x);
-    gap: var(--recipe-button-gap);
+  :where(.aidc-button[data-variant='neutral-ghost']) { border-color: transparent; background: transparent; }
+  :where(.aidc-button[data-variant='primary-solid']) { border-color: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--recipe-button-primary-fg); background: var(--recipe-button-primary-bg); }
+  :where(.aidc-button[data-variant='danger-soft']) { border-color: color-mix(in srgb, var(--error) 32%, transparent); color: var(--recipe-button-danger-fg); background: var(--recipe-button-danger-bg); }
+  :where(.aidc-button[aria-pressed='true']) { border-color: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--recipe-button-selected-fg); background: var(--recipe-button-selected-bg); }
+  :where(.aidc-button:hover:not(:disabled)) { border-color: var(--recipe-button-hover-border); color: var(--recipe-button-hover-fg); background: var(--recipe-button-hover-bg); }
+  :where(.aidc-button[data-variant='primary-solid']:hover:not(:disabled)) { color: var(--canvas); background: color-mix(in srgb, var(--accent) 88%, var(--panel-ink)); }
+  :where(.aidc-button:focus-visible) { outline: 2px solid var(--recipe-button-focus); outline-offset: 2px; }
+  :where(.aidc-button:disabled), :where(.aidc-button[data-loading='true']) { opacity: var(--recipe-button-disabled-opacity); cursor: not-allowed; }
+
+  .aidc-button__icon {
+    display: inline-flex;
+    width: var(--recipe-button-icon-size);
+    height: var(--recipe-button-icon-size);
+    flex: 0 0 var(--recipe-button-icon-size);
+    align-items: center;
+    justify-content: center;
   }
+  .aidc-button__icon svg { width: 100%; height: 100%; }
 
   :where(.aidc-icon-button) {
+    display: inline-flex;
     width: var(--recipe-icon-button-size);
     height: var(--recipe-icon-button-size);
     flex: 0 0 var(--recipe-icon-button-size);
     padding: 0;
-  }
-
-  :where(.aidc-button, .aidc-icon-button)[data-variant='neutral-ghost'] {
-    border-color: transparent;
-    background: transparent;
-  }
-
-  :where(.aidc-button, .aidc-icon-button)[data-variant='primary-solid'] {
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    color: var(--recipe-button-primary-fg);
-    background: var(--recipe-button-primary-bg);
-  }
-
-  :where(.aidc-button, .aidc-icon-button)[data-variant='danger-soft'] {
-    border-color: color-mix(in srgb, var(--error) 30%, transparent);
-    color: var(--recipe-button-danger-fg);
-    background: var(--recipe-button-danger-bg);
-  }
-
-  :where(.aidc-button, .aidc-icon-button):hover:not(:disabled) {
-    border-color: var(--recipe-button-hover-border);
-    color: var(--recipe-button-hover-fg);
-    background: var(--recipe-button-hover-bg);
-  }
-
-  :where(.aidc-button, .aidc-icon-button):focus-visible {
-    outline: 2px solid var(--recipe-button-focus);
-    outline-offset: 2px;
-  }
-
-  :where(.aidc-button, .aidc-icon-button):disabled {
-    opacity: var(--recipe-button-disabled-opacity);
-    cursor: not-allowed;
-  }
-
-  .aidc-button__icon,
-  .aidc-icon-button__icon {
-    display: inline-flex;
-    width: var(--recipe-button-icon-size);
-    height: var(--recipe-button-icon-size);
     align-items: center;
     justify-content: center;
-  }
-
-  .aidc-button__icon svg,
-  .aidc-icon-button__icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .aidc-field {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: var(--recipe-field-gap);
-    color: var(--recipe-field-label);
-    font: var(--recipe-field-label-type);
-  }
-
-  .aidc-field__control {
-    width: 100%;
-    min-width: 0;
-    height: var(--field-height);
-    padding: 0 var(--recipe-field-padding-x);
-    border: 1px solid var(--recipe-field-border);
-    border-radius: var(--recipe-field-radius);
-    outline: 0;
-    color: var(--recipe-field-value);
-    background: var(--recipe-field-bg);
-    font: var(--recipe-field-value-type);
-  }
-
-  .aidc-field__control:hover:not(:disabled) { border-color: var(--recipe-field-hover-border); }
-  .aidc-field__control:focus-visible { border-color: var(--recipe-field-focus); box-shadow: 0 0 0 1px var(--recipe-field-focus); }
-  .aidc-field[data-invalid='true'] .aidc-field__control { border-color: var(--error); }
-  .aidc-field[data-disabled='true'] { opacity: 0.45; }
-  .aidc-field__message { color: var(--dim); font: var(--type-label); }
-  .aidc-field[data-invalid='true'] .aidc-field__message { color: var(--error); }
-
-  .aidc-field__numeric-control { position: relative; display: block; }
-  .aidc-field__unit { position: absolute; top: 50%; right: var(--space-md); color: var(--dim); transform: translateY(-50%); }
-  .aidc-field__numeric-control:has(.aidc-field__unit) .aidc-field__control { padding-right: 38px; }
-
-  :where(.aidc-status-tag) {
-    display: inline-flex;
-    min-height: var(--recipe-status-height);
-    padding: 0 8px;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-pill);
-    color: var(--muted);
-    font: var(--type-label);
-    white-space: nowrap;
-  }
-
-  .aidc-status-tag__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .aidc-status-tag[data-tone='success'] { color: var(--success); background: var(--success-soft); }
-  .aidc-status-tag[data-tone='warning'] { color: var(--warning); }
-  .aidc-status-tag[data-tone='danger'] { color: var(--error); background: var(--error-soft); }
-  .aidc-status-tag[data-tone='cooling'] { color: var(--cooling); background: var(--cooling-soft); }
-  .aidc-status-tag[data-tone='electrical'] { color: var(--electrical); background: var(--electrical-soft); }
-
-  .aidc-pressable {
-    appearance: none;
-    padding: 0;
-    border: 0;
-    color: inherit;
-    background: transparent;
+    border: 1px solid var(--recipe-icon-button-border);
+    border-radius: var(--recipe-icon-button-radius);
+    color: var(--recipe-icon-button-fg);
+    background: var(--recipe-icon-button-bg);
     font: inherit;
-    text-align: inherit;
     cursor: pointer;
+    transition: color var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart), border-color var(--duration-standard) var(--ease-out-quart);
   }
+
+  :where(.aidc-icon-button[data-variant='neutral-ghost']) { border-color: transparent; background: transparent; }
+  :where(.aidc-icon-button[data-variant='primary-solid']) { border-color: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--recipe-icon-button-primary-fg); background: var(--recipe-icon-button-primary-bg); }
+  :where(.aidc-icon-button[data-variant='danger-soft']) { border-color: color-mix(in srgb, var(--error) 32%, transparent); color: var(--recipe-icon-button-danger-fg); background: var(--recipe-icon-button-danger-bg); }
+  :where(.aidc-icon-button[aria-pressed='true']) { color: var(--recipe-icon-button-selected-fg); background: var(--recipe-icon-button-selected-bg); }
+  :where(.aidc-icon-button:hover:not(:disabled)) { border-color: var(--recipe-icon-button-hover-border); color: var(--recipe-icon-button-hover-fg); background: var(--recipe-icon-button-hover-bg); }
+  :where(.aidc-icon-button:focus-visible) { outline: 2px solid var(--recipe-icon-button-focus); outline-offset: 2px; }
+  :where(.aidc-icon-button:disabled) { opacity: var(--recipe-icon-button-disabled-opacity); cursor: not-allowed; }
+
+  .aidc-icon-button__icon {
+    display: inline-flex;
+    width: var(--recipe-icon-button-icon-size);
+    height: var(--recipe-icon-button-icon-size);
+    flex: 0 0 var(--recipe-icon-button-icon-size);
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .aidc-icon-button__icon svg { width: 100%; height: 100%; }
+
+  .aidc-text-field {
+    --active-field-gap: var(--recipe-text-field-gap);
+    --active-field-height: var(--recipe-text-field-height);
+    --active-field-padding-x: var(--recipe-text-field-padding-x);
+    --active-field-radius: var(--recipe-text-field-radius);
+    --active-field-label: var(--recipe-text-field-label);
+    --active-field-value: var(--recipe-text-field-value);
+    --active-field-bg: var(--recipe-text-field-bg);
+    --active-field-border: var(--recipe-text-field-border);
+    --active-field-hover-border: var(--recipe-text-field-hover-border);
+    --active-field-focus: var(--recipe-text-field-focus);
+    --active-field-disabled-opacity: var(--recipe-text-field-disabled-opacity);
+    --active-field-label-type: var(--recipe-text-field-label-type);
+    --active-field-value-type: var(--recipe-text-field-value-type);
+    --active-field-message: var(--recipe-text-field-message);
+    --active-field-message-type: var(--recipe-text-field-message-type);
+    --active-field-error-message: var(--recipe-text-field-error-message);
+  }
+
+  .aidc-numeric-field {
+    --active-field-gap: var(--recipe-numeric-field-gap);
+    --active-field-height: var(--recipe-numeric-field-height);
+    --active-field-padding-x: var(--recipe-numeric-field-padding-x);
+    --active-field-radius: var(--recipe-numeric-field-radius);
+    --active-field-label: var(--recipe-numeric-field-label);
+    --active-field-value: var(--recipe-numeric-field-value);
+    --active-field-bg: var(--recipe-numeric-field-bg);
+    --active-field-border: var(--recipe-numeric-field-border);
+    --active-field-hover-border: var(--recipe-numeric-field-hover-border);
+    --active-field-focus: var(--recipe-numeric-field-focus);
+    --active-field-disabled-opacity: var(--recipe-numeric-field-disabled-opacity);
+    --active-field-label-type: var(--recipe-numeric-field-label-type);
+    --active-field-value-type: var(--recipe-numeric-field-value-type);
+  }
+
+  .aidc-select-field {
+    --active-field-gap: var(--recipe-select-field-gap);
+    --active-field-height: var(--recipe-select-field-height);
+    --active-field-padding-x: var(--recipe-select-field-padding-x);
+    --active-field-radius: var(--recipe-select-field-radius);
+    --active-field-label: var(--recipe-select-field-label);
+    --active-field-value: var(--recipe-select-field-value);
+    --active-field-bg: var(--recipe-select-field-bg);
+    --active-field-border: var(--recipe-select-field-border);
+    --active-field-hover-border: var(--recipe-select-field-hover-border);
+    --active-field-focus: var(--recipe-select-field-focus);
+    --active-field-disabled-opacity: var(--recipe-select-field-disabled-opacity);
+    --active-field-label-type: var(--recipe-select-field-label-type);
+    --active-field-value-type: var(--recipe-select-field-value-type);
+    --active-field-message: var(--recipe-select-field-message);
+    --active-field-message-type: var(--recipe-select-field-message-type);
+    --active-field-error-message: var(--recipe-select-field-error-message);
+  }
+
+  .aidc-field { display: flex; min-width: 0; flex-direction: column; gap: var(--active-field-gap); color: var(--active-field-label); font: var(--active-field-label-type); }
+  .aidc-field__label { color: var(--active-field-label); }
+  .aidc-field__control {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: var(--active-field-height);
+    padding: 0 var(--active-field-padding-x);
+    border: 1px solid var(--active-field-border);
+    border-radius: var(--active-field-radius);
+    color: var(--active-field-value);
+    background: var(--active-field-bg);
+    font: var(--active-field-value-type);
+    transition: color var(--duration-field) var(--ease-out-quart), background var(--duration-field) var(--ease-out-quart), border-color var(--duration-field) var(--ease-out-quart);
+  }
+  .aidc-field__control:hover:not(:disabled) { border-color: var(--active-field-hover-border); }
+  .aidc-field__control:focus-visible { outline: 2px solid var(--active-field-focus); outline-offset: 2px; }
+  .aidc-field[data-invalid='true'] .aidc-field__control { border-color: color-mix(in srgb, var(--error) 62%, transparent); }
+  .aidc-field[data-disabled='true'] { opacity: var(--active-field-disabled-opacity); }
+  .aidc-field__message { min-height: 1em; color: var(--active-field-message); font: var(--active-field-message-type); }
+  .aidc-field[data-invalid='true'] .aidc-field__message { color: var(--active-field-error-message); }
+
+  .aidc-field__select-control { position: relative; display: block; }
+  .aidc-field__select { padding-right: var(--recipe-select-field-caret-space); appearance: none; cursor: pointer; }
+  .aidc-field__select:disabled { cursor: not-allowed; }
+  .aidc-field__select-caret { position: absolute; top: 50%; right: var(--recipe-select-field-padding-x); width: var(--recipe-select-field-caret-size); height: var(--recipe-select-field-caret-size); color: var(--recipe-select-field-caret); pointer-events: none; transform: translateY(-50%); }
+  .aidc-field__select-caret path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+
+  .aidc-field__numeric-control { position: relative; display: flex; }
+  .aidc-numeric-field[data-layout='inline'] { display: grid; grid-template-columns: minmax(0, 68px) minmax(0, 1fr); align-items: center; }
+  .aidc-field__numeric-control .aidc-field__control { padding-right: var(--recipe-numeric-field-unit-space); font-variant-numeric: tabular-nums; }
+  .aidc-field__unit { position: absolute; top: 50%; right: var(--recipe-numeric-field-padding-x); color: var(--recipe-numeric-field-unit); font: var(--recipe-numeric-field-unit-type); pointer-events: none; transform: translateY(-50%); }
+  .aidc-numeric-field[data-tone='x'] .aidc-field__label { color: var(--recipe-numeric-field-x-label); }
+  .aidc-numeric-field[data-tone='y'] .aidc-field__label { color: var(--recipe-numeric-field-y-label); }
+  .aidc-numeric-field[data-tone='z'] .aidc-field__label { color: var(--recipe-numeric-field-z-label); }
+  .aidc-numeric-field__error { position: absolute; top: 0; right: 0; display: grid; width: var(--control-icon-size); height: var(--control-icon-size); border-radius: var(--radius-pill); color: var(--canvas); background: var(--error); font: var(--type-control-indicator); pointer-events: none; transform: translate(30%, -30%); place-items: center; }
+
+  .aidc-segmented-control {
+    --active-item-gap: var(--recipe-segmented-item-gap);
+    --active-item-min-width: var(--recipe-segmented-item-min-width);
+    --active-item-height: var(--recipe-segmented-item-height);
+    --active-item-padding-x: var(--recipe-segmented-item-padding-x);
+    --active-item-radius: var(--recipe-segmented-item-radius);
+    --active-item-fg: var(--recipe-segmented-fg);
+    --active-item-type: var(--recipe-segmented-type);
+    --active-item-hover-fg: var(--recipe-segmented-hover-fg);
+    --active-item-hover-bg: var(--recipe-segmented-hover-bg);
+    --active-item-selected-fg: var(--recipe-segmented-selected-fg);
+    --active-item-selected-bg: var(--recipe-segmented-selected-bg);
+    --active-item-focus: var(--recipe-segmented-focus);
+    --active-item-disabled-opacity: var(--recipe-segmented-disabled-opacity);
+    display: inline-flex;
+    padding: var(--recipe-segmented-padding);
+    align-items: center;
+    gap: var(--recipe-segmented-gap);
+    border-radius: var(--recipe-segmented-container-radius);
+    background: var(--recipe-segmented-container-bg);
+  }
+
+  .aidc-tab-list { display: inline-flex; align-items: center; gap: var(--recipe-tab-list-gap); }
+  .aidc-tab-list[data-layout='equal'] > .aidc-tab { flex: 1 1 0; }
+  .aidc-tab-list[data-layout='grid'] { display: grid; grid-template-columns: repeat(var(--aidc-tab-columns, 2), minmax(0, 1fr)); }
+  .aidc-tab-list[data-layout='grid'] > .aidc-tab { min-width: 0; }
+  .aidc-tab-list[data-layout='scroll'] { overflow-x: auto; }
+  .aidc-tab-list[data-layout='scroll'] > .aidc-tab { flex: 0 0 auto; }
+
+  .aidc-segmented-control__item,
+  .aidc-tab {
+    display: inline-flex;
+    min-width: var(--active-item-min-width);
+    height: var(--active-item-height);
+    padding: 0 var(--active-item-padding-x);
+    align-items: center;
+    justify-content: center;
+    gap: var(--active-item-gap);
+    border: 0;
+    border-radius: var(--active-item-radius);
+    color: var(--active-item-fg);
+    background: transparent;
+    font: var(--active-item-type);
+    cursor: pointer;
+    transition: color var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart);
+  }
+  .aidc-segmented-control__item { font: var(--recipe-segmented-type); }
+  .aidc-tab {
+    --active-item-gap: var(--recipe-tab-item-gap);
+    --active-item-min-width: var(--recipe-tab-item-min-width);
+    --active-item-height: var(--recipe-tab-item-height);
+    --active-item-padding-x: var(--recipe-tab-item-padding-x);
+    --active-item-radius: var(--recipe-tab-item-radius);
+    --active-item-fg: var(--recipe-tab-fg);
+    --active-item-type: var(--recipe-tab-type);
+    --active-item-hover-fg: var(--recipe-tab-hover-fg);
+    --active-item-hover-bg: var(--recipe-tab-hover-bg);
+    --active-item-selected-fg: var(--recipe-tab-selected-fg);
+    --active-item-selected-bg: var(--recipe-tab-selected-bg);
+    --active-item-focus: var(--recipe-tab-focus);
+    --active-item-disabled-opacity: var(--recipe-tab-disabled-opacity);
+  }
+  .aidc-tab > span:first-child { display: inline-flex; align-items: center; gap: var(--active-item-gap); }
+  .aidc-segmented-control__item[data-selected='true'][data-tone='success'] { color: var(--recipe-segmented-success-fg); background: var(--recipe-segmented-success-bg); }
+  .aidc-segmented-control__item[data-selected='true'][data-tone='warning'] { color: var(--recipe-segmented-warning-fg); background: var(--recipe-segmented-warning-bg); }
+  .aidc-segmented-control__item[data-selected='true'][data-tone='danger'] { color: var(--recipe-segmented-danger-fg); background: var(--recipe-segmented-danger-bg); }
+  .aidc-segmented-control__item:hover:not(:disabled), .aidc-tab:hover:not(:disabled) { color: var(--active-item-hover-fg); background: var(--active-item-hover-bg); }
+  .aidc-segmented-control__item[data-selected='true'], .aidc-tab[data-selected='true'] { color: var(--active-item-selected-fg); background: var(--active-item-selected-bg); }
+  .aidc-segmented-control__item:focus-visible, .aidc-tab:focus-visible { outline: 2px solid var(--active-item-focus); outline-offset: 2px; }
+  .aidc-segmented-control__item:disabled, .aidc-tab:disabled { opacity: var(--active-item-disabled-opacity); cursor: not-allowed; }
+  .aidc-tab__count { color: var(--recipe-tab-count); font: var(--recipe-tab-count-type); font-variant-numeric: tabular-nums; }
+
+  .aidc-switch { position: relative; display: inline-flex; align-items: center; gap: var(--recipe-switch-gap); color: var(--recipe-switch-fg); font: var(--recipe-switch-type); cursor: pointer; }
+  .aidc-switch[data-disabled='true'] { opacity: var(--recipe-switch-disabled-opacity); cursor: not-allowed; }
+  .aidc-switch__input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+  .aidc-switch__indicator { position: relative; display: block; box-sizing: border-box; width: var(--recipe-switch-track-width); height: var(--recipe-switch-track-height); flex: 0 0 var(--recipe-switch-track-width); border: 1px solid var(--recipe-switch-track-border); border-radius: var(--recipe-switch-track-radius); background: var(--recipe-switch-track-bg); transition: background-color var(--duration-standard) var(--ease-out-quart), border-color var(--duration-standard) var(--ease-out-quart); }
+  .aidc-switch__indicator::before { position: absolute; top: var(--recipe-switch-thumb-inset); left: var(--recipe-switch-thumb-inset); width: var(--recipe-switch-thumb-size); height: var(--recipe-switch-thumb-size); border-radius: var(--recipe-switch-thumb-radius); background: var(--recipe-switch-thumb-bg); content: ''; transition: background-color var(--duration-standard) var(--ease-out-quart), transform var(--duration-standard) var(--ease-out-quart); }
+  .aidc-switch__input:checked + .aidc-switch__indicator { border-color: var(--recipe-switch-checked-border); background: var(--recipe-switch-checked-bg); }
+  .aidc-switch__input:checked + .aidc-switch__indicator::before { background: var(--recipe-switch-checked-thumb); transform: translateX(var(--recipe-switch-thumb-travel)); }
+  .aidc-switch[data-indeterminate='true'] .aidc-switch__indicator { border-color: var(--recipe-switch-checked-border); background: color-mix(in srgb, var(--recipe-switch-checked-bg) 42%, var(--recipe-switch-track-bg)); }
+  .aidc-switch[data-indeterminate='true'] .aidc-switch__indicator::before { background: var(--recipe-switch-checked-thumb); transform: translateX(calc(var(--recipe-switch-thumb-travel) / 2)); }
+  .aidc-switch__input:focus-visible + .aidc-switch__indicator { outline: 2px solid var(--recipe-switch-focus); outline-offset: 2px; }
+  .aidc-switch[data-indicator-position='end'] .aidc-switch__label { order: 1; }
+  .aidc-switch[data-indicator-position='end'] .aidc-switch__indicator { order: 2; }
+  .aidc-switch[data-variant='surface'] { min-height: var(--recipe-switch-surface-height); padding: 0 var(--recipe-switch-surface-padding-x); border-radius: var(--recipe-switch-surface-radius); background: var(--recipe-switch-surface-bg); }
+  .aidc-switch[data-variant='surface']:hover { color: var(--recipe-switch-surface-hover-fg); background: var(--recipe-switch-surface-hover-bg); }
+  .aidc-switch[data-variant='chip'] { gap: 0; }
+  .aidc-switch[data-variant='chip'] .aidc-switch__indicator { display: none; }
+  .aidc-switch[data-variant='chip'] .aidc-switch__label { display: inline-flex; box-sizing: border-box; min-width: var(--recipe-switch-chip-min-width); height: var(--recipe-switch-chip-height); padding: 0 var(--recipe-switch-chip-padding-x); align-items: center; justify-content: center; border-radius: var(--recipe-switch-chip-radius); color: var(--recipe-switch-chip-fg); background: transparent; transition: color var(--duration-standard) var(--ease-out-quart), background var(--duration-standard) var(--ease-out-quart); }
+  .aidc-switch[data-variant='chip']:hover .aidc-switch__label { color: var(--recipe-switch-chip-hover-fg); background: var(--recipe-switch-chip-hover-bg); }
+  .aidc-switch[data-variant='chip'][data-checked='true'] .aidc-switch__label { color: var(--recipe-switch-chip-selected-fg); background: var(--recipe-switch-chip-selected-bg); }
+  .aidc-switch[data-variant='chip'] .aidc-switch__input:focus-visible ~ .aidc-switch__label { outline: 2px solid var(--recipe-switch-focus); outline-offset: 2px; }
+
+  :where(.aidc-status-tag) { display: inline-flex; min-height: var(--recipe-status-tag-height); padding: 0 var(--recipe-status-tag-padding-x); align-items: center; gap: var(--recipe-status-tag-gap); border: 1px solid var(--recipe-status-tag-border); border-radius: var(--recipe-status-tag-radius); color: var(--recipe-status-tag-fg); background: var(--recipe-status-tag-bg); font: var(--recipe-status-tag-type); white-space: nowrap; }
+  .aidc-status-tag__dot { width: var(--recipe-status-tag-dot-size); height: var(--recipe-status-tag-dot-size); flex: 0 0 var(--recipe-status-tag-dot-size); border-radius: var(--recipe-status-tag-dot-radius); background: currentColor; }
+  :where(.aidc-status-tag[data-tone='success']) { border-color: color-mix(in srgb, var(--success) 24%, transparent); color: var(--recipe-status-tag-success-fg); background: var(--recipe-status-tag-success-bg); }
+  :where(.aidc-status-tag[data-tone='warning']) { border-color: var(--recipe-status-tag-warning-border); color: var(--recipe-status-tag-warning-fg); background: var(--recipe-status-tag-warning-bg); }
+  :where(.aidc-status-tag[data-tone='danger']) { border-color: var(--recipe-status-tag-danger-border); color: var(--recipe-status-tag-danger-fg); background: var(--recipe-status-tag-danger-bg); }
+  :where(.aidc-status-tag[data-tone='cooling']) { border-color: color-mix(in srgb, var(--cooling) 28%, transparent); color: var(--recipe-status-tag-cooling-fg); background: var(--recipe-status-tag-cooling-bg); }
+  :where(.aidc-status-tag[data-tone='electrical']) { border-color: color-mix(in srgb, var(--electrical) 28%, transparent); color: var(--recipe-status-tag-electrical-fg); background: var(--recipe-status-tag-electrical-bg); }
+
+  .aidc-pressable { appearance: none; padding: 0; font: inherit; text-align: inherit; cursor: pointer; }
+  .aidc-pressable:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .aidc-pressable:disabled { opacity: var(--component-control-disabled-opacity); cursor: not-allowed; }
 }

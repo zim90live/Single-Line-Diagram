@@ -9,6 +9,7 @@ import {
   connectionLabelPlacementForPointer,
   layoutConnectionLabels,
 } from './connectionLabels'
+import { estimateLabelTextWidth } from './elementLabels'
 
 function network(patch: Partial<ConnectionNetwork['edges'][number]> = {}): ConnectionNetwork {
   return {
@@ -106,6 +107,66 @@ describe('connection labels', () => {
       labelVisible: false,
       valueText: '50.0',
     })
+  })
+
+  it('keeps the running-data column intrinsic when the child-line name is longer', () => {
+    const monitored = network({
+      label: '这是一条非常长但不应拉宽运行数据列的子线标签名称',
+      monitorDataVisible: true,
+      monitorMetrics: [
+        {
+          id: 'short-value',
+          name: '非常长的电流指标名称',
+          valueType: 'text',
+          textOptions: [{ id: 'on', value: '开', severity: 'normal' }],
+        },
+        {
+          id: 'long-value',
+          name: '状态',
+          valueType: 'text',
+          textOptions: [{ id: 'offline', value: '设备完全离线', severity: 'critical' }],
+        },
+      ],
+    })
+    const readings = {
+      [monitorMetricReadingKey('edge-1', 'short-value')]: {
+        elementId: 'edge-1',
+        metricId: 'short-value',
+        value: '开',
+        severity: 'normal' as const,
+      },
+      [monitorMetricReadingKey('edge-1', 'long-value')]: {
+        elementId: 'edge-1',
+        metricId: 'long-value',
+        value: '设备完全离线',
+        severity: 'critical' as const,
+      },
+    }
+    const [endAligned] = layoutConnectionLabels(
+      [route()],
+      [monitored],
+      null,
+      { readings },
+    )
+    const [startAligned] = layoutConnectionLabels(
+      [route()],
+      [network({ ...monitored.edges[0], labelEndpoint: 'source' })],
+      null,
+      { readings },
+    )
+    const expectedValueWidth = estimateLabelTextWidth('设备完全离线')
+
+    expect(endAligned.metricRows.map((row) => row.valueBounds.width))
+      .toEqual([expectedValueWidth, expectedValueWidth])
+    expect(endAligned.metricRows.map((row) => row.valueX))
+      .toEqual([endAligned.metricRows[0].valueX, endAligned.metricRows[0].valueX])
+    expect(endAligned.metricRows[0].valueX).toBe(endAligned.bounds.x + endAligned.bounds.width - 2)
+    expect(startAligned.metricRows.map((row) => row.valueBounds.width))
+      .toEqual([expectedValueWidth, expectedValueWidth])
+    expect(startAligned.metricRows.map((row) => row.valueX))
+      .toEqual([startAligned.metricRows[0].valueX, startAligned.metricRows[0].valueX])
+    expect(startAligned.metricRows[0].valueX)
+      .toBeLessThan(startAligned.bounds.x + startAligned.bounds.width - 2)
   })
 
   it('places horizontal endpoint labels above or below the nearby segment', () => {

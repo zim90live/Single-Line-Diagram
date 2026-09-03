@@ -35,6 +35,10 @@ interface AppState {
   setSelectedElementIds: (ids: string[]) => void
   replaceDiagramElements: (diagramId: string, elements: DiagramElement[]) => void
   syncElementOnOffStates: (states: Record<string, boolean>) => void
+  updateCoolingPumpState: (
+    elementId: string,
+    state: { running?: boolean; outputPower?: number },
+  ) => void
   replaceDiagramContent: (
     diagramId: string,
     elements: DiagramElement[],
@@ -133,6 +137,36 @@ export const useAppStore = create<AppState>((set) => ({
       return changed
         ? { document: { ...state.document, elements } }
         : state
+    }),
+
+  updateCoolingPumpState: (elementId, runtimeState) =>
+    set((state) => {
+      const element = state.document.elements.find((candidate) => candidate.id === elementId)
+      const asset = element
+        ? state.document.assets.find((candidate) => candidate.key === element.assetKey)
+        : undefined
+      if (!element || asset?.coolingDeviceRole !== 'pump') return state
+
+      const coolingPumpRunning = runtimeState.running ?? element.coolingPumpRunning
+      const coolingPumpOutputPower = runtimeState.outputPower === undefined
+        ? element.coolingPumpOutputPower
+        : Math.min(100, Math.max(0, runtimeState.outputPower))
+      if (
+        element.coolingPumpRunning === coolingPumpRunning &&
+        element.coolingPumpOutputPower === coolingPumpOutputPower
+      ) return state
+
+      return {
+        document: updateDocument(state.document, (document) => ({
+          ...document,
+          elements: document.elements.map((candidate) => (
+            candidate.id === elementId
+              ? { ...candidate, coolingPumpRunning, coolingPumpOutputPower }
+              : candidate
+          )),
+        })),
+        dirty: true,
+      }
     }),
 
   replaceDiagramContent: (diagramId, elements, busbars, connections, _routeWaypoints) =>

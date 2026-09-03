@@ -39,6 +39,27 @@ function documentWithParentFeed(sourceAssetKey = 'grid') {
   } as unknown as ProjectDocument
 }
 
+function documentWithUpsGroupFeed() {
+  const document = documentWithParentFeed()
+  document.diagrams[1] = {
+    ...document.diagrams[1],
+    id: 'ups-left',
+    name: 'UPS L',
+  }
+  document.elements[1] = {
+    ...document.elements[1],
+    id: 'ups-group-left',
+    assetKey: 'ups-group',
+    name: 'UPS-group',
+  }
+  const targetNode = document.connections[0].nodes[1]
+  if (targetNode.kind !== 'element-anchor') {
+    throw new Error('测试夹具的目标节点必须是图元锚点')
+  }
+  targetNode.elementId = 'ups-group-left'
+  return document
+}
+
 describe('power detail external supply context', () => {
   it('inherits supply when the linked parent equipment is energized', () => {
     expect(isPowerDiagramExternallyEnergized({
@@ -54,5 +75,13 @@ describe('power detail external supply context', () => {
       diagramId: 'tap-left',
       switchStates: {},
     })).toBe(false)
+  })
+
+  it('inherits supply through an UPS-group parent for an UPS L detail diagram', () => {
+    expect(isPowerDiagramExternallyEnergized({
+      document: documentWithUpsGroupFeed(),
+      diagramId: 'ups-left',
+      switchStates: {},
+    })).toBe(true)
   })
 })

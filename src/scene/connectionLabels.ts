@@ -188,6 +188,7 @@ export function layoutConnectionLabels(
         metricLines,
         placement.bounds,
         Number(Boolean(nameText)),
+        placement.textAnchor,
       ),
       endpoint,
       side,

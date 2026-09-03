@@ -18,6 +18,10 @@ export type MonitorMetricReadings = Record<string, MonitorMetricReading>
 
 export interface MonitorMetricOwner {
   id: string
+  diagramId?: string
+  assetKey?: string
+  monitorDataVisible?: boolean
+  runtimeOperation?: 'on' | 'off' | 'running' | 'stopped' | 'standby'
   monitorMetrics?: MonitorMetric[]
 }
 

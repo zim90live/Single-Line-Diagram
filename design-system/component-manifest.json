@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "AIDC@97ecddf",
+  "componentSize": "sm",
+  "themeSource": "design-system/theme.json",
+  "generatedTokenSource": "src/styles/theme.generated.css",
+  "componentStyles": "src/styles/components.css",
+  "publicEntry": "src/components/ui/index.ts",
+  "components": [
+    {
+      "key": "button",
+      "path": "src/components/ui/Button.tsx",
+      "export": "Button",
+      "variants": ["neutral-soft", "neutral-ghost", "primary-solid", "danger-soft"],
+      "states": ["default", "hover", "focus-visible", "selected", "disabled", "loading"]
+    },
+    {
+      "key": "icon-button",
+      "path": "src/components/ui/IconButton.tsx",
+      "export": "IconButton",
+      "variants": ["neutral-soft", "neutral-ghost", "primary-solid", "danger-soft"],
+      "states": ["default", "hover", "focus-visible", "selected", "disabled"]
+    },
+    {
+      "key": "text-field",
+      "path": "src/components/ui/Field.tsx",
+      "export": "TextField",
+      "states": ["default", "hover", "focus-visible", "error", "disabled"]
+    },
+    {
+      "key": "numeric-field",
+      "path": "src/components/ui/NumericField.tsx",
+      "export": "NumericField",
+      "variants": ["stacked", "inline", "neutral", "x", "y", "z"],
+      "states": ["default", "hover", "focus-visible", "error", "disabled"]
+    },
+    {
+      "key": "select-field",
+      "path": "src/components/ui/Field.tsx",
+      "export": "SelectField",
+      "states": ["default", "hover", "focus-visible", "error", "disabled"]
+    },
+    {
+      "key": "switch",
+      "path": "src/components/ui/Switch.tsx",
+      "export": "Switch",
+      "variants": ["switch", "surface", "chip"],
+      "states": ["off", "on", "mixed", "hover", "focus-visible", "disabled"]
+    },
+    {
+      "key": "segmented-control",
+      "path": "src/components/ui/SegmentedControl.tsx",
+      "export": "SegmentedControl",
+      "variants": ["neutral", "success", "warning", "danger"],
+      "states": ["default", "hover", "focus-visible", "selected", "disabled"]
+    },
+    {
+      "key": "tab",
+      "path": "src/components/ui/Tabs.tsx",
+      "export": "Tab",
+      "variants": ["inline", "equal", "grid", "scroll"],
+      "states": ["default", "hover", "focus-visible", "selected", "disabled"]
+    },
+    {
+      "key": "status-tag",
+      "path": "src/components/ui/StatusTag.tsx",
+      "export": "StatusTag",
+      "variants": ["neutral", "success", "warning", "danger", "cooling", "electrical"],
+      "states": ["default"]
+    }
+  ],
+  "headless": [
+    {
+      "key": "pressable",
+      "path": "src/components/ui/Pressable.tsx",
+      "export": "Pressable",
+      "responsibility": "保留原生 button 语义、禁用态和键盘焦点，不拥有业务视觉。"
+    },
+    {
+      "key": "tab-list",
+      "path": "src/components/ui/Tabs.tsx",
+      "export": "TabList",
+      "responsibility": "提供 tablist 语义，以及方向键、Home、End 的自动激活导航。"
+    }
+  ]
+}

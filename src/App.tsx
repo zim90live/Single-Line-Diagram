@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ClipboardPaste,
@@ -24,16 +23,20 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { HierarchyPanel } from './components/HierarchyPanel'
+import monitorBackIcon from './assets/monitor-tree/back.svg'
 import { MonitorPropertiesPanel } from './components/MonitorPropertiesPanel'
+import { MonitorDevicePanel } from './components/MonitorDevicePanel'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
 import { SymbolLibrary } from './components/SymbolLibrary'
-import { Button, IconButton, StatusTag, TextField } from './components/ui'
+import { Button, IconButton, Pressable, StatusTag, Tab, TabList, TextField } from './components/ui'
 import type { DiagramDropPosition } from './domain/diagramHierarchy'
 import {
   elementUsesOnOffState,
   parseProjectDocument,
   projectOnOffStates,
+  resolvedElementOnOffState,
+  resolvedElementMonitorInteraction,
   withOnOffStateSnapshot,
   type Busbar,
   type ConnectionNetwork,
@@ -59,10 +62,12 @@ import { createDiagramRuntimeView } from './runtime/diagramRuntime'
 import {
   DiagramMonitorCanvas,
   type DiagramMonitorCanvasHandle,
+  type DiagramMonitorRuntimePresentation,
 } from './runtime/DiagramMonitorCanvas'
 import {
   createDiagramRuntimeState,
   evaluateCoolingRuntime,
+  projectCoolingPumpRuntimeStates,
 } from './runtime/runtimeState'
 import type { DiagramRuntimeContext } from './runtime/types'
 import {
@@ -188,6 +193,7 @@ export default function App() {
   const [coolingPumpRunningStates, setCoolingPumpRunningStates] = useState<Record<string, boolean>>({})
   const [coolingPumpOutputPowerStates, setCoolingPumpOutputPowerStates] = useState<Record<string, number>>({})
   const [coolingValveOpenStates, setCoolingValveOpenStates] = useState<Record<string, boolean>>({})
+  const [monitorPresentation, setMonitorPresentation] = useState<DiagramMonitorRuntimePresentation | null>(null)
 
   const {
     document,
@@ -201,6 +207,7 @@ export default function App() {
     setSelectedElementIds,
     replaceDiagramContent,
     syncElementOnOffStates,
+    updateCoolingPumpState,
     replaceAssetDefinition,
     createDiagram,
     renameDiagram,
@@ -261,6 +268,18 @@ export default function App() {
   const selectedMonitorElement = selectedElements.length === 1 ? selectedElements[0] : undefined
   const selectedMonitorAsset = selectedMonitorElement
     ? currentAssetsByKey.get(selectedMonitorElement.assetKey)
+    : undefined
+  const selectedMonitorShowsDevicePanel = Boolean(selectedMonitorElement && (
+    selectedMonitorElement.assetKey === 'generator' ||
+    selectedMonitorElement.assetKey === 'ups' ||
+    (
+      selectedMonitorElement.assetKey === 'switch' &&
+      resolvedElementMonitorInteraction(selectedMonitorElement) === 'device-panel'
+    )
+  ))
+  const selectedMonitorPresentationElement = selectedMonitorElement
+    ? monitorPresentation?.elements.find((element) => element.id === selectedMonitorElement.id) ??
+      selectedMonitorElement
     : undefined
   const coolingRuntime = useMemo(() => evaluateCoolingRuntime({
     active: workspaceMode === 'monitor' && currentLine?.type === 'cooling',
@@ -400,8 +419,9 @@ export default function App() {
     )))
     setOnOffStates(documentStates)
     syncElementOnOffStates(documentStates)
-    setCoolingPumpRunningStates({})
-    setCoolingPumpOutputPowerStates({})
+    const persistedPumpStates = projectCoolingPumpRuntimeStates(document)
+    setCoolingPumpRunningStates(persistedPumpStates.coolingPumpRunningStates)
+    setCoolingPumpOutputPowerStates(persistedPumpStates.coolingPumpOutputPowerStates)
     setCoolingValveOpenStates({})
     void monitorStateRepository.getOnOffStates(document.project.id)
       .then((states) => {
@@ -432,8 +452,14 @@ export default function App() {
   const handleOnOffStatesChange = (elementIds: string[], on: boolean) => {
     const uniqueElementIds = [...new Set(elementIds)]
     if (!uniqueElementIds.length) return
+    const elementsById = new Map(document.elements.map((element) => [element.id, element]))
     const previous = Object.fromEntries(uniqueElementIds.map((elementId) => (
-      [elementId, onOffStates[elementId] ?? false]
+      [
+        elementId,
+        elementsById.has(elementId)
+          ? resolvedElementOnOffState(elementsById.get(elementId)!, onOffStates[elementId])
+          : onOffStates[elementId] ?? false,
+      ]
     )))
     const next = Object.fromEntries(uniqueElementIds.map((elementId) => [elementId, on]))
     const revision = monitorStateRevisionRef.current + 1
@@ -461,7 +487,7 @@ export default function App() {
         )))
         setOnOffStates((current) => ({ ...current, ...rollback }))
         syncElementOnOffStates(rollback)
-        showToast(error instanceof Error ? error.message : 'On/Off 状态保存失败。', 'danger')
+        showToast(error instanceof Error ? error.message : '设备状态保存失败。', 'danger')
       })
   }
 
@@ -476,6 +502,7 @@ export default function App() {
   ) => {
     if (role === 'pump') {
       setCoolingPumpRunningStates((current) => ({ ...current, [elementId]: active }))
+      updateCoolingPumpState(elementId, { running: active })
       showToast(active ? '水泵已运行' : '水泵已停止')
     } else {
       setCoolingValveOpenStates((current) => ({ ...current, [elementId]: active }))
@@ -484,10 +511,12 @@ export default function App() {
   }
 
   const handleCoolingPumpOutputPowerChange = (elementId: string, outputPower: number) => {
+    const normalizedOutputPower = clampCoolingPumpOutputPower(outputPower)
     setCoolingPumpOutputPowerStates((current) => ({
       ...current,
-      [elementId]: clampCoolingPumpOutputPower(outputPower),
+      [elementId]: normalizedOutputPower,
     }))
+    updateCoolingPumpState(elementId, { outputPower: normalizedOutputPower })
   }
 
   const saveProject = async () => {
@@ -644,7 +673,7 @@ export default function App() {
     : undefined
 
   return (
-    <div className="app-shell" data-testid="app-shell" data-mode={workspaceMode}>
+    <div className="app-shell" data-aidc-theme data-testid="app-shell" data-mode={workspaceMode}>
       <header className="workspace-header">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true"><span /><span /></div>
@@ -654,26 +683,22 @@ export default function App() {
           </div>
         </div>
 
-        <div className="workspace-mode-tabs" role="tablist" aria-label="工作模式">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={workspaceMode === 'edit'}
+        <TabList className="workspace-mode-tabs" label="工作模式">
+          <Tab
+            selected={workspaceMode === 'edit'}
             onClick={() => setMode('edit')}
           >
             <PencilLine aria-hidden="true" />
             编辑模式
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={workspaceMode === 'monitor'}
+          </Tab>
+          <Tab
+            selected={workspaceMode === 'monitor'}
             onClick={() => setMode('monitor')}
           >
             <MonitorPlay aria-hidden="true" />
             监控模式
-          </button>
-        </div>
+          </Tab>
+        </TabList>
 
         <div className="project-name-control">
           <FileJson aria-hidden="true" />
@@ -713,6 +738,9 @@ export default function App() {
         className="workspace-main"
         data-mode={workspaceMode}
         data-left-sidebar-collapsed={leftSidebarCollapsed || undefined}
+        data-monitor-device-panel={
+          (workspaceMode === 'monitor' && selectedMonitorShowsDevicePanel) || undefined
+        }
       >
         <aside
           id="left-sidebar"
@@ -741,14 +769,16 @@ export default function App() {
           ) : null}
         </aside>
 
-        <IconButton
+        <Pressable
           className="left-sidebar-toggle"
-          label={leftSidebarCollapsed ? '展开左侧菜单' : '收起左侧菜单'}
-          icon={leftSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+          aria-label={leftSidebarCollapsed ? '展开左侧菜单' : '收起左侧菜单'}
+          title={leftSidebarCollapsed ? '展开左侧菜单' : '收起左侧菜单'}
           aria-controls="left-sidebar"
           aria-expanded={!leftSidebarCollapsed}
           onClick={() => setLeftSidebarCollapsed((collapsed) => !collapsed)}
-        />
+        >
+          {leftSidebarCollapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}
+        </Pressable>
 
         <section
           className="canvas-column"
@@ -789,16 +819,20 @@ export default function App() {
                 onSelectionChange={setSelectedElementIds}
                 onElementDrillDown={handleMonitorElementDrillDown}
                 onViewportChange={handleMonitorViewportChange}
+                onRuntimePresentationChange={setMonitorPresentation}
               />
             )}
             <div className="canvas-titlebar" aria-label="画布信息与导航">
-              <IconButton
+              <Button
                 className="canvas-back-button"
-                label="返回上一级"
-                icon={<ArrowLeft />}
+                variant="neutral-ghost"
+                leadingIcon={<img src={monitorBackIcon} alt="" />}
+                aria-label="返回上一级"
                 disabled={!parentDiagram}
                 onClick={() => { if (parentDiagram) setCurrentDiagram(parentDiagram.id) }}
-              />
+              >
+                返回
+              </Button>
               <span className="canvas-line-context" data-line-type={currentLine?.type}>
                 {currentLine?.name}
               </span>
@@ -806,13 +840,12 @@ export default function App() {
                 {diagramPath.map((diagram, index) => (
                   <span key={diagram.id}>
                     {index ? <span className="breadcrumb-separator">/</span> : null}
-                    <button
-                      type="button"
+                    <Pressable
                       aria-current={diagram.id === currentDiagram.id ? 'page' : undefined}
                       onClick={() => setCurrentDiagram(diagram.id)}
                     >
                       {diagram.name}
-                    </button>
+                    </Pressable>
                   </span>
                 ))}
               </nav>
@@ -857,8 +890,7 @@ export default function App() {
                   ? editorRef.current?.zoomOut()
                   : monitorRef.current?.zoomOut()}
               />
-              <button
-                type="button"
+              <Pressable
                 className="zoom-readout"
                 aria-label="重置画布缩放"
                 onClick={() => workspaceMode === 'edit'
@@ -866,7 +898,7 @@ export default function App() {
                   : monitorRef.current?.zoomReset()}
               >
                 {Math.round((workspaceMode === 'edit' ? commandState.zoom : monitorZoom) * 100)}%
-              </button>
+              </Pressable>
               <IconButton
                 label="放大画布"
                 icon={<Plus />}
@@ -896,7 +928,7 @@ export default function App() {
                       : '正在显示电力起点 → 终点运行流向'
                     : currentLine?.type === 'cooling'
                       ? '监控模式 · 选择水泵或阀门后在右侧控制运行状态'
-                      : '监控模式 · 选择 Switch 后在右侧控制状态'
+                      : '监控模式 · 点击设备查看运行状态或设备面板'
                   : commandState.directLineToolActive
                   ? commandState.wiringType
                     ? `正在绘制线路 · ${commandState.wiringType === 'electrical' ? '电力' : getAnchorTypeLabel(commandState.wiringType)} · Esc 退出`
@@ -936,9 +968,14 @@ export default function App() {
           canvasElements={currentElements}
           canvasBusbars={currentBusbars}
           canvasConnections={currentConnections}
+          assetsByKey={currentAssetsByKey}
           onOffStates={onOffStates}
           onOnOffStateChange={handleOnOffStateChange}
           onOnOffStatesChange={handleOnOffStatesChange}
+          onCoolingPumpRunningChange={(elementId, running) => {
+            handleCoolingRuntimeStateChange(elementId, 'pump', running)
+          }}
+          onCoolingPumpOutputPowerChange={handleCoolingPumpOutputPowerChange}
           onPatch={(elementId, patch) => editorRef.current?.updateElement(elementId, patch)}
           onPatchElements={(elementIds, patch) => (
             editorRef.current?.updateElements(elementIds, patch)
@@ -979,48 +1016,48 @@ export default function App() {
             editorRef.current?.updateCanvasColor(target, color)
           )}
           onDelete={() => editorRef.current?.deleteSelected()}
-        /> : <MonitorPropertiesPanel
-          selectedElement={selectedMonitorElement}
-          asset={selectedMonitorAsset}
-          onOff={selectedMonitorElement
-            ? onOffStates[selectedMonitorElement.id] ?? false
-            : false}
-          pumpRunning={selectedMonitorElement
-            ? coolingPumpRunningStates[selectedMonitorElement.id] ?? true
-            : true}
-          pumpOutputPower={selectedMonitorElement
-            ? coolingPumpOutputPowerStates[selectedMonitorElement.id] ??
-              DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT
-            : DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT}
-          pumpFlowRate={selectedMonitorElement
-            ? coolingFlowTopology.pumpFlowRates[selectedMonitorElement.id] ?? 0
-            : 0}
-          valveOpen={selectedMonitorElement
-            ? coolingValveOpenStates[selectedMonitorElement.id] ?? true
-            : true}
-          onOnOffChange={(on) => {
-            if (selectedMonitorElement) handleOnOffStateChange(selectedMonitorElement.id, on)
-          }}
-          onPumpRunningChange={(running) => {
-            if (selectedMonitorElement) {
+        /> : selectedMonitorElement ? (
+          selectedMonitorShowsDevicePanel && selectedMonitorPresentationElement ? (
+            <MonitorDevicePanel
+              element={selectedMonitorPresentationElement}
+              diagramName={currentDiagram.name}
+              timestamp={monitorPresentation?.timestamp ?? Date.now()}
+              readings={monitorPresentation?.readings ?? {}}
+              deviceState={monitorPresentation?.deviceStates[selectedMonitorPresentationElement.id]}
+              animationPlaying={animationPlaying}
+            />
+          ) : <MonitorPropertiesPanel
+            selectedElement={selectedMonitorElement}
+            asset={selectedMonitorAsset}
+            onOff={resolvedElementOnOffState(
+              selectedMonitorElement,
+              onOffStates[selectedMonitorElement.id],
+            )}
+            pumpRunning={coolingPumpRunningStates[selectedMonitorElement.id] ??
+              selectedMonitorElement.coolingPumpRunning ?? true}
+            pumpOutputPower={coolingPumpOutputPowerStates[selectedMonitorElement.id] ??
+              selectedMonitorElement.coolingPumpOutputPower ??
+              DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT}
+            pumpFlowRate={coolingFlowTopology.pumpFlowRates[selectedMonitorElement.id] ?? 0}
+            valveOpen={coolingValveOpenStates[selectedMonitorElement.id] ?? true}
+            onOnOffChange={(on) => handleOnOffStateChange(selectedMonitorElement.id, on)}
+            onPumpRunningChange={(running) => {
               handleCoolingRuntimeStateChange(selectedMonitorElement.id, 'pump', running)
-            }
-          }}
-          onPumpOutputPowerChange={(outputPower) => {
-            if (selectedMonitorElement) {
+            }}
+            onPumpOutputPowerChange={(outputPower) => {
               handleCoolingPumpOutputPowerChange(selectedMonitorElement.id, outputPower)
-            }
-          }}
-          onValveOpenChange={(open) => {
-            if (selectedMonitorElement && selectedMonitorAsset?.coolingDeviceRole) {
-              handleCoolingRuntimeStateChange(
-                selectedMonitorElement.id,
-                selectedMonitorAsset.coolingDeviceRole,
-                open,
-              )
-            }
-          }}
-        />}
+            }}
+            onValveOpenChange={(open) => {
+              if (selectedMonitorAsset?.coolingDeviceRole) {
+                handleCoolingRuntimeStateChange(
+                  selectedMonitorElement.id,
+                  selectedMonitorAsset.coolingDeviceRole,
+                  open,
+                )
+              }
+            }}
+          />
+        ) : null}
       </main>
 
       {openPanel ? (

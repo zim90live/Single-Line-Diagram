@@ -1,10 +1,5 @@
 import {
-  Building2,
-  ChevronRight,
-  CircuitBoard,
-  Cpu,
   GripVertical,
-  Network,
   Pencil,
   Plus,
   Snowflake,
@@ -20,9 +15,16 @@ import {
   type KeyboardEvent,
 } from 'react'
 
+import monitorTreeArrowClosed from '../assets/monitor-tree/arrow-closed.svg'
+import monitorTreeArrowOpen from '../assets/monitor-tree/arrow-open.svg'
+import monitorTreeBuilding from '../assets/monitor-tree/building.svg'
+import monitorTreeLeaf from '../assets/monitor-tree/leaf.svg'
+import monitorTreePark from '../assets/monitor-tree/park.svg'
+import monitorTreePod from '../assets/monitor-tree/pod.svg'
+import monitorTreeSearch from '../assets/monitor-tree/search.svg'
 import type { DiagramDropPosition } from '../domain/diagramHierarchy'
 import type { Diagram, LineSystem, ProjectDocument } from '../domain/project'
-import { IconButton, Pressable, StatusTag, TextField } from './ui'
+import { IconButton, Pressable, TextField } from './ui'
 
 interface HierarchyPanelProps {
   document: ProjectDocument
@@ -51,11 +53,11 @@ const levelNames: Record<Diagram['level'], string> = {
   device: '设备',
 }
 
-const levelIcons: Record<Diagram['level'], typeof Network> = {
-  campus: Network,
-  building: Building2,
-  pod: CircuitBoard,
-  device: Cpu,
+const monitorLevelIcons: Record<Diagram['level'], string> = {
+  campus: monitorTreePark,
+  building: monitorTreeBuilding,
+  pod: monitorTreePod,
+  device: monitorTreeLeaf,
 }
 
 function dropPosition(event: DragEvent<HTMLDivElement>, diagram: Diagram): DiagramDropPosition {
@@ -123,12 +125,12 @@ function DiagramBranch({
   const children = diagrams.filter((candidate) => candidate.parentId === diagram.id)
   const hasChildren = children.length > 0
   const expanded = hasChildren && !collapsedDiagramIds.has(diagram.id)
-  const Icon = levelIcons[diagram.level]
+  const monitorIcon = monitorLevelIcons[diagram.level]
   const isEditing = editingDiagramId === diagram.id
   const activePosition = activeDropTarget?.diagramId === diagram.id
     ? activeDropTarget.position
     : undefined
-  const rowPadding = 12 + depth * 16
+  const rowPadding = 4 + (depth + 1) * 18
 
   return (
     <li
@@ -154,15 +156,14 @@ function DiagramBranch({
           >
             <span className="tree-row__branch-slot" aria-hidden="true">
               {hasChildren ? (
-                <ChevronRight className="tree-row__branch" data-expanded={expanded || undefined} />
+                <img
+                  className="tree-row__branch"
+                  src={expanded ? monitorTreeArrowOpen : monitorTreeArrowClosed}
+                  alt=""
+                />
               ) : null}
             </span>
-            {editable ? (
-              <span className="tree-row__drag-slot" aria-hidden="true">
-                {diagram.parentId !== null ? <GripVertical className="tree-row__drag-handle" /> : null}
-              </span>
-            ) : null}
-            <Icon className="tree-row__icon" aria-hidden="true" />
+            <img className="tree-row__icon" src={monitorIcon} alt="" aria-hidden="true" />
             <TextField
               autoFocus
               containerClassName="tree-row__rename-field"
@@ -189,7 +190,6 @@ function DiagramBranch({
                 }
               }}
             />
-            <span className="tree-row__meta">{levelNames[diagram.level]}</span>
             {renameError ? (
               <span className="visually-hidden" id="diagram-rename-error" role="alert">
                 {renameError}
@@ -238,18 +238,21 @@ function DiagramBranch({
                 } : undefined}
                 aria-hidden="true"
               >
-                {hasChildren ? (
-                  <ChevronRight className="tree-row__branch" data-expanded={expanded || undefined} />
+              {hasChildren ? (
+                  <img
+                    className="tree-row__branch"
+                    src={expanded ? monitorTreeArrowOpen : monitorTreeArrowClosed}
+                    alt=""
+                  />
                 ) : null}
               </span>
+              <img className="tree-row__icon" src={monitorIcon} alt="" aria-hidden="true" />
+              <span className="tree-row__name">{diagram.name}</span>
               {editable ? (
                 <span className="tree-row__drag-slot" aria-hidden="true">
                   {diagram.parentId !== null ? <GripVertical className="tree-row__drag-handle" /> : null}
                 </span>
               ) : null}
-              <Icon className="tree-row__icon" aria-hidden="true" />
-              <span className="tree-row__name">{diagram.name}</span>
-              <span className="tree-row__meta">{levelNames[diagram.level]}</span>
             </Pressable>
             {editable && diagram.parentId !== null && onDeleteDiagram ? (
               <IconButton
@@ -328,16 +331,14 @@ function LineBranch({
         aria-expanded={root ? expanded : undefined}
         onClick={() => { if (root) onToggleLine(lineSystem.id) }}
       >
-        <ChevronRight
+        <img
           className="tree-line__branch"
-          data-expanded={expanded || undefined}
+          src={expanded ? monitorTreeArrowOpen : monitorTreeArrowClosed}
+          alt=""
           aria-hidden="true"
         />
         <Icon aria-hidden="true" />
         <span>{lineSystem.name}</span>
-        <StatusTag tone={lineSystem.type === 'cooling' ? 'cooling' : 'electrical'}>
-          {lineSystem.type === 'cooling' ? '冷却' : '电力'}
-        </StatusTag>
       </Pressable>
       {root && expanded ? (
         <ul role="group">
@@ -371,9 +372,52 @@ export const HierarchyPanel = memo(function HierarchyPanel({
   const [activeDropTarget, setActiveDropTarget] = useState<DropTarget | null>(null)
   const [collapsedDiagramIds, setCollapsedDiagramIds] = useState<Set<string>>(() => new Set())
   const [collapsedLineSystemIds, setCollapsedLineSystemIds] = useState<Set<string>>(() => new Set())
+  const [monitorQuery, setMonitorQuery] = useState('')
 
   const currentDiagram = document.diagrams.find((diagram) => diagram.id === currentDiagramId)
   const diagramsById = new Map(document.diagrams.map((diagram) => [diagram.id, diagram]))
+  const normalizedMonitorQuery = monitorQuery.trim().toLocaleLowerCase()
+  const visibleDiagramIds = new Set<string>()
+
+  if (normalizedMonitorQuery) {
+    for (const lineSystem of document.lineSystems) {
+      const lineMatches = [
+        lineSystem.name,
+        lineSystem.type === 'cooling' ? '冷却' : '电力',
+      ].some((value) => value.toLocaleLowerCase().includes(normalizedMonitorQuery))
+
+      if (lineMatches) {
+        for (const diagram of document.diagrams) {
+          if (diagram.lineSystemId === lineSystem.id) visibleDiagramIds.add(diagram.id)
+        }
+        continue
+      }
+
+      for (const diagram of document.diagrams) {
+        if (diagram.lineSystemId !== lineSystem.id) continue
+        const diagramMatches = [diagram.name, levelNames[diagram.level]]
+          .some((value) => value.toLocaleLowerCase().includes(normalizedMonitorQuery))
+        if (!diagramMatches) continue
+
+        visibleDiagramIds.add(diagram.id)
+        let parentId = diagram.parentId
+        while (parentId) {
+          visibleDiagramIds.add(parentId)
+          parentId = diagramsById.get(parentId)?.parentId ?? null
+        }
+      }
+    }
+  }
+
+  const visibleDocument = normalizedMonitorQuery
+    ? {
+        ...document,
+        diagrams: document.diagrams.filter((diagram) => visibleDiagramIds.has(diagram.id)),
+        lineSystems: document.lineSystems.filter((lineSystem) => (
+          visibleDiagramIds.has(lineSystem.rootDiagramId)
+        )),
+      }
+    : document
   const currentAncestorIds: string[] = []
   let currentAncestor = currentDiagram?.parentId
   while (currentAncestor) {
@@ -563,7 +607,7 @@ export const HierarchyPanel = memo(function HierarchyPanel({
 
   const branchProps = {
     currentDiagramId,
-    collapsedDiagramIds,
+    collapsedDiagramIds: normalizedMonitorQuery ? new Set<string>() : collapsedDiagramIds,
     editable,
     editingDiagramId,
     renameDraft,
@@ -589,45 +633,56 @@ export const HierarchyPanel = memo(function HierarchyPanel({
   }
 
   return (
-    <section className="sidebar-section hierarchy-section" aria-labelledby="hierarchy-title">
-      <div className="panel-heading hierarchy-heading">
-        <h2 id="hierarchy-title">图纸层级</h2>
-        <div className="hierarchy-heading__actions">
-          <span className="hierarchy-heading__count">{document.diagrams.length} 张</span>
-          {editable ? (
-            <>
-              <IconButton
-                className="hierarchy-heading__action"
-                label={currentDiagram?.level === 'device' ? '新增同级图纸' : '新增下级图纸'}
-                icon={<Plus />}
-                variant="neutral-ghost"
-                disabled={!currentDiagram || !onCreateDiagram}
-                onClick={createDiagram}
-              />
-              <IconButton
-                className="hierarchy-heading__action"
-                label="重命名当前图纸"
-                icon={<Pencil />}
-                variant="neutral-ghost"
-                disabled={!currentDiagram || !onRenameDiagram}
-                onClick={() => { if (currentDiagram) beginRename(currentDiagram) }}
-              />
-            </>
-          ) : null}
-        </div>
+    <section
+      className="sidebar-section hierarchy-section"
+      aria-label={editable ? '图纸层级' : '监控图纸树'}
+    >
+      <div className="monitor-tree-search">
+        <img src={monitorTreeSearch} alt="" aria-hidden="true" />
+        <TextField
+          containerClassName="monitor-tree-search__field"
+          label={editable ? '搜索图纸层级' : '搜索监控图纸'}
+          hideLabel
+          type="search"
+          placeholder="搜索图纸"
+          value={monitorQuery}
+          onChange={(event) => setMonitorQuery(event.currentTarget.value)}
+        />
       </div>
+      {editable ? (
+        <div className="monitor-tree-actions" aria-label="图纸层级操作">
+          <span className="monitor-tree-actions__count">{document.diagrams.length} 张图纸</span>
+          <IconButton
+            label={currentDiagram?.level === 'device' ? '新增同级图纸' : '新增下级图纸'}
+            icon={<Plus />}
+            variant="neutral-ghost"
+            disabled={!currentDiagram || !onCreateDiagram}
+            onClick={createDiagram}
+          />
+          <IconButton
+            label="重命名当前图纸"
+            icon={<Pencil />}
+            variant="neutral-ghost"
+            disabled={!currentDiagram || !onRenameDiagram}
+            onClick={() => { if (currentDiagram) beginRename(currentDiagram) }}
+          />
+        </div>
+      ) : null}
       <ul className="hierarchy-tree" role="tree" aria-label="冷却与电力图纸层级">
-        {document.lineSystems.map((lineSystem) => (
+        {visibleDocument.lineSystems.map((lineSystem) => (
           <LineBranch
             {...branchProps}
             key={lineSystem.id}
             lineSystem={lineSystem}
-            document={document}
-            expanded={!collapsedLineSystemIds.has(lineSystem.id)}
+            document={visibleDocument}
+            expanded={Boolean(normalizedMonitorQuery) || !collapsedLineSystemIds.has(lineSystem.id)}
             onToggleLine={toggleLine}
           />
         ))}
       </ul>
+      {visibleDocument.lineSystems.length === 0 ? (
+        <p className="monitor-tree-empty">没有匹配的图纸</p>
+      ) : null}
     </section>
   )
 }, (previous, next) => (

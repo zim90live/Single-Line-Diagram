@@ -61,9 +61,9 @@ describe('monitor diagram drill-down mapping', () => {
   it('maps Tap-off Unit A and the left UPS bank to their named child diagrams', () => {
     const tapA = element('tap-a', 'cabinet', 200)
     const tapB = element('tap-b', 'cabinet-b', 400)
-    const leftUpsA = element('ups-left-a', 'ups', 0)
+    const leftUpsA = element('ups-left-a', 'ups-group', 0)
     const leftUpsB = element('ups-left-b', 'ups', 0)
-    const rightUps = element('ups-right', 'ups', 600)
+    const rightUps = element('ups-right', 'ups-group', 600)
     const document = {
       diagrams: [
         diagram('pod', 'POD A'),
@@ -82,11 +82,10 @@ describe('monitor diagram drill-down mapping', () => {
       diagramId: 'ups-left',
       diagramName: 'UPS L',
     })
-    expect(resolveMonitorDrillDownTarget(document, 'pod', leftUpsB)?.diagramId).toBe('ups-left')
+    expect(resolveMonitorDrillDownTarget(document, 'pod', leftUpsB)).toBeNull()
     expect(resolveMonitorDrillDownTarget(document, 'pod', rightUps)).toBeNull()
     expect(parentElementsLinkedToDiagram(document, 'ups-left').map((item) => item.id)).toEqual([
       'ups-left-a',
-      'ups-left-b',
     ])
   })
 

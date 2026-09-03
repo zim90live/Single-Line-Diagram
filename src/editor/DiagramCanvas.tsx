@@ -30,7 +30,7 @@ import type {
   MonitorMetric,
   RouteWaypoint,
 } from '../domain/project'
-import { BUSBAR_MIN_LENGTH } from '../domain/project'
+import { BUSBAR_MIN_LENGTH, resolvedElementOnOffState } from '../domain/project'
 import {
   buildMonitorStaticFlowLineGroups,
   deriveInactiveFlowPaths,
@@ -207,10 +207,10 @@ import {
   BusbarTapVisual,
   BusbarLabelItem,
   ConnectionBridgeCasing,
-  ConnectionDirectionArrow,
   ConnectionLabelItem,
   CoolingPipeShell,
   CoolingPipeInnerShadowFilter,
+  DiagramConnectionVisual,
   DiagramElementVisual,
   ElementLabelItem,
   MonitorStaticFlowLines,
@@ -573,28 +573,24 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
   edgeNodes,
 }: ConnectionEdgeItemProps) {
   return (
-    <g
-      ref={(node) => {
-        if (node) edgeNodes.current.set(edgeId, node)
-        else edgeNodes.current.delete(edgeId)
-      }}
-      className="connection-edge"
-      data-edge-id={edgeId}
-      data-network-id={networkId}
-      data-connection-type={type}
-      data-flow-direction={flowDirection}
-      data-cooling-line-role={isCoolingConnectionType(type)
+    <DiagramConnectionVisual
+      edgeId={edgeId}
+      networkId={networkId}
+      type={type}
+      color={color}
+      flowDirection={flowDirection}
+      coolingLineRole={isCoolingConnectionType(type)
         ? coolingLineRole ?? 'primary'
         : undefined}
-      data-selected={selected || undefined}
-      data-interactive={interactive || undefined}
-      style={color ? { '--connection-color': color } as CSSProperties : undefined}
-    >
-      {selected && isCoolingConnectionType(type) ? (
+      selected={selected}
+      interactive={interactive}
+      linePath={linePath}
+      directionArrowPath={directionArrowPath}
+      nodeRegistry={edgeNodes}
+      lineUnderlay={selected && isCoolingConnectionType(type) ? (
         <path className="connection-edge__cooling-selection" d={linePath} />
       ) : null}
-      <path className="connection-edge__line" d={linePath} />
-      <ConnectionDirectionArrow path={directionArrowPath} />
+    >
       <path
         className="connection-edge__hit"
         d={linePath}
@@ -617,7 +613,7 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
           : undefined}
         onPointerLeave={interactive ? () => leaveEdge.current() : undefined}
       />
-    </g>
+    </DiagramConnectionVisual>
   )
 })
 
@@ -1044,7 +1040,9 @@ function createElement(
     rotation: 0,
     monitorDataVisible: false,
     monitorMetrics: [],
-    ...(symbolSupportsOnOffState(symbol) ? { onOffState: 'off' as const } : {}),
+    ...(symbolSupportsOnOffState(symbol)
+      ? { onOffState: symbol.defaultState ?? 'off' as const }
+      : {}),
     properties: {
       tag: nextDeviceIdentifier(symbol.name, diagramId, elements),
     },
@@ -2601,6 +2599,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       assets,
       resolvedBusbarTapOffsets: renderedRoutedConnections.resolvedBusbarTapOffsets,
       runtime,
+      animationPlaying,
     })
     const monitorDisplayedRoutePaths = useMemo(() => createDisplayedRoutePaths(
       visibleRoutes,
@@ -4188,7 +4187,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     ) => {
       const element = committedElementsRef.current.find((candidate) => candidate.id === elementId)
       if (!element) return
-      const visualState: SymbolVisualState = elementSupportsOnOffState(element) && onOffStates[elementId]
+      const visualState: SymbolVisualState = elementSupportsOnOffState(element) &&
+        resolvedElementOnOffState(element, onOffStates[elementId])
         ? 'on'
         : 'off'
       const activeSlot = symbolColorSlotForElement(element, visualState)
@@ -4525,7 +4525,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           if (currentColor !== target.color) continue
           if (previewColor === null) previewElementColorsRef.current.delete(element.id)
           else previewElementColorsRef.current.set(element.id, { slot, color: previewColor })
-          const visualState: SymbolVisualState = elementSupportsOnOffState(element) && onOffStates[element.id]
+          const visualState: SymbolVisualState = elementSupportsOnOffState(element) &&
+            resolvedElementOnOffState(element, onOffStates[element.id])
             ? 'on'
             : 'off'
           if (slot === symbolColorSlotForElement(element, visualState)) {
@@ -6698,7 +6699,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     } as CSSProperties
     const visibleElementPresentations = visibleElements.map((element) => {
       const symbol = symbolsByKey.get(element.assetKey)
-      const visualState: SymbolVisualState = elementSupportsOnOffState(element) && onOffStates[element.id]
+      const visualState: SymbolVisualState = elementSupportsOnOffState(element) &&
+        resolvedElementOnOffState(element, onOffStates[element.id])
         ? 'on'
         : 'off'
       const activeColorSlot = symbolColorSlotForElement(element, visualState)
@@ -7335,7 +7337,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                     pressAnchor={pressAnchorRef}
                     coolingPumpRunning={coolingPumpRunningStates[element.id] ?? true}
                     coolingValveOpen={symbolSupportsOnOffState(symbol)
-                      ? onOffStates[element.id] ?? false
+                      ? resolvedElementOnOffState(element, onOffStates[element.id])
                       : coolingValveOpenStates[element.id] ?? true}
                     hoverElement={hoverElementRef}
                     drillDownTarget={monitorDrillDownTargets[element.id]}

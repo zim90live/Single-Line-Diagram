@@ -9,7 +9,10 @@ import {
 
 import {
   EDITOR_GRID_SIZE,
+  resolvedElementMonitorInteraction,
+  resolvedElementOnOffState,
   type AnchorType,
+  type AssetDefinition,
   type Busbar,
   type ConnectionEdge,
   type ConnectionNetwork,
@@ -50,8 +53,11 @@ import {
   symbolsByKey,
   type SymbolColorSlot,
 } from '../scene/symbolCatalog'
-import { Button, NumericField, SelectField, TextField } from './ui'
+import { DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT } from '../monitoring/coolingRuntime'
+import { Button, NumericField, Pressable, SelectField, Switch, TextField } from './ui'
 import { MonitorMetricsEditor } from './MonitorMetricsEditor'
+import { InspectorHeading } from './InspectorHeading'
+import { CoolingPumpControls } from './CoolingPumpControls'
 
 interface PropertiesPanelProps {
   selectedElements: DiagramElement[]
@@ -72,6 +78,7 @@ interface PropertiesPanelProps {
   canvasElements?: DiagramElement[]
   canvasBusbars?: Busbar[]
   canvasConnections?: ConnectionNetwork[]
+  assetsByKey?: ReadonlyMap<string, AssetDefinition>
   onPatch: (elementId: string, patch: Partial<DiagramElement>) => void
   onPatchElements?: (elementIds: string[], patch: Partial<DiagramElement>) => void
   onPatchElementMetrics?: (elementIds: string[], metrics: MonitorMetric[]) => void
@@ -85,6 +92,8 @@ interface PropertiesPanelProps {
   onOffStates?: Record<string, boolean>
   onOnOffStateChange?: (elementId: string, on: boolean) => void
   onOnOffStatesChange?: (elementIds: string[], on: boolean) => void
+  onCoolingPumpRunningChange?: (elementId: string, running: boolean) => void
+  onCoolingPumpOutputPowerChange?: (elementId: string, outputPower: number) => void
   onColorPreview: (
     elementId: string,
     color: string | null,
@@ -162,16 +171,14 @@ function PropertyToggle({
         <span>{label}</span>
         <small>{description}</small>
       </div>
-      <button
-        type="button"
-        className="property-toggle__control"
-        role="switch"
-        aria-label={label}
-        aria-checked={checked}
-        onClick={() => onChange(checked === 'mixed' ? true : !checked)}
-      >
-        <span aria-hidden="true" />
-      </button>
+      <Switch
+        className="property-toggle__switch"
+        label={<span className="visually-hidden">{label}</span>}
+        checked={checked === true}
+        indeterminate={checked === 'mixed'}
+        indicatorPosition="end"
+        onChange={(event) => onChange(event.currentTarget.checked)}
+      />
     </div>
   )
 }
@@ -369,8 +376,7 @@ function CommittedColorField({
         ) : null}
       </div>
       <div className="property-color-field__control">
-        <button
-          type="button"
+        <Pressable
           className="property-color-field__swatch-button"
           aria-label={`打开${label}选择器`}
           aria-expanded={pickerOpen}
@@ -384,7 +390,7 @@ function CommittedColorField({
             style={{ backgroundColor: draft }}
             aria-hidden="true"
           />
-        </button>
+        </Pressable>
         <span className="property-color-field__mode">{showMixed ? 'HEX · 多值' : 'HEX'}</span>
         <input
           className="property-color-field__hex"
@@ -568,8 +574,7 @@ function CanvasColorOverview({
                     : section.label
                   return (
                     <div className="canvas-color-overview__item" key={key}>
-                      <button
-                        type="button"
+                      <Pressable
                         className="canvas-color-overview__color-button"
                         aria-label={`全局修改${targetLabel}颜色 ${group.color}`}
                         aria-expanded={active}
@@ -585,7 +590,7 @@ function CanvasColorOverview({
                           <code>{group.color}</code>
                         </span>
                         <span>{group.count} {section.unit}</span>
-                      </button>
+                      </Pressable>
                       {active ? (
                         <CommittedColorField
                           selectionKey={`canvas:${key}`}
@@ -630,6 +635,7 @@ export function PropertiesPanel({
   canvasElements = [],
   canvasBusbars = [],
   canvasConnections = [],
+  assetsByKey = new Map(),
   onPatch,
   onPatchElements = () => undefined,
   onPatchElementMetrics = () => undefined,
@@ -643,6 +649,8 @@ export function PropertiesPanel({
   onOffStates = {},
   onOnOffStateChange = () => undefined,
   onOnOffStatesChange = () => undefined,
+  onCoolingPumpRunningChange = () => undefined,
+  onCoolingPumpOutputPowerChange = () => undefined,
   onColorPreview,
   onSelectionColorPreview,
   onSelectionColorCommit,
@@ -661,10 +669,12 @@ export function PropertiesPanel({
   ) {
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>画布颜色</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="画布"
+          tag="颜色概览"
+          title="画布颜色"
+        />
         <CanvasColorOverview
           elements={canvasElements}
           busbars={canvasBusbars}
@@ -685,12 +695,14 @@ export function PropertiesPanel({
   ) {
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>{selectedJunctionCount} 个节点</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="属性"
+          tag={`${selectedJunctionCount} 个节点`}
+          title="线路节点"
+        />
         <div className="multi-selection-summary">
-          <strong>线路节点</strong>
+          <strong>节点操作</strong>
           <p>双击可继续接线；删除二连节点会恢复局部自动布线，删除三连及以上节点会移除相关连线。</p>
           <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除节点</Button>
         </div>
@@ -706,14 +718,16 @@ export function PropertiesPanel({
   ) {
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>{selectedRouteWaypointMaxReferenceCount > 1
-            ? `共享节点 · ${selectedRouteWaypointMaxReferenceCount} 条子线`
-            : `${selectedRouteWaypointCount} 个节点`}</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="属性"
+          tag={selectedRouteWaypointMaxReferenceCount > 1
+            ? `共享 · ${selectedRouteWaypointMaxReferenceCount} 条子线`
+            : `${selectedRouteWaypointCount} 个节点`}
+          title="线路节点"
+        />
         <div className="multi-selection-summary">
-          <strong>线路节点</strong>
+          <strong>节点操作</strong>
           <p>双击可继续接线；共享节点的移动或删除会同步作用于所有引用子线。</p>
           <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除节点</Button>
         </div>
@@ -825,10 +839,12 @@ export function PropertiesPanel({
     ].sort().join(':')
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>{heading}</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="线路属性"
+          tag={combined ? '混合选择' : '当前选择'}
+          title={heading}
+        />
         <div className="property-form" key={selectionKey}>
           {busbarCount > 1 && connectionCount === 0 ? (
             <PropertyToggle
@@ -1209,8 +1225,13 @@ export function PropertiesPanel({
       !isGenericSymbolKey(element.assetKey)
     ))
     const allSupportOnOff = selectedSymbols.every((symbol) => symbolSupportsOnOffState(symbol))
+    const allRunningStandby = allSupportOnOff && selectedSymbols.every((symbol) => (
+      symbol?.stateMode === 'running-standby'
+    ))
     const allConfigurableColor = selectedSymbols.every((symbol) => symbol?.configurableColor === true)
-    const stateValues = selectedElements.map((element) => onOffStates[element.id] ?? false)
+    const stateValues = selectedElements.map((element) => (
+      resolvedElementOnOffState(element, onOffStates[element.id])
+    ))
     const stateValue = mixedBoolean(stateValues)
     const heading = sameAssetType
       ? `${selectedElements.length} 个 ${selectedSymbols[0]?.name ?? selectedElements[0].name}`
@@ -1257,10 +1278,12 @@ export function PropertiesPanel({
     }
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>{heading}</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="图元属性"
+          tag="批量编辑"
+          title={heading}
+        />
         <div className="property-form" key={selectionKey}>
           {allUseExternalLabel ? (
             <PropertyToggle
@@ -1296,18 +1319,30 @@ export function PropertiesPanel({
           />
           {allSupportOnOff ? (
             <PropertyToggle
-              label="运行状态"
+              label={allRunningStandby ? '运行/待机状态' : '运行状态'}
               description={stateValue === 'mixed'
-                ? '所选设备包含开启与关闭两种状态'
-                : stateValue ? '所选设备当前均为 On' : '所选设备当前均为 Off'}
+                ? allRunningStandby
+                  ? '所选设备包含运行与待机两种状态'
+                  : '所选设备包含开启与关闭两种状态'
+                : allRunningStandby
+                  ? stateValue ? '所选设备当前均在运行' : '所选设备当前均为待机'
+                  : stateValue ? '所选设备当前均为 On' : '所选设备当前均为 Off'}
               checked={stateValue}
               onChange={(on) => onOnOffStatesChange(elementIds, on)}
             />
           ) : null}
           {allSupportOnOff ? (
             <>
-              {renderColorField('switch-off', '关状态颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)}
-              {renderColorField('switch-on', '开状态颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)}
+              {renderColorField(
+                'switch-off',
+                allRunningStandby ? '待机状态颜色' : '关状态颜色',
+                DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+              )}
+              {renderColorField(
+                'switch-on',
+                allRunningStandby ? '运行状态颜色' : '开状态颜色',
+                DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+              )}
             </>
           ) : sameAssetType && allConfigurableColor ? (
             renderColorField('default', allGeneric ? '虚线框颜色' : '图元颜色', DEFAULT_CONFIGURABLE_SYMBOL_COLOR)
@@ -1337,10 +1372,12 @@ export function PropertiesPanel({
       selectedRouteWaypointCount + selectedJunctionCount
     return (
       <aside className="properties-panel" aria-labelledby="properties-title">
-        <div className="panel-heading properties-heading">
-          <h2 id="properties-title">属性</h2>
-          <span>{objectCount} 个对象</span>
-        </div>
+        <InspectorHeading
+          id="properties-title"
+          eyebrow="属性"
+          tag={`${objectCount} 个对象`}
+          title="多个对象"
+        />
         <div className="multi-selection-summary">
           <strong>已选择多个对象</strong>
           <p>{selectedRouteWaypointCount > 0 || selectedJunctionCount > 0
@@ -1354,11 +1391,14 @@ export function PropertiesPanel({
 
   const element = selectedElements[0]
   const symbol = symbolsByKey.get(element.assetKey)
+  const asset = assetsByKey.get(element.assetKey)
+  const isCoolingPump = asset?.coolingDeviceRole === 'pump'
   const isGeneric = isGenericSymbolKey(element.assetKey)
   const scale = symbol ? element.width / symbol.intrinsicWidth : 1
   const scaleStep = symbol && !isGeneric ? getSymbolScaleStep(symbol, EDITOR_GRID_SIZE) : 1
   const supportsOnOffState = symbolSupportsOnOffState(symbol)
-  const stateOn = onOffStates[element.id] ?? false
+  const stateOn = resolvedElementOnOffState(element, onOffStates[element.id])
+  const runningStandbyState = symbol?.stateMode === 'running-standby'
   const symbolColor = normalizeSymbolColor(element.properties.color)
   const hasCustomColor = typeof element.properties.color === 'string'
   const genericBackgroundColor = resolvedGenericSymbolBackgroundColor(element)
@@ -1383,10 +1423,13 @@ export function PropertiesPanel({
   }
   return (
     <aside className="properties-panel" aria-labelledby="properties-title">
-      <div className="panel-heading properties-heading">
-        <h2 id="properties-title">属性</h2>
-        <span>单个图元</span>
-      </div>
+      <InspectorHeading
+        id="properties-title"
+        eyebrow="图元属性"
+        tag="单个图元"
+        title={String(element.properties.tag ?? '').trim() || element.name}
+        description={symbol?.name ?? element.name}
+      />
       <div className="property-form" key={element.id}>
         <CommittedTextField
           label="名称"
@@ -1442,12 +1485,38 @@ export function PropertiesPanel({
           metrics={element.monitorMetrics ?? []}
           onChange={(monitorMetrics) => onPatch(element.id, { monitorMetrics })}
         />
+        {element.assetKey === 'switch' ? (
+          <SelectField
+            label="监控点击行为"
+            value={resolvedElementMonitorInteraction(element)}
+            onChange={(event) => onPatch(element.id, {
+              monitorInteraction: event.target.value as DiagramElement['monitorInteraction'],
+            })}
+          >
+            <option value="control">控制开关</option>
+            <option value="device-panel">显示设备面板</option>
+          </SelectField>
+        ) : null}
+        {isCoolingPump ? (
+          <CoolingPumpControls
+            running={element.coolingPumpRunning ?? true}
+            outputPower={element.coolingPumpOutputPower ??
+              DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT}
+            note="启停状态和输出功率随项目保存。"
+            onRunningChange={(running) => onCoolingPumpRunningChange(element.id, running)}
+            onOutputPowerChange={(outputPower) => (
+              onCoolingPumpOutputPowerChange(element.id, outputPower)
+            )}
+          />
+        ) : null}
         {supportsOnOffState ? (
           <PropertyToggle
-            label={`${symbol.name} 开关状态`}
-            description={element.assetKey === 'switch'
-              ? stateOn ? '当前闭合 · On' : '当前断开 · Off'
-              : stateOn ? '当前开启 · On' : '当前关闭 · Off'}
+            label={runningStandbyState ? `${symbol.name} 运行状态` : `${symbol.name} 开关状态`}
+            description={runningStandbyState
+              ? stateOn ? '当前运行' : '当前待机'
+              : element.assetKey === 'switch'
+                ? stateOn ? '当前闭合 · On' : '当前断开 · Off'
+                : stateOn ? '当前开启 · On' : '当前关闭 · Off'}
             checked={stateOn}
             onChange={(on) => onOnOffStateChange(element.id, on)}
           />
@@ -1456,7 +1525,9 @@ export function PropertiesPanel({
           <>
             <CommittedColorField
               selectionKey={`${element.id}:switch-off`}
-              label={`${symbol.name} 关状态颜色`}
+              label={runningStandbyState
+                ? `${symbol.name} 待机状态颜色`
+                : `${symbol.name} 关状态颜色`}
               value={resolvedSymbolColorForSlot(element, 'switch-off')}
               fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
               hasCustomColor={typeof element.properties.switchOffColor === 'string'}
@@ -1470,7 +1541,9 @@ export function PropertiesPanel({
             />
             <CommittedColorField
               selectionKey={`${element.id}:switch-on`}
-              label={`${symbol.name} 开状态颜色`}
+              label={runningStandbyState
+                ? `${symbol.name} 运行状态颜色`
+                : `${symbol.name} 开状态颜色`}
               value={resolvedSymbolColorForSlot(element, 'switch-on')}
               fallback={DEFAULT_CONFIGURABLE_SYMBOL_COLOR}
               hasCustomColor={typeof element.properties.switchOnColor === 'string'}

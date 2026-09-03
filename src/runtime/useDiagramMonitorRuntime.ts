@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 
-import type {
-  AssetDefinition,
-  Busbar,
-  ConnectionNetwork,
-  DiagramElement,
-  LineSystemType,
+import {
+  elementUsesRunningStandbyState,
+  type AssetDefinition,
+  type Busbar,
+  type ConnectionNetwork,
+  type DiagramElement,
+  type LineSystemType,
 } from '../domain/project'
 import {
   evaluateMonitorMetricAlarm,
@@ -15,9 +16,10 @@ import {
   derivePowerFlowTopology,
   type PowerFlowTopology,
 } from '../monitoring/flowTopology'
-import { evaluateCoolingRuntime } from './runtimeState'
+import { applyDemoDeviceStatesToRuntime, evaluateCoolingRuntime } from './runtimeState'
 import type { DiagramRuntimeContext } from './types'
-import { useMonitorMetricReadings } from './useMonitorMetricReadings'
+import { defaultDemoMonitorMetricDataProvider } from './demoMetricDataProvider'
+import { useMonitorMetricRuntimeSnapshot } from './useMonitorMetricReadings'
 
 function emptyPowerFlowTopology(): PowerFlowTopology {
   return { edges: [], busbarSegments: [], energizedElementIds: new Set<string>() }
@@ -32,6 +34,7 @@ export function useDiagramMonitorRuntime({
   assets,
   resolvedBusbarTapOffsets,
   runtime,
+  animationPlaying = true,
 }: {
   enabled: boolean
   lineSystemType: LineSystemType
@@ -41,23 +44,65 @@ export function useDiagramMonitorRuntime({
   assets: AssetDefinition[]
   resolvedBusbarTapOffsets: Record<string, number>
   runtime: DiagramRuntimeContext
+  animationPlaying?: boolean
 }) {
-  const metricOwners = useMemo(() => [
-    ...elements,
+  const metricProvider = runtime.providers?.metrics ?? defaultDemoMonitorMetricDataProvider
+  const sourceMetricOwners = useMemo(() => [
+    ...elements.map((element) => {
+      const role = assets.find((asset) => asset.key === element.assetKey)?.coolingDeviceRole
+      const runtimeOperation = role === 'pump'
+        ? (runtime.state.coolingPumpRunningStates[element.id] ?? true) ? 'running' as const : 'stopped' as const
+        : elementUsesRunningStandbyState(element)
+          ? (runtime.state.onOffStates[element.id] ?? true) ? 'running' as const : 'standby' as const
+        : ['switch', '2-wv', 'cv'].includes(element.assetKey)
+          ? (runtime.state.onOffStates[element.id] ?? false) ? 'on' as const : 'off' as const
+          : role === 'valve' || role === 'check-valve'
+            ? (runtime.state.coolingValveOpenStates[element.id] ?? true) ? 'on' as const : 'off' as const
+            : undefined
+      return runtimeOperation ? { ...element, runtimeOperation } : element
+    }),
     ...connections.flatMap((network) => network.edges),
-  ], [connections, elements])
-  const monitorMetricReadings = useMonitorMetricReadings(
+  ], [assets, connections, elements, runtime.state])
+  const metricOwners = useMemo(() => (
+    enabled
+      ? metricProvider.prepareOwners?.(sourceMetricOwners) ?? sourceMetricOwners
+      : sourceMetricOwners
+  ), [enabled, metricProvider, sourceMetricOwners])
+  const metricRuntimeSnapshot = useMonitorMetricRuntimeSnapshot(
     enabled,
     metricOwners,
-    runtime.providers?.metrics,
+    metricProvider,
+    animationPlaying,
   )
+  const monitorMetricReadings = metricRuntimeSnapshot.readings
+  const preparedOwnersById = useMemo(
+    () => new Map(metricOwners.map((owner) => [owner.id, owner])),
+    [metricOwners],
+  )
+  const metricElements = useMemo(() => elements.map((element) => (
+    preparedOwnersById.get(element.id) as DiagramElement | undefined ?? element
+  )), [elements, preparedOwnersById])
+  const metricConnections = useMemo(() => connections.map((network) => ({
+    ...network,
+    edges: network.edges.map((edge) => (
+      preparedOwnersById.get(edge.id) as typeof edge | undefined ?? edge
+    )),
+  })), [connections, preparedOwnersById])
+  const effectiveRuntimeState = useMemo(() => {
+    return applyDemoDeviceStatesToRuntime({
+      state: runtime.state,
+      elements,
+      assets,
+      deviceStates: metricRuntimeSnapshot.deviceStates,
+    })
+  }, [assets, elements, metricRuntimeSnapshot.deviceStates, runtime.state])
   const powerFlowTopology = useMemo(() => lineSystemType === 'power'
     ? derivePowerFlowTopology({
         elements,
         busbars,
         networks: connections,
-        switchStates: runtime.state.onOffStates,
-        externalSupply: runtime.state.powerExternalSupplyActive,
+        switchStates: effectiveRuntimeState.onOffStates,
+        externalSupply: effectiveRuntimeState.powerExternalSupplyActive,
         resolvedBusbarTapOffsets,
       })
     : emptyPowerFlowTopology(), [
@@ -66,15 +111,15 @@ export function useDiagramMonitorRuntime({
       elements,
       lineSystemType,
       resolvedBusbarTapOffsets,
-      runtime.state.onOffStates,
-      runtime.state.powerExternalSupplyActive,
+      effectiveRuntimeState.onOffStates,
+      effectiveRuntimeState.powerExternalSupplyActive,
     ])
   const coolingRuntime = useMemo(() => evaluateCoolingRuntime({
     active: enabled && lineSystemType === 'cooling',
     elements,
     assets,
     connections,
-    state: runtime.state,
+    state: effectiveRuntimeState,
     provider: runtime.providers?.cooling,
   }), [
     assets,
@@ -83,7 +128,7 @@ export function useDiagramMonitorRuntime({
     enabled,
     lineSystemType,
     runtime.providers?.cooling,
-    runtime.state,
+    effectiveRuntimeState,
   ])
   const metricReadings = useMemo(() => {
     if (!enabled || lineSystemType !== 'cooling') return monitorMetricReadings
@@ -96,11 +141,25 @@ export function useDiagramMonitorRuntime({
         if (metric.valueType !== 'number' || !/(流量|flow)/i.test(metric.name)) continue
         const factor = 10 ** metric.precision
         const value = Math.round(flowRate * factor) / factor
-        next[monitorMetricReadingKey(element.id, metric.id)] = {
+        const key = monitorMetricReadingKey(element.id, metric.id)
+        const current = next[key]
+        const severityFactor = current?.severity === 'critical'
+          ? 0.25
+          : current?.severity === 'major'
+            ? 0.6
+            : current?.severity === 'minor'
+              ? 0.82
+              : 1
+        const resolvedValue = current?.value === '--'
+          ? '--'
+          : value * severityFactor
+        next[key] = {
           elementId: element.id,
           metricId: metric.id,
-          value,
-          severity: evaluateMonitorMetricAlarm(metric, value),
+          value: typeof resolvedValue === 'number'
+            ? Math.round(resolvedValue * factor) / factor
+            : resolvedValue,
+          severity: current?.severity ?? evaluateMonitorMetricAlarm(metric, value),
         }
       }
     }
@@ -119,5 +178,10 @@ export function useDiagramMonitorRuntime({
     coolingRuntimeSnapshot: coolingRuntime.snapshot,
     coolingFlowTopology: coolingRuntime.topology,
     metricReadings,
+    metricElements,
+    metricConnections,
+    metricDeviceStates: metricRuntimeSnapshot.deviceStates,
+    metricTimestamp: metricRuntimeSnapshot.timestamp,
+    effectiveRuntimeState,
   }
 }

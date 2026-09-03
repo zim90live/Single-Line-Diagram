@@ -2,7 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Busbar, ConnectionEdge, ConnectionNetwork, DiagramElement } from '../domain/project'
+import type {
+  AssetDefinition,
+  Busbar,
+  ConnectionEdge,
+  ConnectionNetwork,
+  DiagramElement,
+} from '../domain/project'
 import { GENERIC_SYMBOL_DEFAULT_BACKGROUND_COLOR } from '../editor/genericSymbol'
 import { defaultConnectionColor } from '../editor/objectColors'
 import { DEFAULT_CONFIGURABLE_SYMBOL_COLOR } from '../editor/symbolCatalog'
@@ -433,6 +439,119 @@ describe('PropertiesPanel color property', () => {
     expect(onPatch).toHaveBeenCalledOnce()
     expect(onPatch).toHaveBeenLastCalledWith('tap-off-unit-element', {
       properties: { color: '#77B4BF' },
+    })
+  })
+
+  it.each([
+    { assetKey: 'supply', symbolName: 'Supply' },
+    { assetKey: 'load', symbolName: 'Load' },
+  ])('controls $symbolName running/standby state and colors independently', async ({
+    assetKey,
+    symbolName,
+  }) => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const onColorPreview = vi.fn()
+    const onOnOffStateChange = vi.fn()
+    const current = element(assetKey, {
+      switchOffColor: '#556677',
+      switchOnColor: '#77B4BF',
+    })
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onPatch={onPatch}
+        onColorPreview={onColorPreview}
+        onOnOffStateChange={onOnOffStateChange}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const stateToggle = screen.getByRole('switch', { name: `${symbolName} 运行状态` })
+    expect(stateToggle).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('当前运行')).toBeInTheDocument()
+    await user.click(stateToggle)
+    expect(onOnOffStateChange).toHaveBeenCalledWith(current.id, false)
+
+    const standbyColor = screen.getByLabelText(`${symbolName} 待机状态颜色 HEX`)
+    const runningColor = screen.getByLabelText(`${symbolName} 运行状态颜色 HEX`)
+    expect(standbyColor).toHaveValue('#556677')
+    expect(runningColor).toHaveValue('#77B4BF')
+    fireEvent.change(runningColor, { target: { value: '#88aacc' } })
+    expect(onColorPreview).toHaveBeenLastCalledWith(current.id, '#88AACC', 'switch-on')
+    fireEvent.blur(runningColor)
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      properties: {
+        switchOffColor: '#556677',
+        switchOnColor: '#88AACC',
+      },
+    })
+  })
+
+  it('edits persisted pump running state and output power for pump assets', async () => {
+    const user = userEvent.setup()
+    const onCoolingPumpRunningChange = vi.fn()
+    const onCoolingPumpOutputPowerChange = vi.fn()
+    const pump = {
+      ...element('chwp', { tag: 'CHWP-01' }),
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 42,
+    }
+    const pumpAsset: AssetDefinition = {
+      key: 'chwp',
+      name: 'CHWP',
+      category: '冷却',
+      source: 'CHWP.png',
+      intrinsicWidth: 200,
+      intrinsicHeight: 80,
+      coolingDeviceRole: 'pump',
+      anchors: [],
+    }
+    render(
+      <PropertiesPanel
+        selectedElements={[pump]}
+        {...emptySelectionProps}
+        assetsByKey={new Map([[pumpAsset.key, pumpAsset]])}
+        onPatch={vi.fn()}
+        onCoolingPumpRunningChange={onCoolingPumpRunningChange}
+        onCoolingPumpOutputPowerChange={onCoolingPumpOutputPowerChange}
+        onColorPreview={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    const stateToggle = screen.getByRole('switch', { name: '水泵运行状态' })
+    expect(stateToggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByLabelText('水泵输出功率滑块')).toHaveValue('42')
+    expect(screen.getByText('启停状态和输出功率随项目保存。')).toBeInTheDocument()
+
+    await user.click(stateToggle)
+    expect(onCoolingPumpRunningChange).toHaveBeenCalledWith(pump.id, true)
+    fireEvent.change(screen.getByLabelText('水泵输出功率滑块'), {
+      target: { value: '65' },
+    })
+    expect(onCoolingPumpOutputPowerChange).toHaveBeenCalledWith(pump.id, 65)
+  })
+
+  it('configures each Switch monitor click behavior independently', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const current = element('switch', { tag: 'MLVR307-6B-HD01' })
+    render(
+      <PropertiesPanel
+        selectedElements={[current]}
+        {...emptySelectionProps}
+        onPatch={onPatch}
+        onColorPreview={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('监控点击行为')).toHaveValue('control')
+    await user.selectOptions(screen.getByLabelText('监控点击行为'), 'device-panel')
+    expect(onPatch).toHaveBeenLastCalledWith(current.id, {
+      monitorInteraction: 'device-panel',
     })
   })
 

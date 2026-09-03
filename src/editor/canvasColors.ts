@@ -91,11 +91,14 @@ export function collectCanvasColorGroups(
   const connectionColors = new Map<string, number>()
 
   for (const element of elements) {
-    const symbolName = symbolsByKey.get(element.assetKey)?.name ?? element.name
+    const symbol = symbolsByKey.get(element.assetKey)
+    const symbolName = symbol?.name ?? element.name
+    const inactiveStateLabel = symbol?.stateMode === 'running-standby' ? '待机' : '关'
+    const activeStateLabel = symbol?.stateMode === 'running-standby' ? '运行' : '开'
     const slots: Array<{ slot: SymbolColorSlot; scopeLabel?: string }> = elementSupportsOnOffState(element)
       ? [
-          { slot: 'switch-off', scopeLabel: `${symbolName} 关` },
-          { slot: 'switch-on', scopeLabel: `${symbolName} 开` },
+          { slot: 'switch-off', scopeLabel: `${symbolName} ${inactiveStateLabel}` },
+          { slot: 'switch-on', scopeLabel: `${symbolName} ${activeStateLabel}` },
         ]
       : [{ slot: 'default' }]
     for (const { slot, scopeLabel } of slots) {

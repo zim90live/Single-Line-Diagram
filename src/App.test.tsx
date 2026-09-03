@@ -280,11 +280,11 @@ describe('AIDC editor workspace', () => {
     })
     document.elements.push(
       {
-        id: 'ups-left', diagramId: pod.id, assetKey: 'ups', name: 'UPS',
+        id: 'ups-left', diagramId: pod.id, assetKey: 'ups-group', name: 'UPS Group',
         x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
       },
       {
-        id: 'ups-right', diagramId: pod.id, assetKey: 'ups', name: 'UPS',
+        id: 'ups-right', diagramId: pod.id, assetKey: 'ups-group', name: 'UPS Group',
         x: 160, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
       },
     )
@@ -374,10 +374,68 @@ describe('AIDC editor workspace', () => {
     save.mockRestore()
   })
 
-  it('switches to a read-only monitor workspace and snapshots On/Off states into the project', async () => {
+  it('edits and saves pump controls from the edit properties panel', async () => {
+    const user = userEvent.setup()
+    const saveProject = vi.spyOn(projectRepository, 'save').mockResolvedValue()
+    const before = useAppStore.getState()
+    useAppStore.setState({
+      document: {
+        ...before.document,
+        assets: before.document.assets.map((asset) => asset.key === 'chwp'
+          ? { ...asset, coolingDeviceRole: 'pump' as const }
+          : asset),
+        elements: [{
+          id: 'pump-test',
+          diagramId: before.currentDiagramId,
+          assetKey: 'chwp',
+          name: 'CHWP',
+          x: 80,
+          y: 0,
+          width: 40,
+          height: 16,
+          rotation: 0,
+          properties: { tag: 'CHWP-01' },
+          extensions: {},
+        }],
+      },
+      selectedElementIds: ['pump-test'],
+      dirty: false,
+    })
+    renderApp()
+
+    expect(screen.getByTestId('diagram-canvas')).toHaveAttribute('data-mode', 'edit')
+    expect(screen.getByRole('switch', { name: '水泵运行状态' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    fireEvent.change(screen.getByLabelText('水泵输出功率滑块'), {
+      target: { value: '55' },
+    })
+    await user.click(screen.getByRole('switch', { name: '水泵运行状态' }))
+
+    expect(useAppStore.getState().document.elements[0]).toMatchObject({
+      id: 'pump-test',
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 55,
+    })
+    expect(useAppStore.getState().dirty).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(saveProject).toHaveBeenCalledOnce())
+    expect(saveProject.mock.calls[0][0].elements[0]).toMatchObject({
+      id: 'pump-test',
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 55,
+    })
+    expect(useAppStore.getState().dirty).toBe(false)
+    saveProject.mockRestore()
+  })
+
+  it('switches to a read-only monitor workspace and saves On/Off and pump states', async () => {
     const user = userEvent.setup()
     const loadRuntime = vi.spyOn(monitorStateRepository, 'getOnOffStates').mockResolvedValue({})
     const saveRuntime = vi.spyOn(monitorStateRepository, 'setOnOffState').mockResolvedValue()
+    const saveProject = vi.spyOn(projectRepository, 'save').mockResolvedValue()
     const before = useAppStore.getState()
     useAppStore.setState({
       document: {
@@ -438,6 +496,7 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-mode', 'monitor')
     expect(screen.getByLabelText('项目名称')).toBeDisabled()
     expect(screen.queryByText('CHWP')).not.toBeInTheDocument()
+    expect(document.querySelector('.properties-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '播放流动' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '播放流动' }))
@@ -447,6 +506,7 @@ describe('AIDC editor workspace', () => {
     )
 
     await user.click(screen.getByRole('button', { name: '选择测试 Switch' }))
+    expect(document.querySelector('.monitor-properties-panel')).toBeInTheDocument()
     await user.click(screen.getByRole('switch', { name: '开关状态' }))
     await waitFor(() => expect(saveRuntime).toHaveBeenCalledWith(
       beforeDocument.project.id,
@@ -477,14 +537,27 @@ describe('AIDC editor workspace', () => {
     expect(useAppStore.getState().document.elements).toMatchObject([
       { id: 'switch-test', onOffState: 'on' },
       { id: '2-wv-test', onOffState: 'on' },
-      { id: 'pump-test' },
+      {
+        id: 'pump-test',
+        coolingPumpRunning: false,
+        coolingPumpOutputPower: 50,
+      },
     ])
-    expect(useAppStore.getState().document.project.updatedAt)
-      .toBe(beforeDocument.project.updatedAt)
+    expect(useAppStore.getState().dirty).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(saveProject).toHaveBeenCalledOnce())
+    expect(saveProject.mock.calls[0][0].elements.find((element) => (
+      element.id === 'pump-test'
+    ))).toMatchObject({
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 50,
+    })
     expect(useAppStore.getState().dirty).toBe(false)
 
     loadRuntime.mockRestore()
     saveRuntime.mockRestore()
+    saveProject.mockRestore()
   })
 
   it('hydrates only legacy missing On/Off fields from the compatibility state table', async () => {

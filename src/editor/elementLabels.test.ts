@@ -12,6 +12,7 @@ import {
   estimateLabelTextWidth,
   labelPlacementForPointer,
   layoutElementLabels,
+  monitorMetricLabelColumnWidths,
   nextDeviceIdentifier,
 } from './elementLabels'
 
@@ -155,9 +156,9 @@ describe('element label layout', () => {
         unit: '',
         severity: 'critical',
         valueBounds: {
-          x: layout.bounds.x + layout.bounds.width - estimateLabelTextWidth('离线'),
+          x: layout.bounds.x + layout.bounds.width - estimateLabelTextWidth('82.3'),
           y: layout.bounds.y + ELEMENT_LABEL_LINE_HEIGHT,
-          width: estimateLabelTextWidth('离线'),
+          width: estimateLabelTextWidth('82.3'),
           height: ELEMENT_LABEL_LINE_HEIGHT,
         },
       }),
@@ -201,6 +202,76 @@ describe('element label layout', () => {
     )
     expect(valuesOnlyLayout.metricRows[0].valueBounds.x).toBe(valuesOnlyLayout.bounds.x)
     expect(valuesOnlyLayout.metricRows[0].ariaLabel).toContain('出水温度(°C)')
+  })
+
+  it('sizes the running-data column from the longest value only', () => {
+    const current = element({
+      properties: { tag: 'VERY-LONG-DEVICE-IDENTIFIER-THAT-MUST-NOT-STRETCH-DATA' },
+      monitorDataVisible: true,
+      monitorMetrics: [
+        {
+          id: 'long-label',
+          name: '这是一个明显比其他指标更长的指标名称',
+          valueType: 'text',
+          textOptions: [{ id: 'on', value: '开', severity: 'normal' }],
+        },
+        {
+          id: 'long-value',
+          name: '状态',
+          valueType: 'text',
+          textOptions: [{ id: 'offline', value: '设备完全离线', severity: 'critical' }],
+        },
+      ],
+    })
+    const readings = {
+      [monitorMetricReadingKey(current.id, 'long-label')]: {
+        elementId: current.id,
+        metricId: 'long-label',
+        value: '开',
+        severity: 'normal' as const,
+      },
+      [monitorMetricReadingKey(current.id, 'long-value')]: {
+        elementId: current.id,
+        metricId: 'long-value',
+        value: '设备完全离线',
+        severity: 'critical' as const,
+      },
+    }
+    const [layout] = layoutElementLabels(
+      [current],
+      new Map([[asset.key, asset]]),
+      { readings },
+    )
+    const columns = monitorMetricLabelColumnWidths(layout.metricRows)
+    const expectedValueWidth = estimateLabelTextWidth('设备完全离线')
+
+    expect(columns.value).toBe(expectedValueWidth)
+    expect(layout.metricRows.map((row) => row.valueBounds.width))
+      .toEqual([expectedValueWidth, expectedValueWidth])
+    expect(layout.metricRows.map((row) => row.valueBounds.x))
+      .toEqual([layout.metricRows[0].valueBounds.x, layout.metricRows[0].valueBounds.x])
+    expect(layout.metricRows.map((row) => row.valueX))
+      .toEqual([layout.metricRows[0].valueX, layout.metricRows[0].valueX])
+    expect(layout.bounds.width).toBeGreaterThan(columns.total)
+
+    for (const placement of ['top', 'right', 'bottom', 'left'] as const) {
+      const [shortNameLayout] = layoutElementLabels(
+        [{
+          ...current,
+          labelPlacement: placement,
+          properties: { tag: 'SHORT' },
+        }],
+        new Map([[asset.key, asset]]),
+        { readings },
+      )
+      const [longNameLayout] = layoutElementLabels(
+        [{ ...current, labelPlacement: placement }],
+        new Map([[asset.key, asset]]),
+        { readings },
+      )
+      expect(longNameLayout.metricRows[0].valueBounds)
+        .toEqual(shortNameLayout.metricRows[0].valueBounds)
+    }
   })
 
   it('keeps a generic symbol identifier inside the frame while laying metrics outside', () => {

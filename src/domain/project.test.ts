@@ -8,6 +8,7 @@ import {
   getDiagramPath,
   parseProjectDocument,
   projectOnOffStates,
+  resolvedElementMonitorInteraction,
   SCHEMA_VERSION,
   withOnOffStateSnapshot,
 } from './project'
@@ -23,6 +24,41 @@ const asset = {
 }
 
 describe('project document', () => {
+  it('persists per-instance Switch monitor interactions and keeps v33 Switches controllable', () => {
+    const document = createDefaultProject('开关监控交互', [
+      asset,
+      { ...asset, key: 'switch', name: 'Switch' },
+    ])
+    const diagramId = document.lineSystems.find((line) => line.type === 'power')!.rootDiagramId
+    document.elements.push({
+      id: 'panel-switch',
+      diagramId,
+      assetKey: 'switch',
+      name: 'MLVR307-6A-HD01',
+      x: 0,
+      y: 0,
+      width: 32,
+      height: 32,
+      rotation: 0,
+      monitorInteraction: 'device-panel',
+      properties: {},
+      extensions: {},
+    })
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    expect(resolvedElementMonitorInteraction(parsed.elements.at(-1)!)).toBe('device-panel')
+
+    const legacy = JSON.parse(JSON.stringify(document)) as {
+      schemaVersion: number
+      elements: Array<{ monitorInteraction?: string }>
+    }
+    legacy.schemaVersion = 33
+    delete legacy.elements.at(-1)!.monitorInteraction
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(resolvedElementMonitorInteraction(migrated.elements.at(-1)!)).toBe('control')
+  })
+
   it('persists configurable busbar label colors and migrates v32 to the default color', () => {
     expect(busbarSchema.parse({
       id: 'colored-label-busbar',
@@ -409,6 +445,51 @@ describe('project document', () => {
     expect(parseProjectDocument(legacy).elements[0].onOffState).toBeUndefined()
   })
 
+  it('defaults Supply and Load state snapshots to running and preserves standby overrides', () => {
+    const document = createDefaultProject('运行待机状态往返', [
+      { ...asset, key: 'supply', name: 'Supply' },
+      { ...asset, key: 'load', name: 'Load' },
+    ])
+    document.elements = [
+      {
+        id: 'supply-state-test',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'supply',
+        name: 'Supply',
+        x: 0,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'load-state-test',
+        diagramId: document.diagrams[0].id,
+        assetKey: 'load',
+        name: 'Load',
+        x: 64,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+    ]
+
+    expect(projectOnOffStates(document)).toEqual({
+      'supply-state-test': true,
+      'load-state-test': true,
+    })
+    const snapshot = withOnOffStateSnapshot(document, { 'load-state-test': false })
+    expect(snapshot.elements.map((element) => element.onOffState)).toEqual(['on', 'off'])
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(snapshot))).elements.map(
+      (element) => element.onOffState,
+    )).toEqual(['on', 'off'])
+  })
+
   it('round-trips cooling device and pump-port roles and keeps v21 assets unclassified', () => {
     const configured = createDefaultProject('冷却角色往返', [{
       ...asset,
@@ -463,6 +544,50 @@ describe('project document', () => {
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.assets[0].coolingDeviceRole).toBeUndefined()
     expect(migrated.assets[0].anchors[0].flowRole).toBeUndefined()
+  })
+
+  it('round-trips per-instance cooling pump controls and keeps v34 defaults compatible', () => {
+    const document = createDefaultProject('水泵状态往返', [{
+      ...asset,
+      key: 'chwp',
+      name: 'CHWP',
+      category: '冷却',
+      coolingDeviceRole: 'pump' as const,
+    }])
+    document.elements = [{
+      id: 'persisted-pump',
+      diagramId: document.diagrams[0].id,
+      assetKey: 'chwp',
+      name: 'CHWP',
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 16,
+      rotation: 0,
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 42,
+      properties: { tag: 'CHWP-01' },
+      extensions: {},
+    }]
+
+    const parsed = parseProjectDocument(JSON.parse(JSON.stringify(document)))
+    expect(parsed.elements[0]).toMatchObject({
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 42,
+    })
+
+    const schemaV34 = JSON.parse(JSON.stringify(document))
+    schemaV34.schemaVersion = 34
+    delete schemaV34.elements[0].coolingPumpRunning
+    delete schemaV34.elements[0].coolingPumpOutputPower
+    const migrated = parseProjectDocument(schemaV34)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.elements[0].coolingPumpRunning).toBeUndefined()
+    expect(migrated.elements[0].coolingPumpOutputPower).toBeUndefined()
+
+    const invalid = JSON.parse(JSON.stringify(document))
+    invalid.elements[0].coolingPumpOutputPower = 101
+    expect(() => parseProjectDocument(invalid)).toThrow()
   })
 
   it('migrates a v23 CV into a top-to-bottom check valve without changing anchor ids', () => {

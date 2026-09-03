@@ -37,7 +37,7 @@
 统一承载图纸以外的运行输入：
 
 - Switch、2WV、CV 的 On/Off 状态；
-- 水泵运行与输出功率、阀门开关状态；
+- 水泵运行与输出功率、阀门开关状态；其中水泵以 Schema v35 图元实例快照为缺省值，显式宿主覆盖优先；
 - 电力设备子图外部供电是否有效；
 - 图元下探映射；
 - 可选的指标与冷却运行数据 Provider。
@@ -89,27 +89,28 @@
 
 正式 latest-wins 路由调度位于 `src/runtime/routeEngine.ts`，Worker 位于 `src/runtime/route.worker.ts`，React 路由快照 Hook 位于 `src/runtime/useRoutedConnections.ts`。监控画布不再通过编辑目录取得 Worker、调度器或 Hook。
 
-原 `editor/` 同名入口保留兼容重导出，`editor/geometry.ts` 只额外保留选择平移这类编辑专属纯变换。监控画布、共享场景和产品代码直接引用 `scene/` / `runtime/` 实现，避免目录级依赖图把基础能力误归入编辑器。
+原 `editor/` 同名入口保留兼容重导出，`editor/geometry.ts` 只额外保留选择平移这类编辑专属纯变换。监控画布、共享场景和产品代码直接引用 `scene/` / `runtime/` 实现，避免目录级依赖图把基础能力误归入编辑器。设备面板中的 UPS 内部接线不实例化完整画布，而使用固定视窗的 `ReadOnlyDiagramScene`：输入局部 `DiagramElement`、`ConnectionNetwork` 与仅供路由的合成锚点资产，调用正式正交路由并复用共享图元、线路及静态流动；播放态由共享 SVG 原语读取 `flowPresentation` 的主监控动画配置绘制移动虚线，不额外实例化 WebGL。局部标签复用画布标签视觉原语，通过只读复合行承载同一相位的电压、电流双值，不进入项目指标 Schema。场景按图元及标签合成边界计算渲染偏移，保持内容视觉居中但不破坏 8px 路由坐标；它不承载用户视口、选择、编辑命令、Store 或持久化。
 
 模块守卫要求两个画布引用共享场景入口，禁止运行时 React 入口导入 `DiagramCanvas` 或 `EditorCommandState`，并禁止 `src/runtime/`、`src/scene/`、`src/monitoring/` 的产品实现反向导入 `editor/`。当前应用入口还会检查编辑画布固定为编辑模式、监控工作区使用专用画布。
 
 纯数据与 Provider 公共入口从 `src/runtime/index.ts` 导出；React 查看器和监控专用画布从 `src/runtime/react.ts` 单独导出。核心消费者不会因为只导入图纸切片或状态函数而把 React、Three.js 或 React Three Fiber 加入依赖图；React 监控消费者会加载 Three.js 动画和点阵，但不会加载整套编辑画布。
 
-### `DiagramRuntimeBundle` v1
+### `DiagramRuntimeBundle` v2（兼容 v1）
 
 跨项目交付使用与项目 Schema 独立演进的运行时包：
 
-- 固定格式标识 `aidc-diagram-runtime`，当前 `formatVersion` 为 `1`；
+- 固定格式标识 `aidc-diagram-runtime`，当前导出 `formatVersion` 为 `2`，解析器继续接受 v1；
 - 一张或多张入口图纸、入口下级子树和到线路根的必要祖先；
 - 当前项目 Schema 要求的两套线路及两个结构根，但未选择线路的根图不携带画布内容；
 - 保留范围内的图元、母线、连接网络，以及这些图元实际使用的资产定义；
-- 导出时刻的 Switch、2WV、CV `onOffState` 快照；
+- 导出时刻的 Switch、2WV、CV `onOffState` 快照，以及已保存的水泵启停/输出功率实例快照；
 - 已冻结并经过来源图元、目标图纸和名称一致性校验的下探映射；
+- `simulation` 清单保存稳定种子、算法/设备档案版本、指标语义绑定、设备档案引用和异常分配；
 - 来源项目 ID、名称、项目 Schema 版本和导出时间。
 
 `createDiagramRuntimeBundle` 负责裁剪和生成，`serializeDiagramRuntimeBundle` / `parseDiagramRuntimeBundle` 负责同一契约下的输出与拒绝无效输入，`createDiagramRuntimeViewFromBundle` 恢复单图视图，浏览器宿主可用 `downloadDiagramRuntimeBundle` 下载 `.runtime.json` 文件。
 
-v1 明确不导出编辑选择、历史、dirty、面板草稿、当前相机会话、随机读数、Provider 或 Three.js/R3F 对象，并清空项目级 `extensions`。文档 Schema 中仍有画布默认视口字段，但当前平移/缩放状态不写回项目，因此它不是会话相机快照。
+v2 仍不导出编辑选择、历史、dirty、面板草稿、当前相机会话、逐帧读数、Provider 或 Three.js/R3F 对象，并清空项目级 `extensions`。文档 Schema 中仍有画布默认视口字段，但当前平移/缩放状态不写回项目，因此它不是会话相机快照。v1 Bundle 载入后由内容和项目 ID 生成兼容演示清单，不要求源文件迁移。
 
 ### `RuntimeBundleViewer`
 
@@ -118,7 +119,7 @@ v1 明确不导出编辑选择、历史、dirty、面板草稿、当前相机会
 - 不传 `diagramId` 时，从 `defaultDiagramId` 或第一个入口开始并在下探后更新内部图纸；
 - 传入 `diagramId` 时，宿主通过 `onDiagramChange` 接入自己的 Router、Tab 或页面状态。
 
-`animationPlaying` 由宿主控制；`stateOverrides` 可覆盖包内 On/Off 初始状态及其他运行状态；`providers` 可替换指标和冷却数据源。它不读取 Zustand、IndexedDB 或编辑保存状态，转发的 ref 也只包含三个缩放命令。
+`animationPlaying` 由宿主控制并同时冻结/恢复演示数据时钟；`stateOverrides` 可覆盖包内 On/Off 初始状态、水泵存档快照及其他运行状态；`providers` 可替换指标和冷却数据源。未提供指标 Provider 时，查看器按 Bundle 的 `simulation` 清单零配置启动确定性演示。它不读取 Zustand、IndexedDB 或编辑保存状态，转发的 ref 也只包含三个缩放命令。
 
 ## 数据流
 
@@ -137,11 +138,28 @@ ProjectDocument
   -> SVG 静态层 + WebGL 动画层
 ```
 
+## 已实现：确定性拟真演示快照
+
+KD-133 已用确定性 Demo Runtime Engine 改造当前默认模拟。当前数据流为：
+
+```text
+RuntimeBundle.simulation + 相对场景时钟 + 人工运行态覆盖
+  -> DemoMonitorMetricDataProvider
+  -> MonitorMetricRuntimeSnapshot
+       ├─ device health / operation / online
+       ├─ metric readings + final severity
+       └─ effective On/Off / pump / valve state
+  -> 电力/冷却拓扑
+  -> 共享 SVG 状态与 WebGL 流动动画
+```
+
+新快照把设备健康、运行方式、指标和影响拓扑的有效状态放在同一个采样边界中，解决独立随机导致的停泵仍有流量、关闭阀仍显示大开度等矛盾。显式外部指标 Provider 和既有冷却 Provider 继续兼容；宿主未来传入真实遥测时可替换 Demo Provider。RuntimeBundle v2 保存种子、算法/设备档案版本、指标语义和异常分配，不保存每帧读数。完整范围、页面异常预算、设备指标区间和实施结果见 `DEMO_RUNTIME_SIMULATION_DESIGN.md`。
+
 下探只通过 `runtime.navigation[elementId]` 返回目标图纸，不在渲染组件内直接修改路由或全局 Store。宿主 React 项目可以把它接到自己的 Router、Tab 或页面状态。
 
 ## 跨项目接入示例
 
-导出侧先从当前项目生成包；On/Off 会话态在导出时固化为可移植初始状态：
+导出侧先从当前项目生成包；On/Off 快照与 Schema v35 水泵实例快照一同成为可移植初始状态：
 
 ```ts
 const bundle = createDiagramRuntimeBundle(document, ['pod-a-id'], {
@@ -158,10 +176,11 @@ const bundle = parseDiagramRuntimeBundle(await file.text())
 <RuntimeBundleViewer
   bundle={bundle}
   animationPlaying={playing}
-  providers={{ metrics, cooling }}
   onDiagramChange={(diagramId) => navigate(`/diagram/${diagramId}`)}
 />
 ```
+
+省略 `providers` 时使用 Bundle 内置的确定性演示；接入真实数据时再传入 `providers={{ metrics, cooling }}`。
 
 示例中的导入路径取决于后续选择工作区包、私有包或代码同步方式。当前 v1 的资产 `source` 是元数据路径，不是内嵌资源；目标项目必须同时获得当前运行时素材目录，或在后续 v2 接入资产解析/内嵌方案。
 

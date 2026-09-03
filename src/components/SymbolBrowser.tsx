@@ -2,7 +2,7 @@ import { PencilLine, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { symbolCatalog } from '../scene/symbolCatalog'
-import { IconButton, TextField } from './ui'
+import { IconButton, Pressable, TextField } from './ui'
 
 interface SymbolBrowserProps {
   idPrefix: string
@@ -83,8 +83,7 @@ export function SymbolBrowser({
                       event.dataTransfer.effectAllowed = 'copy'
                     } : undefined}
                   >
-                    <button
-                      type="button"
+                    <Pressable
                       className="symbol-tile__primary"
                       aria-pressed={mode === 'select' ? selected : undefined}
                       onClick={mode === 'select' ? () => onSelect?.(symbol.key) : undefined}
@@ -98,7 +97,7 @@ export function SymbolBrowser({
                     >
                       <img src={symbol.url} alt="" draggable={false} />
                       <span>{symbol.name}</span>
-                    </button>
+                    </Pressable>
                     {mode === 'insert' && onEdit ? (
                       <IconButton
                         className="symbol-tile__edit"

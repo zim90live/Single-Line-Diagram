@@ -1,6 +1,7 @@
 import { memo } from 'react'
 
 import { SymbolBrowser } from './SymbolBrowser'
+import { Pressable } from './ui'
 
 interface SymbolLibraryProps {
   onInsert: (symbolKey: string) => void
@@ -42,8 +43,7 @@ export const SymbolLibrary = memo(function SymbolLibrary({
               event.dataTransfer.effectAllowed = 'copy'
             } : undefined}
           >
-            <button
-              type="button"
+            <Pressable
               className="symbol-tile__primary"
               disabled={!canInsertBusbar}
               onDoubleClick={canInsertBusbar ? onInsertBusbar : undefined}
@@ -54,7 +54,7 @@ export const SymbolLibrary = memo(function SymbolLibrary({
             >
               <span className="busbar-tool__glyph" aria-hidden="true"><span /></span>
               <span>母线</span>
-            </button>
+            </Pressable>
           </div>
         </div>
       </section>

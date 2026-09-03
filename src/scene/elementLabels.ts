@@ -52,6 +52,14 @@ export type MonitorMetricLabelLine = Omit<
   'valueBounds' | 'labelX' | 'valueX' | 'textY'
 >
 
+export interface MonitorMetricLabelColumnWidths {
+  label: number
+  value: number
+  total: number
+}
+
+export type MonitorMetricLabelHorizontalAlignment = 'start' | 'center' | 'end'
+
 export interface ElementLabelLayoutOptions {
   readings?: MonitorMetricReadings
   connectedAnchorIdsByElement?: ReadonlyMap<string, ReadonlySet<string>>
@@ -144,33 +152,55 @@ export function resolveMonitorMetricLabelLines(
   })
 }
 
-export function monitorMetricLabelWidth(lines: MonitorMetricLabelLine[]) {
-  return lines.reduce((width, line) => Math.max(
-    width,
-    estimateLabelTextWidth(line.valueText) + (line.labelVisible
-      ? estimateLabelTextWidth(line.labelText) + ELEMENT_METRIC_COLUMN_GAP
-      : 0),
+export function monitorMetricLabelColumnWidths(
+  lines: MonitorMetricLabelLine[],
+): MonitorMetricLabelColumnWidths {
+  const label = lines.reduce((width, line) => (
+    line.labelVisible
+      ? Math.max(width, estimateLabelTextWidth(line.labelText))
+      : width
   ), 0)
+  const value = lines.reduce((width, line) => (
+    Math.max(width, estimateLabelTextWidth(line.valueText))
+  ), 0)
+  return {
+    label,
+    value,
+    total: label + (label > 0 && value > 0 ? ELEMENT_METRIC_COLUMN_GAP : 0) + value,
+  }
+}
+
+export function monitorMetricLabelWidth(lines: MonitorMetricLabelLine[]) {
+  return monitorMetricLabelColumnWidths(lines).total
 }
 
 export function positionMonitorMetricLabelRows(
   lines: MonitorMetricLabelLine[],
   bounds: Rect,
   leadingLineCount: number,
+  horizontalAlignment: MonitorMetricLabelHorizontalAlignment = 'start',
 ): ElementMetricLabelRow[] {
+  const columns = monitorMetricLabelColumnWidths(lines)
+  const rowsX = horizontalAlignment === 'end'
+    ? bounds.x + bounds.width - columns.total
+    : horizontalAlignment === 'center'
+      ? bounds.x + (bounds.width - columns.total) / 2
+      : bounds.x
+  const valueColumnX = rowsX + columns.label + (
+    columns.label > 0 && columns.value > 0 ? ELEMENT_METRIC_COLUMN_GAP : 0
+  )
   return lines.map((line, index) => {
     const y = bounds.y + (index + leadingLineCount) * ELEMENT_LABEL_LINE_HEIGHT
-    const valueWidth = estimateLabelTextWidth(line.valueText)
     return {
       ...line,
       valueBounds: {
-        x: bounds.x + bounds.width - valueWidth,
+        x: valueColumnX,
         y,
-        width: valueWidth,
+        width: columns.value,
         height: ELEMENT_LABEL_LINE_HEIGHT,
       },
-      labelX: bounds.x + 2,
-      valueX: bounds.x + bounds.width - 2,
+      labelX: rowsX + 2,
+      valueX: valueColumnX + columns.value - 2,
       textY: y + 11,
     }
   })
@@ -386,6 +416,11 @@ export function layoutElementLabels(
         metricLines,
         best.bounds,
         Number(Boolean(nameText)),
+        best.placement === 'left'
+          ? 'end'
+          : best.placement === 'right'
+            ? 'start'
+            : 'center',
       ),
     }]
   })

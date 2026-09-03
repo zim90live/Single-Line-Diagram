@@ -14,10 +14,12 @@ import {
   type RefObject,
 } from 'react'
 
-import type {
-  AssetDefinition,
-  DiagramElement,
-  DiagramViewport,
+import {
+  resolvedElementOnOffState,
+  resolvedElementMonitorInteraction,
+  type AssetDefinition,
+  type DiagramElement,
+  type DiagramViewport,
 } from '../domain/project'
 import {
   buildMonitorStaticFlowLineGroups,
@@ -63,6 +65,7 @@ import {
 } from '../scene/GridSurface'
 import { getAdaptiveGridScale, GRID_PRESENTATION } from '../scene/gridScale'
 import {
+  elementDeviceIdentifier,
   layoutElementLabels,
 } from '../scene/elementLabels'
 import {
@@ -84,6 +87,8 @@ import {
   type WheelGestureKind,
 } from '../scene/wheelGestures'
 import type { DiagramRuntimeView } from './diagramRuntime'
+import type { DemoDeviceRuntimeState } from './demoSimulationProfiles'
+import type { MonitorMetricReadings } from '../monitoring/elementMetrics'
 import type { DiagramRuntimeContext } from './types'
 import { useDiagramMonitorRuntime } from './useDiagramMonitorRuntime'
 import {
@@ -100,7 +105,12 @@ import {
   MonitorStaticFlowLines,
   SymbolColorFilter,
   symbolColorFilterId,
+  type MetricPointerDownRef,
 } from '../scene/DiagramScenePrimitives'
+import {
+  MonitorMetricDataPanel,
+  type MonitorMetricPanelAnchor,
+} from '../components/monitoring/MonitorMetricDataPanel'
 import {
   createConnectedAnchorIdsByElement,
   createConnectionRouteRenderGroups,
@@ -136,6 +146,20 @@ export interface DiagramMonitorCanvasProps {
   onSelectionChange?: (elementIds: string[]) => void
   onElementDrillDown?: (elementId: string) => void
   onViewportChange?: (viewport: DiagramViewport) => void
+  onRuntimePresentationChange?: (presentation: DiagramMonitorRuntimePresentation) => void
+}
+
+export interface DiagramMonitorRuntimePresentation {
+  timestamp: number
+  readings: MonitorMetricReadings
+  elements: DiagramElement[]
+  deviceStates: Record<string, DemoDeviceRuntimeState>
+}
+
+interface MonitorMetricPanelSelection {
+  ownerId: string
+  metricId: string
+  anchor: MonitorMetricPanelAnchor
 }
 
 function useElementSize(elementRef: RefObject<HTMLElement | null>) {
@@ -270,6 +294,7 @@ function MonitorElement({
   zoom,
   selected,
   runtime,
+  deviceState,
   drillDownTarget,
   onSelect,
   onDrillDown,
@@ -281,6 +306,7 @@ function MonitorElement({
   zoom: number
   selected: boolean
   runtime: DiagramRuntimeContext
+  deviceState?: DemoDeviceRuntimeState
   drillDownTarget?: DiagramRuntimeContext['navigation'][string]
   onSelect: (elementId: string) => void
   onDrillDown: (elementId: string) => void
@@ -289,7 +315,7 @@ function MonitorElement({
   const centerX = element.x + element.width / 2
   const centerY = element.y + element.height / 2
   const visualState: SymbolVisualState = elementSupportsOnOffState(element) &&
-    runtime.state.onOffStates[element.id] ? 'on' : 'off'
+    resolvedElementOnOffState(element, runtime.state.onOffStates[element.id]) ? 'on' : 'off'
   const symbolColor = symbol?.configurableColor
     ? resolvedSymbolColor(element, visualState)
     : undefined
@@ -299,9 +325,12 @@ function MonitorElement({
     : undefined
   const coolingPumpRunning = runtime.state.coolingPumpRunningStates[element.id] ?? true
   const coolingValveOpen = symbolSupportsOnOffState(symbol)
-    ? runtime.state.onOffStates[element.id] ?? false
+    ? resolvedElementOnOffState(element, runtime.state.onOffStates[element.id])
     : runtime.state.coolingValveOpenStates[element.id] ?? true
   const coolingPumpStopped = asset?.coolingDeviceRole === 'pump' && !coolingPumpRunning
+  const showsDevicePanel = element.assetKey === 'generator' || element.assetKey === 'ups' || (
+    element.assetKey === 'switch' && resolvedElementMonitorInteraction(element) === 'device-panel'
+  )
   const clipPathId = `${filterScope}-generic-clip-${element.id}`
   const handlePointerDown = (event: PointerEvent<SVGElement>) => {
     if (event.button !== 0) return
@@ -311,7 +340,7 @@ function MonitorElement({
       onDrillDown(element.id)
       return
     }
-    if (!symbolSupportsOnOffState(symbol) && !asset?.coolingDeviceRole) return
+    if (!showsDevicePanel && !symbolSupportsOnOffState(symbol) && !asset?.coolingDeviceRole) return
     event.preventDefault()
     event.stopPropagation()
     onSelect(element.id)
@@ -322,15 +351,23 @@ function MonitorElement({
       data-element-id={element.id}
       data-asset-key={element.assetKey}
       data-selected={selected || undefined}
+      data-health={deviceState?.health}
+      data-operation={deviceState?.operation}
       data-monitor-on-off={symbolSupportsOnOffState(symbol) || undefined}
       data-monitor-cooling-role={asset?.coolingDeviceRole}
       data-monitor-cooling-active={asset?.coolingDeviceRole
         ? asset.coolingDeviceRole === 'pump' ? coolingPumpRunning : coolingValveOpen
         : undefined}
       data-monitor-drill-down={drillDownTarget?.diagramId}
+      data-monitor-detail={showsDevicePanel || undefined}
       transform={generic ? undefined : `rotate(${element.rotation} ${centerX} ${centerY})`}
     >
-      {drillDownTarget ? <title>{`点击下探到${drillDownTarget.diagramName}`}</title> : null}
+      {drillDownTarget || deviceState?.health === 'offline' ? (
+        <title>{[
+          deviceState?.health === 'offline' ? '设备离线' : '',
+          drillDownTarget ? `点击下探到${drillDownTarget.diagramName}` : '',
+        ].filter(Boolean).join('；')}</title>
+      ) : null}
       <DiagramElementVisual
         element={element}
         symbol={symbol}
@@ -372,6 +409,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   onSelectionChange,
   onElementDrillDown,
   onViewportChange,
+  onRuntimePresentationChange,
 }, ref) {
   const { diagram, lineSystem, assets, elements, busbars, connections, routeWaypoints } = view
   const filterScope = `runtime-${useId().replace(/:/g, '')}`
@@ -402,6 +440,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   } | null>(null)
   const [viewportValue, setViewportValue] = useState(viewport)
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [metricPanelSelection, setMetricPanelSelection] = useState<MonitorMetricPanelSelection | null>(null)
   const previousDiagramIdRef = useRef(diagram.id)
   const canvasSize = useElementSize(viewportElementRef)
   const gridScale = getAdaptiveGridScale(diagram.canvas.gridSize, viewportValue.zoom)
@@ -499,6 +538,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     if (previousDiagramIdRef.current === diagram.id) return
     previousDiagramIdRef.current = diagram.id
     setSelectedElementId(null)
+    setMetricPanelSelection(null)
     onSelectionChange?.([])
   }, [diagram.id, onSelectionChange])
 
@@ -684,6 +724,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   }
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || spaceHeldRef.current) return
+    setMetricPanelSelection(null)
     setSelectedElementId(null)
     onSelectionChange?.([])
   }
@@ -849,6 +890,11 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     powerFlowTopology,
     coolingFlowTopology,
     metricReadings,
+    metricElements,
+    metricConnections,
+    metricDeviceStates,
+    metricTimestamp,
+    effectiveRuntimeState,
   } = useDiagramMonitorRuntime({
     enabled: true,
     lineSystemType: lineSystem.type,
@@ -858,7 +904,40 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     assets,
     resolvedBusbarTapOffsets: routed.resolvedBusbarTapOffsets,
     runtime,
+    animationPlaying,
   })
+  useEffect(() => {
+    onRuntimePresentationChange?.({
+      timestamp: metricTimestamp,
+      readings: metricReadings,
+      elements: metricElements,
+      deviceStates: metricDeviceStates,
+    })
+  }, [
+    metricDeviceStates,
+    metricElements,
+    metricReadings,
+    metricTimestamp,
+    onRuntimePresentationChange,
+  ])
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMetricPanelSelection(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+  const effectiveRuntime = useMemo(() => ({
+    ...runtime,
+    state: effectiveRuntimeState,
+  }), [effectiveRuntimeState, runtime])
+  const metricElementsById = useMemo(
+    () => new Map(metricElements.map((element) => [element.id, element])),
+    [metricElements],
+  )
+  const visibleMetricElements = useMemo(() => visibleElements.map((element) => (
+    metricElementsById.get(element.id) ?? element
+  )), [metricElementsById, visibleElements])
   const displayedRoutePaths = useMemo(() => createDisplayedRoutePaths(
     visibleRoutes,
     edgesById,
@@ -1008,24 +1087,59 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     () => createConnectedAnchorIdsByElement(connections),
     [connections],
   )
-  const elementLabels = useMemo(() => layoutElementLabels(visibleElements, assetsByKey, {
+  const elementLabels = useMemo(() => layoutElementLabels(visibleMetricElements, assetsByKey, {
     connectedAnchorIdsByElement: connectedAnchors,
     readings: metricReadings,
-  }), [assetsByKey, connectedAnchors, metricReadings, visibleElements])
+  }), [assetsByKey, connectedAnchors, metricReadings, visibleMetricElements])
   const busbarLabels = useMemo(() => layoutBusbarLabels(visibleBusbars), [visibleBusbars])
   const connectionLabels = useMemo(() => layoutConnectionLabels(
     visibleRoutes,
-    connections,
+    metricConnections,
     null,
     { readings: metricReadings },
-  ), [connections, metricReadings, visibleRoutes])
+  ), [metricConnections, metricReadings, visibleRoutes])
+  const metricPointerDownRef = useRef<MetricPointerDownRef['current']>(() => undefined)
+  metricPointerDownRef.current = (event, ownerId, metricId) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMetricPanelSelection({
+      ownerId,
+      metricId,
+      anchor: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      },
+    })
+  }
+  const metricPanelOwner = metricPanelSelection
+    ? metricElements.find((element) => element.id === metricPanelSelection.ownerId) ??
+      metricConnections.flatMap((network) => network.edges).find((edge) => (
+        edge.id === metricPanelSelection.ownerId
+      ))
+    : undefined
+  const metricPanelMetric = metricPanelSelection
+    ? metricPanelOwner?.monitorMetrics?.find((metric) => metric.id === metricPanelSelection.metricId)
+    : undefined
+  const metricPanelOwnerName = metricPanelOwner
+    ? 'assetKey' in metricPanelOwner
+      ? elementDeviceIdentifier(metricPanelOwner)
+      : metricPanelOwner.label?.trim() || '线路数据'
+    : ''
   const visibleSymbolColors = useMemo(() => [...new Set(visibleElements.flatMap((element) => {
     const symbol = symbolsByKey.get(element.assetKey)
     if (!symbol?.configurableColor) return []
     const state: SymbolVisualState = elementSupportsOnOffState(element) &&
-      runtime.state.onOffStates[element.id] ? 'on' : 'off'
+      resolvedElementOnOffState(element, effectiveRuntime.state.onOffStates[element.id])
+      ? 'on'
+      : 'off'
     return [resolvedSymbolColor(element, state)]
-  }))], [runtime.state.onOffStates, visibleElements])
+  }))], [effectiveRuntime.state.onOffStates, visibleElements])
   const fallbackGridStyle = {
     '--grid-origin-x': `${viewportValue.tx}px`,
     '--grid-origin-y': `${viewportValue.ty}px`,
@@ -1095,7 +1209,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
         >
           <GridSurface renderStateRef={gridRenderStateRef} />
         </Canvas>
-        <svg className="editor-overlay" data-testid="runtime-monitor-overlay" aria-hidden="true">
+        <svg className="editor-overlay" data-testid="runtime-monitor-overlay">
           <defs>
             {routeGroups.flatMap((group) => {
               const id = pipeFilterIds.get(group.renderKey)
@@ -1235,7 +1349,8 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                 symbol={symbolsByKey.get(element.assetKey)}
                 zoom={viewportValue.zoom}
                 selected={selectedElementId === element.id}
-                runtime={runtime}
+                runtime={effectiveRuntime}
+                deviceState={metricDeviceStates[element.id]}
                 drillDownTarget={runtime.navigation[element.id]}
                 onSelect={(elementId) => {
                   setSelectedElementId(elementId)
@@ -1247,13 +1362,21 @@ export const DiagramMonitorCanvas = memo(forwardRef<
             ))}
             <g className="element-label-layer" data-testid="element-label-layer">
               {elementLabels.map((layout) => (
-                <ElementLabelItem key={layout.elementId} layout={layout} />
+                <ElementLabelItem
+                  key={layout.elementId}
+                  layout={layout}
+                  metricPointerDownRef={metricPointerDownRef}
+                />
               ))}
               {busbarLabels.map((layout) => (
                 <BusbarLabelItem key={layout.busbarId} layout={layout} />
               ))}
               {connectionLabels.map((layout) => (
-                <ConnectionLabelItem key={layout.edgeId} layout={layout} />
+                <ConnectionLabelItem
+                  key={layout.edgeId}
+                  layout={layout}
+                  metricPointerDownRef={metricPointerDownRef}
+                />
               ))}
             </g>
           </g>
@@ -1263,6 +1386,16 @@ export const DiagramMonitorCanvas = memo(forwardRef<
             paths={activeFlowPaths}
             viewportRef={viewportRef}
             invalidateRef={flowInvalidateRef}
+          />
+        ) : null}
+        {metricPanelSelection && metricPanelMetric ? (
+          <MonitorMetricDataPanel
+            ownerName={metricPanelOwnerName}
+            metric={metricPanelMetric}
+            reading={metricReadings[
+              `${metricPanelSelection.ownerId}::${metricPanelSelection.metricId}`
+            ]}
+            anchor={metricPanelSelection.anchor}
           />
         ) : null}
       </div>

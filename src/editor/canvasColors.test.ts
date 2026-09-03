@@ -60,6 +60,41 @@ const connections: ConnectionNetwork[] = [{
 }]
 
 describe('canvas color overview', () => {
+  it('labels Supply state color groups as standby and running', () => {
+    const supply: DiagramElement = {
+      id: 'supply-default',
+      diagramId: 'diagram-1',
+      assetKey: 'supply',
+      name: 'Supply',
+      x: 0,
+      y: 0,
+      width: 48,
+      height: 48,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }
+
+    expect(collectCanvasColorGroups([supply], [], []).element).toEqual([
+      {
+        category: 'element',
+        color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+        count: 1,
+        elementColorSlot: 'switch-off',
+        elementAssetKey: 'supply',
+        scopeLabel: 'Supply 待机',
+      },
+      {
+        category: 'element',
+        color: DEFAULT_CONFIGURABLE_SYMBOL_COLOR,
+        count: 1,
+        elementColorSlot: 'switch-on',
+        elementAssetKey: 'supply',
+        scopeLabel: 'Supply 运行',
+      },
+    ])
+  })
+
   it('groups resolved colors by editable object category', () => {
     expect(collectCanvasColorGroups(elements, busbars, connections)).toEqual({
       element: [

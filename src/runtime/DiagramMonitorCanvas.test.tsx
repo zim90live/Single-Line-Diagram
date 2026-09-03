@@ -56,7 +56,7 @@ describe('DiagramMonitorCanvas', () => {
       {
         id: 'runtime-monitor-link',
         diagramId: parent.id,
-        assetKey: 'ups',
+        assetKey: 'ups-group',
         name: '下探入口',
         x: 0,
         y: 0,
@@ -77,6 +77,46 @@ describe('DiagramMonitorCanvas', () => {
         height: 32,
         rotation: 0,
         onOffState: 'on',
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'runtime-monitor-panel-switch',
+        diagramId: parent.id,
+        assetKey: 'switch',
+        name: 'Different Switch Model',
+        x: 128,
+        y: 0,
+        width: 32,
+        height: 32,
+        rotation: 0,
+        monitorInteraction: 'device-panel',
+        properties: { tag: 'MLVR307-6B-HD01' },
+        extensions: {},
+      },
+      {
+        id: 'runtime-monitor-generator',
+        diagramId: parent.id,
+        assetKey: 'generator',
+        name: 'Generator 01',
+        x: 176,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'runtime-monitor-ups',
+        diagramId: parent.id,
+        assetKey: 'ups',
+        name: 'UPS 01',
+        x: 240,
+        y: 0,
+        width: 48,
+        height: 48,
+        rotation: 0,
         properties: {},
         extensions: {},
       },
@@ -131,6 +171,10 @@ describe('DiagramMonitorCanvas', () => {
     expect(screen.getByTestId('connection-layer').querySelector(
       '.monitor-static-flow-line',
     )).toBeInTheDocument()
+    expect(canvas.querySelectorAll(
+      '.diagram-element[data-health]:not([data-health="normal"])',
+    )).toHaveLength(1)
+    expect(canvas.querySelector('.element-metric-row')).toBeInTheDocument()
 
     await user.click(canvas.querySelector(
       '[data-element-id="runtime-monitor-link"] image',
@@ -144,6 +188,30 @@ describe('DiagramMonitorCanvas', () => {
     expect(canvas.querySelector(
       '[data-element-id="runtime-monitor-switch"]',
     )).toHaveAttribute('data-selected', 'true')
+
+    await user.click(canvas.querySelector(
+      '[data-element-id="runtime-monitor-panel-switch"] image',
+    )!)
+    expect(onSelectionChange).toHaveBeenLastCalledWith(['runtime-monitor-panel-switch'])
+    expect(canvas.querySelector(
+      '[data-element-id="runtime-monitor-panel-switch"]',
+    )).toHaveAttribute('data-monitor-detail', 'true')
+
+    await user.click(canvas.querySelector(
+      '[data-element-id="runtime-monitor-generator"] image',
+    )!)
+    expect(onSelectionChange).toHaveBeenLastCalledWith(['runtime-monitor-generator'])
+
+    await user.click(canvas.querySelector(
+      '[data-element-id="runtime-monitor-ups"] image',
+    )!)
+    expect(onSelectionChange).toHaveBeenLastCalledWith(['runtime-monitor-ups'])
+
+    const metricHit = canvas.querySelector('.element-metric-row__hit')!
+    fireEvent.pointerDown(metricHit, { button: 0 })
+    expect(canvas.querySelector('.monitor-data-panel')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(canvas.querySelector('.monitor-data-panel')).not.toBeInTheDocument()
 
     const viewport = screen.getByLabelText('一次接线图监控画布')
     const drillDownImage = canvas.querySelector(

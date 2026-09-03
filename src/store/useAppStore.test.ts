@@ -56,6 +56,42 @@ describe('app document state', () => {
     expect(useAppStore.getState().dirty).toBe(false)
   })
 
+  it('stores per-instance cooling pump controls as persisted project changes', () => {
+    const current = useAppStore.getState()
+    useAppStore.setState({
+      document: {
+        ...current.document,
+        assets: current.document.assets.map((asset) => asset.key === 'chwp'
+          ? { ...asset, coolingDeviceRole: 'pump' as const }
+          : asset),
+        elements: [{
+          id: 'persisted-pump',
+          diagramId: current.currentDiagramId,
+          assetKey: 'chwp',
+          name: 'CHWP',
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 16,
+          rotation: 0,
+          properties: { tag: 'CHWP-01' },
+          extensions: {},
+        }],
+      },
+    })
+
+    useAppStore.getState().updateCoolingPumpState('persisted-pump', {
+      running: false,
+      outputPower: 42,
+    })
+
+    expect(useAppStore.getState().document.elements[0]).toMatchObject({
+      coolingPumpRunning: false,
+      coolingPumpOutputPower: 42,
+    })
+    expect(useAppStore.getState().dirty).toBe(true)
+  })
+
   it('applies asset anchors immediately and marks the project dirty', () => {
     useAppStore.getState().replaceAssetAnchors('chwp', [{
       id: 'anchor-1',

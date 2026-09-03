@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DiagramElement } from '../domain/project'
 import type { MonitorMetricDataProvider } from '../runtime/metricDataProvider'
 import { monitorMetricReadingKey } from './elementMetrics'
-import { useMonitorMetricReadings } from './useMonitorMetricReadings'
+import {
+  useMonitorMetricReadings,
+  useMonitorMetricRuntimeSnapshot,
+} from './useMonitorMetricReadings'
 
 const element: DiagramElement = {
   id: 'ups-1',
@@ -82,6 +85,45 @@ describe('useMonitorMetricReadings', () => {
 
     expect(result.current[key]).toMatchObject({ value: 72, severity: 'minor' })
     expect(getSnapshot).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('freezes the runtime snapshot while playback is paused', () => {
+    vi.useFakeTimers()
+    let tick = 0
+    const getRuntimeSnapshot = vi.fn(() => ({
+      timestamp: tick,
+      readings: {},
+      deviceStates: {},
+    }))
+    getRuntimeSnapshot.mockImplementation(() => ({
+      timestamp: tick++,
+      readings: {},
+      deviceStates: {},
+    }))
+    const provider: MonitorMetricDataProvider = {
+      getSnapshot: () => ({}),
+      getRuntimeSnapshot,
+      refreshMs: 3_000,
+    }
+    const { result, rerender } = renderHook(
+      ({ playing }) => useMonitorMetricRuntimeSnapshot(true, [element], provider, playing),
+      { initialProps: { playing: false } },
+    )
+
+    expect(result.current.timestamp).toBe(0)
+    expect(getRuntimeSnapshot).toHaveBeenCalledOnce()
+    act(() => vi.advanceTimersByTime(9_000))
+    expect(getRuntimeSnapshot).toHaveBeenCalledOnce()
+
+    rerender({ playing: true })
+    expect(result.current.timestamp).toBe(1)
+    act(() => vi.advanceTimersByTime(3_000))
+    expect(result.current.timestamp).toBe(2)
+
+    rerender({ playing: false })
+    act(() => vi.advanceTimersByTime(9_000))
+    expect(result.current.timestamp).toBe(2)
     expect(vi.getTimerCount()).toBe(0)
   })
 })
