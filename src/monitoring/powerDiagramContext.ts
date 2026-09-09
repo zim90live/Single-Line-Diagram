@@ -1,6 +1,12 @@
-import type { ProjectDocument } from '../domain/project'
-import { derivePowerFlowTopology } from './flowTopology'
+import type { PowerSupplyChannel, ProjectDocument } from '../domain/project'
 import { parentElementsLinkedToDiagram } from './diagramDrillDown'
+import { derivePowerFlowTopology } from './flowTopology'
+
+export interface PowerDiagramExternalSupplyContext {
+  active: boolean
+  channel?: PowerSupplyChannel
+  batteryBackupActive: boolean
+}
 
 function isPowerDiagram(document: ProjectDocument, diagramId: string) {
   const diagram = document.diagrams.find((candidate) => candidate.id === diagramId)
@@ -8,7 +14,12 @@ function isPowerDiagram(document: ProjectDocument, diagramId: string) {
   return lineSystem?.type === 'power'
 }
 
-export function isPowerDiagramExternallyEnergized({
+const INACTIVE_CONTEXT: PowerDiagramExternalSupplyContext = {
+  active: false,
+  batteryBackupActive: false,
+}
+
+export function derivePowerDiagramExternalSupply({
   document,
   diagramId,
   switchStates,
@@ -16,30 +27,69 @@ export function isPowerDiagramExternallyEnergized({
   document: ProjectDocument
   diagramId: string
   switchStates: Record<string, boolean>
-}) {
-  const visited = new Set<string>()
+}): PowerDiagramExternalSupplyContext {
+  const visiting = new Set<string>()
 
-  const visit = (childDiagramId: string): boolean => {
-    if (visited.has(childDiagramId) || !isPowerDiagram(document, childDiagramId)) return false
-    visited.add(childDiagramId)
+  const visit = (childDiagramId: string): PowerDiagramExternalSupplyContext => {
+    if (visiting.has(childDiagramId) || !isPowerDiagram(document, childDiagramId)) {
+      return INACTIVE_CONTEXT
+    }
+    visiting.add(childDiagramId)
 
     const child = document.diagrams.find((diagram) => diagram.id === childDiagramId)
-    if (!child?.parentId) return false
+    if (!child?.parentId) {
+      visiting.delete(childDiagramId)
+      return INACTIVE_CONTEXT
+    }
     const linkedParentElements = parentElementsLinkedToDiagram(document, childDiagramId)
-    if (!linkedParentElements.length) return false
+    if (!linkedParentElements.length) {
+      visiting.delete(childDiagramId)
+      return INACTIVE_CONTEXT
+    }
 
     const parentDiagramId = child.parentId
+    const parentExternalSupply = visit(parentDiagramId)
     const parentTopology = derivePowerFlowTopology({
       elements: document.elements.filter((element) => element.diagramId === parentDiagramId),
+      assets: document.assets,
       busbars: document.busbars.filter((busbar) => busbar.diagramId === parentDiagramId),
       networks: document.connections.filter((network) => network.diagramId === parentDiagramId),
       switchStates,
-      externalSupply: visit(parentDiagramId),
+      externalSupply: parentExternalSupply.active,
+      externalSupplyChannel: parentExternalSupply.channel,
+      batteryBackup: parentExternalSupply.batteryBackupActive,
     })
-    return linkedParentElements.some((element) => (
+    const energizedLinkedElements = linkedParentElements.filter((element) => (
       parentTopology.energizedElementIds.has(element.id)
     ))
+    const channel = energizedLinkedElements.some((element) => (
+      parentTopology.selectedSupplyChannels[element.id] === 'a'
+    ))
+      ? 'a' as const
+      : energizedLinkedElements.some((element) => (
+          parentTopology.selectedSupplyChannels[element.id] === 'b'
+        ))
+        ? 'b' as const
+        : undefined
+    const active = energizedLinkedElements.length > 0
+    const batteryBackupActive = !active && linkedParentElements.some((element) => (
+      element.assetKey === 'ups-group'
+    ))
+    visiting.delete(childDiagramId)
+    return {
+      active,
+      ...(channel ? { channel } : {}),
+      batteryBackupActive,
+    }
   }
 
   return visit(diagramId)
+}
+
+export function isPowerDiagramExternallyEnergized(args: {
+  document: ProjectDocument
+  diagramId: string
+  switchStates: Record<string, boolean>
+}) {
+  return derivePowerDiagramExternalSupply(args).active
 }

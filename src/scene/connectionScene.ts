@@ -41,6 +41,7 @@ export interface ConnectionRouteRenderGroup {
   renderKey: string
   coolingLineRole?: CoolingLineRole
   crossingLayer?: ConnectionCrossingLayer
+  color?: string
 }
 
 export interface DisplayedRoutePath {
@@ -94,6 +95,7 @@ export function createConnectionRouteRenderGroups(
       routes: RoutedConnectionEdge[]
       coolingLineRole?: CoolingLineRole
       crossingLayer?: ConnectionCrossingLayer
+      color?: string
     }>()
     networkRoutes.forEach((route) => {
       const edge = edgesById.get(route.edgeId)
@@ -101,10 +103,11 @@ export function createConnectionRouteRenderGroups(
         ? edge?.coolingLineRole ?? 'primary'
         : undefined
       const crossingLayer = edge?.crossingLayer
-      const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}`
+      const color = isCoolingConnectionType(type) ? edge?.color : undefined
+      const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}${color ? `:${color}` : ''}`
       const bucket = buckets.get(key)
       if (bucket) bucket.routes.push(route)
-      else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer })
+      else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer, color })
     })
     buckets.forEach((bucket, key) => renderGroups.push({
       networkId,

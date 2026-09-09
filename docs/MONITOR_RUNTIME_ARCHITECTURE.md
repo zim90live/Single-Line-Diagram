@@ -38,7 +38,7 @@
 
 - Switch、2WV、CV 的 On/Off 状态；
 - 水泵运行与输出功率、阀门开关状态；其中水泵以 Schema v35 图元实例快照为缺省值，显式宿主覆盖优先；
-- 电力设备子图外部供电是否有效；
+- 电力设备子图外部供电是否有效、父级实际 A/B 通道，以及 UPS 锂电是否正在接管；
 - 图元下探映射；
 - 可选的指标与冷却运行数据 Provider。
 
@@ -119,7 +119,7 @@ v2 仍不导出编辑选择、历史、dirty、面板草稿、当前相机会话
 - 不传 `diagramId` 时，从 `defaultDiagramId` 或第一个入口开始并在下探后更新内部图纸；
 - 传入 `diagramId` 时，宿主通过 `onDiagramChange` 接入自己的 Router、Tab 或页面状态。
 
-`animationPlaying` 由宿主控制并同时冻结/恢复演示数据时钟；`stateOverrides` 可覆盖包内 On/Off 初始状态、水泵存档快照及其他运行状态；`providers` 可替换指标和冷却数据源。未提供指标 Provider 时，查看器按 Bundle 的 `simulation` 清单零配置启动确定性演示。它不读取 Zustand、IndexedDB 或编辑保存状态，转发的 ref 也只包含三个缩放命令。
+`animationPlaying` 由宿主控制并同时冻结/恢复演示数据时钟；`stateOverrides` 可覆盖包内 On/Off 初始状态、水泵存档快照、父级外部供电、A/B 通道、UPS 锂电接管及其他运行状态；`providers` 可替换指标和冷却数据源。未提供指标 Provider 时，查看器按 Bundle 的 `simulation` 清单零配置启动确定性演示。`onRuntimePresentationChange` 向宿主输出当前指标、设备运行态、图元和水泵派生流量，使 AIDC 可用自己的共享右侧组件渲染详情并把控制结果再通过 `stateOverrides` 回传。查看器不读取 Zustand、IndexedDB 或编辑保存状态，转发的 ref 也只包含三个缩放命令。
 
 ## 数据流
 
@@ -159,7 +159,7 @@ RuntimeBundle.simulation + 相对场景时钟 + 人工运行态覆盖
 
 ## 跨项目接入示例
 
-导出侧先从当前项目生成包；On/Off 快照与 Schema v35 水泵实例快照一同成为可移植初始状态：
+导出侧先从当前项目生成包；On/Off 快照与 Schema v36 水泵、A/B 模板角色及子图入口通道一同成为可移植初始状态：
 
 ```ts
 const bundle = createDiagramRuntimeBundle(document, ['pod-a-id'], {
@@ -177,19 +177,21 @@ const bundle = parseDiagramRuntimeBundle(await file.text())
   bundle={bundle}
   animationPlaying={playing}
   onDiagramChange={(diagramId) => navigate(`/diagram/${diagramId}`)}
+  onRuntimePresentationChange={setDiagramPresentation}
 />
 ```
 
 省略 `providers` 时使用 Bundle 内置的确定性演示；接入真实数据时再传入 `providers={{ metrics, cooling }}`。
 
-示例中的导入路径取决于后续选择工作区包、私有包或代码同步方式。当前 v1 的资产 `source` 是元数据路径，不是内嵌资源；目标项目必须同时获得当前运行时素材目录，或在后续 v2 接入资产解析/内嵌方案。
+示例中的运行时入口将发布为 `@aidc/diagram-runtime`；基础 UI 统一由 AIDC 的 `@aidc/ui` 提供，详细收敛方案见 `AIDC_INTEGRATION_PREPARATION.md`。当前 v2 的资产 `source` 是元数据路径，不是内嵌资源；目标项目必须同时获得当前运行时素材目录，或在后续版本接入资产 URL resolver/内嵌方案。
 
 ## 后续交付顺序
 
 1. 为 RuntimeBundle 增加宿主资产 URL 解析器或可选 SVG/PNG 内嵌策略，并按兼容规则升级独立格式版本。
-2. 将 `src/runtime` 与所需 `scene/monitoring/domain` 入口发布为工作区包或私有包，明确 peer dependency 与样式交付方式。
-3. 接入目标项目 Router、素材部署与真实数据 Provider。
-4. 在目标项目复验图纸下探、播放/暂停、泵阀/Switch 状态、指标刷新和大图性能；必要时再增加带算法版本的派生路由快照。
+2. 先把本项目需要的五项基础组件能力上游化到 AIDC，并发布双方共同消费的 `@aidc/ui`。
+3. 将 `src/runtime` 与所需 `scene/monitoring/domain` 入口发布为 `@aidc/diagram-runtime`，以 React/Three/R3F/`@aidc/ui` 为 peer dependency，并提供运行时专用样式入口。
+4. 接入 AIDC Router/工作区、右侧检查器、运行状态 Store、素材部署与数据 Provider。
+5. 在目标项目复验图纸下探、播放/暂停、泵阀/Switch 状态、指标刷新和大图性能；必要时再增加带算法版本的派生路由快照。
 
 ## 本阶段验收边界
 
@@ -200,4 +202,4 @@ const bundle = parseDiagramRuntimeBundle(await file.text())
 - 运行时、共享场景和监控算法产品代码不反向导入编辑目录；
 - 默认模拟数据、泵阀状态、电力外部供电、图元下探和动画拓扑结果保持；
 - 类型检查、单元/组件测试和生产构建通过；
-- 项目 Schema 保持 v33，旧项目和场景归档无需迁移。
+- 当前项目 Schema v36 与 RuntimeBundle v2 均继续兼容旧项目和 v1 运行包。

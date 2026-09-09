@@ -15,7 +15,7 @@ import {
   type CoolingRuntimeProvider,
   type CoolingRuntimeSnapshot,
 } from '../monitoring/coolingRuntime'
-import { isPowerDiagramExternallyEnergized } from '../monitoring/powerDiagramContext'
+import { derivePowerDiagramExternalSupply } from '../monitoring/powerDiagramContext'
 import type { DiagramRuntimeState } from './types'
 import type { DemoDeviceRuntimeState } from './demoSimulationProfiles'
 
@@ -27,6 +27,7 @@ export const EMPTY_DIAGRAM_RUNTIME_STATE: DiagramRuntimeState = {
   coolingPumpOutputPowerStates: {},
   coolingValveOpenStates: {},
   powerExternalSupplyActive: false,
+  powerBatteryBackupActive: false,
 }
 
 export function projectCoolingPumpRuntimeStates(document: ProjectDocument) {
@@ -73,11 +74,19 @@ export function createDiagramRuntimeState({
     candidate.id === diagram?.lineSystemId
   ))
   const persistedPumpStates = projectCoolingPumpRuntimeStates(document)
+  const resolvedOnOffStates = {
+    ...projectOnOffStates(document),
+    ...onOffStates,
+  }
+  const powerExternalSupply = active && lineSystem?.type === 'power'
+    ? derivePowerDiagramExternalSupply({
+        document,
+        diagramId,
+        switchStates: resolvedOnOffStates,
+      })
+    : { active: false, batteryBackupActive: false }
   return {
-    onOffStates: {
-      ...projectOnOffStates(document),
-      ...onOffStates,
-    },
+    onOffStates: resolvedOnOffStates,
     coolingPumpRunningStates: {
       ...persistedPumpStates.coolingPumpRunningStates,
       ...coolingPumpRunningStates,
@@ -87,9 +96,11 @@ export function createDiagramRuntimeState({
       ...coolingPumpOutputPowerStates,
     },
     coolingValveOpenStates,
-    powerExternalSupplyActive: active && lineSystem?.type === 'power'
-      ? isPowerDiagramExternallyEnergized({ document, diagramId, switchStates: onOffStates })
-      : false,
+    powerExternalSupplyActive: powerExternalSupply.active,
+    ...(powerExternalSupply.channel
+      ? { powerExternalSupplyChannel: powerExternalSupply.channel }
+      : {}),
+    powerBatteryBackupActive: powerExternalSupply.batteryBackupActive,
   }
 }
 

@@ -244,6 +244,40 @@ describe('incremental connection routing', () => {
     expect(result.routed.invalidEdgeIds).toEqual([])
   })
 
+  it('retains distant edges inside the same large network', () => {
+    const base = fixture()
+    const sharedNetwork: ConnectionNetwork = {
+      id: 'shared-network',
+      diagramId: 'incremental-diagram',
+      type: 'electrical',
+      nodes: base.networks.flatMap((item) => item.nodes),
+      edges: base.networks.flatMap((item) => item.edges),
+    }
+    const previous = { ...base, networks: [sharedNetwork] }
+    const routed = routeConnectionNetworks(
+      previous.networks,
+      previous.elements,
+      previous.assets,
+      previous.gridSize,
+    )
+    const previousFar = routed.edges.find((edge) => edge.edgeId === 'far-network-edge')
+    const next = {
+      ...previous,
+      elements: previous.elements.map((item) => item.id === 'near-target'
+        ? { ...item, x: item.x + 32, y: item.y + 32 }
+        : item),
+    }
+
+    const result = routeConnectionNetworksIncrementally(previous, routed, next)
+    const nextFar = result.routed.edges.find((edge) => edge.edgeId === 'far-network-edge')
+
+    expect(result.mode).toBe('incremental')
+    expect(result.dirtyNetworkCount).toBe(1)
+    expect(result.reusedEdgeCount).toBe(1)
+    expect(nextFar).toBe(previousFar)
+    expect(result.routed.invalidEdgeIds).toEqual([])
+  })
+
   it('reroutes a line when a newly added obstacle enters its local corridor', () => {
     const previous = fixture()
     const routed = routeConnectionNetworks(
@@ -382,5 +416,14 @@ describe('incremental connection routing', () => {
     expect(result.dirtyNetworkCount).toBe(1)
     expect(result.routed.invalidEdgeIds).toEqual([])
     expect(result.routed.edges.map((edge) => edge.edgeId)).toEqual(['invalid-manual-edge'])
+
+    const validationOnly = routeConnectionNetworksIncrementally(
+      previous,
+      routed,
+      next,
+      { skipDirtyEdgeIds: new Set(['invalid-manual-edge']) },
+    )
+    expect(validationOnly.dirtyEdgeCount).toBe(0)
+    expect(validationOnly.routed.invalidEdgeIds).toEqual(['invalid-manual-edge'])
   })
 })

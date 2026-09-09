@@ -1,4 +1,6 @@
 import { Canvas } from '@react-three/fiber'
+import { circuitBusbarColor, circuitDisplayEdges, circuitPaletteStyle } from '../scene/circuitPalette'
+import { completeSceneBounds, fitSceneViewport } from '../scene/sceneFit'
 import {
   forwardRef,
   memo,
@@ -29,6 +31,7 @@ import {
   type MonitorFlowPath,
 } from '../monitoring/FlowAnimationLayer'
 import { splitFlowPathAroundCrossings } from '../monitoring/flowPathGeometry'
+import { monitorMetricReadingKey } from '../monitoring/elementMetrics'
 import {
   layoutBusbarLabels,
 } from '../scene/busbarLabels'
@@ -52,7 +55,6 @@ import {
   clampZoom,
   diagramContentBounds,
   elementsBounds,
-  fitViewportToBounds,
   MIN_ZOOM,
   zoomAroundPoint,
   type Point,
@@ -99,7 +101,7 @@ import {
   ConnectionDirectionArrow,
   ConnectionLabelItem,
   CoolingPipeShell,
-  CoolingPipeInnerShadowFilter,
+  CoolingPipeOutlineFilter,
   DiagramElementVisual,
   ElementLabelItem,
   MonitorStaticFlowLines,
@@ -154,6 +156,7 @@ export interface DiagramMonitorRuntimePresentation {
   readings: MonitorMetricReadings
   elements: DiagramElement[]
   deviceStates: Record<string, DemoDeviceRuntimeState>
+  coolingPumpFlowRates: Record<string, number>
 }
 
 interface MonitorMetricPanelSelection {
@@ -416,6 +419,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   const viewportElementRef = useRef<HTMLDivElement>(null)
   const canvasStageRef = useRef<HTMLDivElement>(null)
   const viewportWorldRef = useRef<SVGGElement>(null)
+  const labelWorldRef = useRef<SVGGElement>(null)
   const gridFallbackRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef(viewport)
   const gridInvalidateRef = useRef<(() => void) | null>(null)
@@ -451,8 +455,8 @@ export const DiagramMonitorCanvas = memo(forwardRef<
 
   const syncViewportPresentation = (nextViewport: DiagramViewport) => {
     const nextGridScale = getAdaptiveGridScale(diagram.canvas.gridSize, nextViewport.zoom)
-    const world = viewportWorldRef.current
-    if (world) {
+    for (const world of [viewportWorldRef.current, labelWorldRef.current]) {
+      if (!world) continue
       world.setAttribute(
         'transform',
         `translate(${nextViewport.tx} ${nextViewport.ty}) scale(${nextViewport.zoom})`,
@@ -546,15 +550,6 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     () => diagramContentBounds(elements, busbars, connections),
     [busbars, connections, elements],
   )
-  useEffect(() => {
-    if (canvasSize.width <= 1 || canvasSize.height <= 1) return
-    const scope = `${documentEpoch}:${diagram.id}`
-    if (autoFitScopeRef.current === scope) return
-    autoFitScopeRef.current = scope
-    commitViewport(contentBounds
-      ? fitViewportToBounds(contentBounds, canvasSize)
-      : { zoom: 1, tx: 0, ty: 0 })
-  }, [canvasSize, contentBounds, diagram.id, documentEpoch])
 
   const zoomBy = (factor: number) => {
     const current = viewportRef.current
@@ -790,7 +785,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
       height: canvasSize.height / viewportValue.zoom + overscan * 2,
     }
   }, [canvasSize, viewportValue])
-  const cullingEnabled = elements.length + busbars.length + routed.edges.length >
+  const cullingEnabled = autoFitScopeRef.current === `${documentEpoch}:${diagram.id}` && elements.length + busbars.length + routed.edges.length >
     RENDER_CULLING_OBJECT_THRESHOLD
   const visibleElements = useMemo(() => cullingEnabled
     ? elements.filter((element) => {
@@ -807,9 +802,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   const visibleRoutes = useMemo(() => cullingEnabled
     ? routed.edges.filter((route) => polylineIntersectsViewport(route.points, renderWorldRect))
     : routed.edges, [cullingEnabled, renderWorldRect, routed.edges])
-  const edgesById = useMemo(() => new Map(connections.flatMap((network) => (
-    network.edges.map((edge) => [edge.id, edge] as const)
-  ))), [connections])
+  const edgesById = useMemo(() => circuitDisplayEdges(connections, elements, new Map(assets.map((asset) => [asset.key, asset])), view.circuitPalette), [connections, elements, assets, view.circuitPalette])
   const networksById = useMemo(
     () => new Map(connections.map((network) => [network.id, network])),
     [connections],
@@ -912,8 +905,10 @@ export const DiagramMonitorCanvas = memo(forwardRef<
       readings: metricReadings,
       elements: metricElements,
       deviceStates: metricDeviceStates,
+      coolingPumpFlowRates: coolingFlowTopology.pumpFlowRates,
     })
   }, [
+    coolingFlowTopology.pumpFlowRates,
     metricDeviceStates,
     metricElements,
     metricReadings,
@@ -963,13 +958,14 @@ export const DiagramMonitorCanvas = memo(forwardRef<
             points: [busbar, busbarEndPoint(busbar)],
             screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
             style: 'power' as const,
-            baseColor: busbar.color ?? DEFAULT_BUSBAR_COLOR,
+            baseColor: circuitBusbarColor(busbar, connections, elements, new Map(assets.map((asset) => [asset.key, asset])), view.circuitPalette) ?? DEFAULT_BUSBAR_COLOR,
             renderPriority: -1,
           })),
         ]
       : routes
-  }, [displayedRoutePaths, lineSystem.type, visibleBusbars])
+  }, [displayedRoutePaths, lineSystem.type, visibleBusbars, connections, elements, assets, view.circuitPalette])
   const activeFlowPaths = useMemo<MonitorFlowPath[]>(() => {
+    const displayColors = new Map(displayedFlowPaths.map((path) => [path.id, path.baseColor]))
     const activeFlowEdges = lineSystem.type === 'cooling'
       ? coolingFlowTopology.edges
       : powerFlowTopology.edges
@@ -1020,6 +1016,17 @@ export const DiagramMonitorCanvas = memo(forwardRef<
           id: `edge-flow:${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}:${fragmentIndex}`,
           connectionEdgeId: route.edgeId,
           points: fragment,
+            phasePath: {
+              id: `${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}`,
+              networkId: route.networkId,
+              startNodeId: flow.direction === 'reverse'
+                ? flow.endNodeId ?? route.targetNodeId
+                : flow.startNodeId ?? route.sourceNodeId,
+              endNodeId: flow.direction === 'reverse'
+                ? flow.startNodeId ?? route.sourceNodeId
+                : flow.endNodeId ?? route.targetNodeId,
+              points: flowPoints,
+            },
           worldWidth: displayedPath?.worldWidth,
           speedMultiplier: flow.speedMultiplier,
           style: cooling ? 'cooling' as const : 'power' as const,
@@ -1045,17 +1052,24 @@ export const DiagramMonitorCanvas = memo(forwardRef<
         exclusions,
       ).map((fragment, fragmentIndex) => ({
         id: `${segment.id}:${fragmentIndex}`,
+            phasePath: {
+              id: segment.id,
+              networkId: `busbar:${segment.busbarId}`,
+              startNodeId: `${segment.start.x}:${segment.start.y}`,
+              endNodeId: `${segment.end.x}:${segment.end.y}`,
+              points: [segment.start, segment.end],
+            },
         points: fragment,
         screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
         style: 'power' as const,
         animated: true,
-        baseColor: busbarsById.get(segment.busbarId)?.color ?? DEFAULT_BUSBAR_COLOR,
+        baseColor: displayColors.get(`busbar-display:${segment.busbarId}`) ?? DEFAULT_BUSBAR_COLOR,
         renderPriority: -1,
       }))
     })
     return [...edgePaths, ...busbarPaths]
   }, [
-    busbarsById,
+    displayedFlowPaths,
     connections,
     coolingFlowTopology.edges,
     cullingEnabled,
@@ -1087,11 +1101,23 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     () => createConnectedAnchorIdsByElement(connections),
     [connections],
   )
-  const elementLabels = useMemo(() => layoutElementLabels(visibleMetricElements, assetsByKey, {
+  const elementLabels = useMemo(() => layoutElementLabels(visibleMetricElements.map((element) => (
+    element.assetKey === 'switch' ? {
+      ...element,
+      monitorMetrics: element.monitorMetrics?.filter((metric) => {
+        if (metric.valueType !== 'text') return true
+        const reading = metricReadings[monitorMetricReadingKey(element.id, metric.id)]
+        // The symbol already conveys switching state; retain faults and other readings.
+        return !reading || reading.severity !== 'normal' ||
+          !/^(开启|关闭|开|关|闭合|断开|合闸|分闸|on|off|open|closed)$/i.test(String(reading.value).trim())
+      }),
+    } : element
+  )), assetsByKey, {
     connectedAnchorIdsByElement: connectedAnchors,
+    scale: view.elementLabelScale,
     readings: metricReadings,
-  }), [assetsByKey, connectedAnchors, metricReadings, visibleMetricElements])
-  const busbarLabels = useMemo(() => layoutBusbarLabels(visibleBusbars), [visibleBusbars])
+  }), [assetsByKey, connectedAnchors, metricReadings, visibleMetricElements, view.elementLabelScale])
+  const busbarLabels = useMemo(() => layoutBusbarLabels(visibleBusbars, metricReadings), [visibleBusbars, metricReadings])
   const connectionLabels = useMemo(() => layoutConnectionLabels(
     visibleRoutes,
     metricConnections,
@@ -1099,6 +1125,14 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     { readings: metricReadings },
   ), [metricConnections, metricReadings, visibleRoutes])
   const metricPointerDownRef = useRef<MetricPointerDownRef['current']>(() => undefined)
+  useEffect(() => {
+    if (canvasSize.width <= 1 || canvasSize.height <= 1 || isRouting) return
+    const scope = `${documentEpoch}:${diagram.id}`
+    if (autoFitScopeRef.current === scope) return
+    autoFitScopeRef.current = scope
+    const bounds = completeSceneBounds(contentBounds, routed.edges, [...elementLabels, ...busbarLabels, ...connectionLabels])
+    commitViewport(fitSceneViewport(bounds, canvasSize, viewportElementRef.current))
+  }, [canvasSize, contentBounds, diagram.id, documentEpoch, isRouting, routed.edges, elementLabels, busbarLabels, connectionLabels])
   metricPointerDownRef.current = (event, ownerId, metricId) => {
     if (event.button !== 0) return
     event.preventDefault()
@@ -1119,6 +1153,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   }
   const metricPanelOwner = metricPanelSelection
     ? metricElements.find((element) => element.id === metricPanelSelection.ownerId) ??
+      busbars.find(busbar => busbar.id === metricPanelSelection.ownerId) ??
       metricConnections.flatMap((network) => network.edges).find((edge) => (
         edge.id === metricPanelSelection.ownerId
       ))
@@ -1151,7 +1186,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     <div
       ref={canvasStageRef}
       className="canvas-stage"
-      style={CANVAS_STAGE_STYLE}
+      style={{ ...CANVAS_STAGE_STYLE, ...circuitPaletteStyle(view.circuitPalette) }}
       data-testid="diagram-monitor-canvas"
       data-grid-presentation={GRID_PRESENTATION}
       data-grid-size={diagram.canvas.gridSize}
@@ -1215,7 +1250,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
               const id = pipeFilterIds.get(group.renderKey)
               const shell = pipeShellsByRenderKey.get(group.renderKey)
               return id && shell ? [(
-                <CoolingPipeInnerShadowFilter
+                <CoolingPipeOutlineFilter
                   key={id}
                   id={id}
                   points={shell.points}
@@ -1244,7 +1279,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                 return (
                   <BusbarVisual
                     key={busbar.id}
-                    busbar={busbar}
+                    busbar={{ ...busbar, color: circuitBusbarColor(busbar, connections, elements, assetsByKey, view.circuitPalette) }}
                   />
                 )
               })}
@@ -1283,6 +1318,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                     })}
                     {shell && filterId ? (
                       <CoolingPipeShell
+                        color={group.color}
                         path={shell.path}
                         type={group.type}
                         coolingLineRole={group.coolingLineRole ?? 'primary'}
@@ -1335,7 +1371,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                     busbarId={node.busbarId}
                     offset={offset}
                     point={point}
-                    color={busbar.color}
+                    color={circuitBusbarColor(busbar, connections, elements, assetsByKey, view.circuitPalette)}
                     zoom={viewportValue.zoom}
                   />
                 )]
@@ -1360,6 +1396,20 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                 filterScope={filterScope}
               />
             ))}
+          </g>
+        </svg>
+        {activeFlowPaths.length > 0 ? (
+          <FlowAnimationLayer
+            paths={activeFlowPaths}
+            playing={animationPlaying}
+            viewportRef={viewportRef}
+            invalidateRef={flowInvalidateRef}
+          />
+        ) : null}
+          <svg className="editor-overlay label-overlay" data-testid="label-overlay">
+            <g ref={labelWorldRef} className="viewport-world"
+              style={{ transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})` }}
+              transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}>
             <g className="element-label-layer" data-testid="element-label-layer">
               {elementLabels.map((layout) => (
                 <ElementLabelItem
@@ -1369,7 +1419,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                 />
               ))}
               {busbarLabels.map((layout) => (
-                <BusbarLabelItem key={layout.busbarId} layout={layout} />
+                <BusbarLabelItem key={layout.busbarId} layout={layout} metricPointerDownRef={metricPointerDownRef} />
               ))}
               {connectionLabels.map((layout) => (
                 <ConnectionLabelItem
@@ -1379,15 +1429,8 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                 />
               ))}
             </g>
-          </g>
-        </svg>
-        {animationPlaying && activeFlowPaths.length > 0 ? (
-          <FlowAnimationLayer
-            paths={activeFlowPaths}
-            viewportRef={viewportRef}
-            invalidateRef={flowInvalidateRef}
-          />
-        ) : null}
+            </g>
+          </svg>
         {metricPanelSelection && metricPanelMetric ? (
           <MonitorMetricDataPanel
             ownerName={metricPanelOwnerName}

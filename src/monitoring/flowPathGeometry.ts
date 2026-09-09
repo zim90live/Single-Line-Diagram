@@ -1,6 +1,7 @@
 import type { Point } from '../scene/geometry'
+import type { MonitorFlowPath } from './flowPresentation'
 
-function projectedDistanceAlongPolyline(points: Point[], target: Point) {
+export function projectedDistanceAlongPolyline(points: Point[], target: Point) {
   let accumulated = 0
   let best = { distanceAlong: 0, squaredDistance: Number.POSITIVE_INFINITY }
   for (let index = 1; index < points.length; index += 1) {
@@ -26,7 +27,7 @@ function projectedDistanceAlongPolyline(points: Point[], target: Point) {
   return best.distanceAlong
 }
 
-function polylineLength(points: Point[]) {
+export function polylineLength(points: Point[]) {
   return points.slice(1).reduce((length, point, index) => (
     length + Math.hypot(point.x - points[index].x, point.y - points[index].y)
   ), 0)
@@ -95,4 +96,106 @@ export function splitFlowPathAroundCrossings(
   const tail = slicePolylineByDistance(points, cursor, totalLength)
   if (tail.length > 1) fragments.push(tail)
   return fragments
+}
+
+/** Continue the animation coordinate over real topology nodes, never crossings.
+ * Different flow speeds are separate domains: they cannot remain phase-locked.
+ * At unequal-length merges/cycles, the first stable incoming route owns the
+ * junction phase, so any unavoidable seam stays at a junction, not in a pipe.
+ */
+export function flowPhaseOffsets(paths: MonitorFlowPath[]) {
+  type Link = { start: string; end: string; length: number }
+  const links = new Map<string, Link>()
+  const pathKeys = new Map<string, string>()
+  for (const path of paths) {
+    if (!path.phasePath) continue
+    const ref = path.phasePath
+    const domain = JSON.stringify([path.style ?? 'power', ref.networkId, path.speedMultiplier ?? 1])
+    const key = JSON.stringify([domain, ref.id])
+    pathKeys.set(path.id, key)
+    links.set(key, {
+      start: JSON.stringify([domain, ref.startNodeId]),
+      end: JSON.stringify([domain, ref.endNodeId]),
+      length: polylineLength(ref.points),
+    })
+  }
+  const outgoing = new Map<string, Link[]>()
+  const incoming = new Set<string>()
+  const nodes = new Set<string>()
+  for (const [, link] of [...links].sort(([a], [b]) => a.localeCompare(b))) {
+    nodes.add(link.start)
+    nodes.add(link.end)
+    incoming.add(link.end)
+    const children = outgoing.get(link.start) ?? []
+    children.push(link)
+    outgoing.set(link.start, children)
+  }
+  const distances = new Map<string, number>()
+  const roots = [...nodes].sort((a, b) => (
+    Number(incoming.has(a)) - Number(incoming.has(b)) || a.localeCompare(b)
+  ))
+  for (const root of roots) {
+    if (distances.has(root)) continue
+    distances.set(root, 0)
+    const queue = [root]
+    for (let index = 0; index < queue.length; index += 1) {
+      const node = queue[index]
+      for (const edge of outgoing.get(node) ?? []) {
+        if (distances.has(edge.end)) continue
+        distances.set(edge.end, distances.get(node)! + edge.length)
+        queue.push(edge.end)
+      }
+    }
+  }
+  const offsets = new Map<string, number>()
+  for (const path of paths) {
+    const key = pathKeys.get(path.id)
+    const ref = path.phasePath
+    if (!key || !ref || !path.points.length) continue
+    const link = links.get(key)!
+    offsets.set(path.id, (distances.get(link.start) ?? 0) +
+      projectedDistanceAlongPolyline(ref.points, path.points[0]))
+  }
+  return offsets
+}
+
+/** Only real, visible topology endpoints may extend a strip join. A crossing
+ * mask endpoint must stay clipped, even when another pipe shares its position.
+ */
+export function flowEndpointDirections(paths: MonitorFlowPath[]) {
+  type Arm = { pathId: string; atStart: boolean; outward: Point; point: Point }
+  const nodes = new Map<string, Arm[]>()
+  const same = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) < 0.001
+  for (const path of paths) {
+    const ref = path.phasePath
+    if (!ref || path.points.length < 2) continue
+    for (const atStart of [true, false]) {
+      const point = atStart ? path.points[0] : path.points.at(-1)!
+      const endpoint = atStart ? ref.points[0] : ref.points.at(-1)!
+      if (!endpoint || !same(point, endpoint)) continue
+      const neighbor = atStart ? path.points.find((p) => !same(p, point))
+        : [...path.points].reverse().find((p) => !same(p, point))
+      if (!neighbor) continue
+      const length = Math.hypot(neighbor.x - point.x, neighbor.y - point.y)
+      const outward = { x: (neighbor.x - point.x) / length, y: (neighbor.y - point.y) / length }
+      const key = JSON.stringify([path.style ?? 'power', ref.networkId, atStart ? ref.startNodeId : ref.endNodeId])
+      const arms = nodes.get(key) ?? []
+      arms.push({ pathId: path.id, atStart, outward, point })
+      nodes.set(key, arms)
+    }
+  }
+  const directions = new Map<string, { start?: Point; end?: Point }>()
+  for (const arms of nodes.values()) {
+    for (const arm of arms) {
+      const others = arms.filter((other) => same(arm.point, other.point) &&
+        !same(arm.outward, other.outward))
+      // A two-direction bend may be referenced by multiple logical edges.
+      // At a T/cross junction keep the intersecting strips' flat ends.
+      if (!others.length || others.some((other) => !same(other.outward, others[0].outward))) continue
+      const current = directions.get(arm.pathId) ?? {}
+      current[arm.atStart ? 'start' : 'end'] = others[0].outward
+      directions.set(arm.pathId, current)
+    }
+  }
+  return directions
 }

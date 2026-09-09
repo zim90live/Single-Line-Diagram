@@ -6,7 +6,7 @@ import {
   type MonitorMetricReading,
 } from '../../monitoring/elementMetrics'
 import { createMonitorTrendValues } from '../../monitoring/monitorPanelData'
-import { SelectField } from '../ui'
+import { SelectField } from '@aidc/ui'
 import { MonitorTrendChart } from './MonitorTrendChart'
 
 type MetricTrendPeriod = 'hour' | 'six-hours' | 'day'

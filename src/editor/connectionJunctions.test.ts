@@ -411,6 +411,7 @@ describe('connection junction topology', () => {
           targetNodeId: 'middle',
           crossingLayer: 'lower',
           externalSupplyEndpoint: 'source',
+          externalSupplyChannel: 'b',
         },
         {
           id: 'middle-b',
@@ -457,6 +458,7 @@ describe('connection junction topology', () => {
       flowDirection: 'reverse',
       crossingLayer: 'upper',
       externalSupplyEndpoint: 'target',
+      externalSupplyChannel: 'b',
       monitorDataVisible: true,
       monitorMetricLabelsVisible: false,
       monitorMetrics: [expect.objectContaining({ id: 'flow', name: '流量' })],

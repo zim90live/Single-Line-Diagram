@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createDefaultProject } from '../domain/project'
 import { symbolAssets } from '../scene/symbolCatalog'
+import { darkenFlowColor } from '../monitoring/flowPresentation'
 import {
   DiagramMonitorCanvas,
   type DiagramMonitorCanvasHandle,
@@ -48,6 +49,48 @@ vi.mock('./useRoutedConnections', () => ({
 }))
 
 describe('DiagramMonitorCanvas', () => {
+  it.each(['a', 'b'] as const)('uses the %s palette for energized busbars instead of their saved custom color', (channel) => {
+    const document = createDefaultProject('母线配色', symbolAssets)
+    const power = document.lineSystems.find(line => line.type === 'power')!
+    const diagram = document.diagrams.find(item => item.lineSystemId === power.id)!
+    document.circuitPalette = { a: '#1BA4FF', b: '#00B387' }
+    document.busbars.push({ id: 'colored-busbar', diagramId: diagram.id, type: 'electrical', x: 0, y: 0,
+      length: 160, orientation: 'horizontal', color: '#00F074', powerSupplyChannel: channel, monitorFlowDirection: 'start-to-end' })
+    document.elements.push(...['grid', 'fm'].map(assetKey => ({
+      id: assetKey, assetKey, diagramId: diagram.id, name: assetKey, x: 0, y: 80, width: 48, height: 48,
+      rotation: 0, properties: {}, extensions: {},
+    })))
+    document.connections.push({ id: 'colored-network', diagramId: diagram.id, type: 'electrical', powerSupplyChannel: channel,
+      nodes: [
+        { id: 'grid-port', kind: 'element-anchor', elementId: 'grid', anchorId: 'out' },
+        { id: 'fm-port', kind: 'element-anchor', elementId: 'fm', anchorId: 'in' },
+        { id: 'tap-in', kind: 'busbar-tap', busbarId: 'colored-busbar', offset: 32 },
+        { id: 'tap-out', kind: 'busbar-tap', busbarId: 'colored-busbar', offset: 128 },
+      ], edges: [
+        { id: 'grid-feed', sourceNodeId: 'grid-port', targetNodeId: 'tap-in' },
+        { id: 'fm-feed', sourceNodeId: 'tap-out', targetNodeId: 'fm-port' },
+      ],
+    })
+    const view = createDiagramRuntimeView(document, diagram.id)!
+    const runtime: DiagramRuntimeContext = { navigation: view.navigation, state: {
+      onOffStates: {}, coolingPumpRunningStates: {}, coolingPumpOutputPowerStates: {}, coolingValveOpenStates: {},
+      powerExternalSupplyActive: true, powerBatteryBackupActive: false,
+    } }
+    const { container, rerender } = render(<DiagramMonitorCanvas view={view} runtime={runtime} animationPlaying />)
+    const strokes = () => [...container.querySelectorAll('.monitor-static-flow-line')].map(node => node.getAttribute('stroke'))
+    expect(strokes()).toContain(darkenFlowColor(document.circuitPalette[channel]!, 0.75))
+    expect(strokes()).not.toContain(darkenFlowColor('#00F074', 0.75))
+    rerender(<DiagramMonitorCanvas view={{ ...view, circuitPalette: { [channel]: '#CC8844' } }} runtime={runtime} animationPlaying />)
+    expect(strokes()).toContain(darkenFlowColor('#CC8844', 0.75))
+    const unassigned = { ...view, busbars: view.busbars.map(bar => ({ ...bar, powerSupplyChannel: undefined })),
+      connections: view.connections.map(network => ({ ...network, powerSupplyChannel: undefined })) }
+    rerender(<DiagramMonitorCanvas view={unassigned} runtime={runtime} animationPlaying />)
+    expect(strokes()).toContain(darkenFlowColor('#00F074', 0.75))
+    expect(document.busbars[0].color).toBe('#00F074')
+    rerender(<DiagramMonitorCanvas view={{ ...view, elements: [], connections: [] }} runtime={runtime} animationPlaying />)
+    expect(strokes()).toContain(darkenFlowColor(document.circuitPalette[channel]!, 0.5))
+    expect(strokes()).not.toContain(darkenFlowColor('#00F074', 0.75))
+  })
   it('renders a readonly runtime scene without editor commands and keeps host navigation', async () => {
     const document = createDefaultProject('只读监控场景', symbolAssets)
     const parent = document.diagrams[0]
@@ -143,6 +186,7 @@ describe('DiagramMonitorCanvas', () => {
         coolingPumpOutputPowerStates: {},
         coolingValveOpenStates: {},
         powerExternalSupplyActive: false,
+        powerBatteryBackupActive: false,
       },
       navigation: view.navigation,
     }
@@ -168,6 +212,12 @@ describe('DiagramMonitorCanvas', () => {
     expect(canvas).toHaveAttribute('data-runtime-scene', 'readonly')
     expect(canvas).toHaveAttribute('data-mode', 'monitor')
     expect(screen.getByTestId('runtime-monitor-overlay')).toBeInTheDocument()
+    const labels = screen.getByTestId('element-label-layer')
+    expect(labels.closest('svg')).toBe(screen.getByTestId('label-overlay'))
+    expect(screen.getByTestId('runtime-monitor-overlay')).not.toContainElement(labels)
+    expect(labels.parentElement?.getAttribute('transform')).toBe(
+      screen.getByTestId('runtime-monitor-overlay').querySelector('.viewport-world')?.getAttribute('transform'),
+    )
     expect(screen.getByTestId('connection-layer').querySelector(
       '.monitor-static-flow-line',
     )).toBeInTheDocument()

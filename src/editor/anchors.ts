@@ -1,3 +1,4 @@
+import { instanceAnchorPlacement } from '../scene/elementAnchors'
 import {
   EDITOR_GRID_SIZE,
   type AnchorDirection,
@@ -14,6 +15,8 @@ export const ANCHOR_TYPE_OPTIONS: ReadonlyArray<{ value: AnchorType; label: stri
   { value: 'cooling-primary-hot', label: '一次回路热' },
   { value: 'cooling-secondary-cold', label: '二次回路冷' },
   { value: 'cooling-secondary-hot', label: '二次回路热' },
+  { value: 'cooling-tertiary-cold', label: '三次回路冷' },
+  { value: 'cooling-tertiary-hot', label: '三次回路热' },
   { value: 'cooling-general', label: '通用' },
 ]
 
@@ -170,8 +173,10 @@ export function constrainAnchorDrag(
 export function transformAnchorToElement(
   anchor: SymbolAnchor,
   asset: Pick<AssetDefinition, 'intrinsicWidth' | 'intrinsicHeight'>,
-  element: Pick<DiagramElement, 'x' | 'y' | 'width' | 'height' | 'rotation'>,
+  element: Pick<DiagramElement, 'x' | 'y' | 'width' | 'height' | 'rotation'> &
+    Partial<Pick<DiagramElement, 'assetKey' | 'tmuPortsSwapped'>>,
 ): TransformedAnchorPoint {
+  anchor = instanceAnchorPlacement(anchor, asset, element)
   const center = {
     x: element.x + element.width / 2,
     y: element.y + element.height / 2,

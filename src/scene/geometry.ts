@@ -222,6 +222,7 @@ export function elementsEqual(left: DiagramElement[], right: DiagramElement[]) {
       element.width === candidate.width &&
       element.height === candidate.height &&
       element.rotation === candidate.rotation &&
+      element.tmuPortsSwapped === candidate.tmuPortsSwapped &&
       element.labelVisible === candidate.labelVisible &&
       element.labelPlacement === candidate.labelPlacement &&
       element.monitorDataVisible === candidate.monitorDataVisible &&

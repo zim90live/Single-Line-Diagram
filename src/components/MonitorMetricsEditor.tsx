@@ -14,7 +14,7 @@ import {
   createDefaultMonitorTextOptions,
   defaultMonitorMetricAlarm,
 } from '../monitoring/elementMetrics'
-import { Button, IconButton, NumericField, SelectField, TextField } from './ui'
+import { Button, IconButton, NumericField, SelectField, TextField } from '@aidc/ui'
 
 const NUMBER_MIN = -1_000_000_000_000
 const NUMBER_MAX = 1_000_000_000_000

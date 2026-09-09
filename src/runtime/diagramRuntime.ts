@@ -15,6 +15,8 @@ import {
 } from '../monitoring/diagramDrillDown'
 
 export interface DiagramRuntimeView {
+  circuitPalette?: ProjectDocument['circuitPalette']
+  elementLabelScale?: number
   diagram: Diagram
   lineSystem: LineSystem
   path: Diagram[]
@@ -58,6 +60,8 @@ export function createDiagramRuntimeView(
 
   return {
     diagram,
+    circuitPalette: document.circuitPalette,
+    elementLabelScale: document.elementLabelScale,
     lineSystem,
     path: getDiagramPath(document, diagramId),
     assets: document.assets,

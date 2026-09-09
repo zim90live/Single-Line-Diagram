@@ -212,6 +212,12 @@ const supplyTemperature = (normal: [number, number]) => metric(
     [normal[0] - 7, normal[0] - 4], [normal[1] + 5, normal[1] + 9],
   ),
 )
+const measurementTemperature = metric('deviceTemperature', '温度', '°C', 1, {
+  normal: [range(16, 32)],
+  minor: [range(14, 16), range(32, 34)],
+  major: [range(10, 14), range(34, 38)],
+  critical: [range(5, 10), range(38, 45)],
+})
 const returnTemperature = (normal: [number, number]) => metric(
   'returnTemperature', '回水温度', '°C', 1,
   outsideBands(
@@ -270,7 +276,18 @@ export const DEMO_DEVICE_PROFILES: DemoDeviceProfile[] = [
   { id: 'cwp', assetKeys: ['cwp'], operation: 'running', metrics: [flowRate([70, 110]), pressure([200, 400]), pumpFrequency, supplyTemperature([28, 36])] },
   { id: 'ct', assetKeys: ['ct'], operation: 'running', metrics: [supplyTemperature([24, 32]), pumpFrequency, pressure([150, 350]), statusMetric('running')] },
   { id: 'phe', assetKeys: ['phe'], operation: 'running', metrics: [deltaTemperature, differentialPressure] },
-  { id: 'mp', assetKeys: ['mp'], operation: 'running', metrics: [flowRate([40, 120]), pressure([200, 450]), supplyTemperature([16, 24])] },
+  {
+    id: 'mp',
+    assetKeys: ['mp'],
+    operation: 'running',
+    metrics: [
+      flowRate([40, 120]),
+      pressure([200, 450]),
+      measurementTemperature,
+      supplyTemperature([16, 24]),
+      returnTemperature([24, 32]),
+    ],
+  },
   { id: 'wmt', assetKeys: ['wmt'], operation: 'running', metrics: [tankLevel, statusMetric('running')] },
   { id: 'cpd', assetKeys: ['cpd'], operation: 'running', metrics: [pressure([200, 450]), statusMetric('running')] },
   { id: 'valve', assetKeys: ['2-wv', 'cv'], operation: 'open', metrics: [valvePosition, flowRate([20, 100]), pressure([150, 400]), supplyTemperature([16, 32]), statusMetric('open', '开启')] },

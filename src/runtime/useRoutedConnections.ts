@@ -140,5 +140,5 @@ export function useRoutedConnections(input: RouteComputationInput) {
     [input, snapshot],
   )
 
-  return { routed, isRouting, routeStats }
+  return { routed, isRouting: isRouting || (input.networks.length > 0 && snapshot?.input.scopeKey !== input.scopeKey), routeStats }
 }

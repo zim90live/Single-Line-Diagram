@@ -8,6 +8,7 @@ import {
   createDemoAnomalyAssignments,
   demoDeviceProfileForAsset,
   demoAnomalyCount,
+  demoMetricProfileFor,
   normalizeDemoMetricUnit,
 } from './demoSimulationProfiles'
 
@@ -39,6 +40,37 @@ describe('demo metric data provider', () => {
       .filter((assetKey) => !demoDeviceProfileForAsset(assetKey))
 
     expect(missing).toEqual([])
+  })
+
+  it('uses pipeline temperature bands for the default MP temperature metric', () => {
+    const metric: MonitorMetric = {
+      id: 'mp-temperature',
+      name: '温度',
+      valueType: 'number',
+      unit: '°C',
+      precision: 1,
+      simulationMin: 16,
+      simulationMax: 32,
+      alarm: {
+        mode: 'outside',
+        minorLow: 14,
+        minorHigh: 34,
+        majorLow: 10,
+        majorHigh: 38,
+        criticalLow: 5,
+        criticalHigh: 45,
+      },
+    }
+
+    expect(demoMetricProfileFor('mp', metric)).toMatchObject({
+      semanticKey: 'deviceTemperature',
+      bands: {
+        normal: [{ min: 16, max: 32 }],
+        minor: [{ min: 14, max: 16 }, { min: 32, max: 34 }],
+        major: [{ min: 10, max: 14 }, { min: 34, max: 38 }],
+        critical: [{ min: 5, max: 10 }, { min: 38, max: 45 }],
+      },
+    })
   })
 
   it('allocates a small deterministic anomaly budget per page', () => {

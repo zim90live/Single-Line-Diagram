@@ -4,10 +4,12 @@ import { defaultConnectionColor, hexToHsv, hsvToHex, normalizeHexColor } from '.
 
 describe('object colors', () => {
   it('uses the confirmed cooling circuit presets', () => {
-    expect(defaultConnectionColor('cooling-primary-cold')).toBe('#FFC800')
-    expect(defaultConnectionColor('cooling-primary-hot')).toBe('#FF6011')
-    expect(defaultConnectionColor('cooling-secondary-cold')).toBe('#0084FF')
-    expect(defaultConnectionColor('cooling-secondary-hot')).toBe('#00F074')
+    expect(defaultConnectionColor('cooling-primary-cold')).toBe('#FCBC00')
+    expect(defaultConnectionColor('cooling-primary-hot')).toBe('#FB7800')
+    expect(defaultConnectionColor('cooling-secondary-cold')).toBe('#1BA4FF')
+    expect(defaultConnectionColor('cooling-secondary-hot')).toBe('#00B387')
+    expect(defaultConnectionColor('cooling-tertiary-cold')).toBe('#A970FF')
+    expect(defaultConnectionColor('cooling-tertiary-hot')).toBe('#FF4D6D')
   })
 
   it('normalizes editable HEX values', () => {

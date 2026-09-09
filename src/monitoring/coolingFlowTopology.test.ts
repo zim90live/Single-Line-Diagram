@@ -78,6 +78,76 @@ const heatExchangerAsset: AssetDefinition = {
   ],
 }
 
+const flowManagerAsset: AssetDefinition = {
+  key: 'fm',
+  name: 'FM',
+  category: '电力',
+  source: 'fm.svg',
+  intrinsicWidth: 64,
+  intrinsicHeight: 64,
+  anchors: [
+    {
+      id: 'fm-secondary-cold',
+      name: '二次回路冷',
+      x: 16,
+      y: 64,
+      direction: 'bottom',
+      type: 'cooling-secondary-cold',
+    },
+    {
+      id: 'fm-secondary-hot',
+      name: '二次回路热',
+      x: 48,
+      y: 64,
+      direction: 'bottom',
+      type: 'cooling-secondary-hot',
+    },
+  ],
+}
+
+const terminalUnitAsset: AssetDefinition = {
+  key: 'tmu',
+  name: 'TMU',
+  category: '冷却',
+  source: 'tmu.png',
+  intrinsicWidth: 64,
+  intrinsicHeight: 96,
+  anchors: [
+    {
+      id: 'tmu-secondary-hot-1',
+      name: '二次回路热 1',
+      x: 0,
+      y: 16,
+      direction: 'left',
+      type: 'cooling-secondary-hot',
+    },
+    {
+      id: 'tmu-secondary-cold-1',
+      name: '二次回路冷 1',
+      x: 64,
+      y: 16,
+      direction: 'right',
+      type: 'cooling-secondary-cold',
+    },
+    {
+      id: 'tmu-secondary-hot-2',
+      name: '二次回路热 2',
+      x: 0,
+      y: 80,
+      direction: 'left',
+      type: 'cooling-secondary-hot',
+    },
+    {
+      id: 'tmu-secondary-cold-2',
+      name: '二次回路冷 2',
+      x: 64,
+      y: 80,
+      direction: 'right',
+      type: 'cooling-secondary-cold',
+    },
+  ],
+}
+
 const generalPumpAsset: AssetDefinition = {
   ...pumpAsset,
   key: 'general-pump',
@@ -85,6 +155,23 @@ const generalPumpAsset: AssetDefinition = {
     ...anchor,
     type: 'cooling-general' as const,
   })),
+}
+
+const measurementPointAsset: AssetDefinition = {
+  key: 'mp',
+  name: 'MP',
+  category: '冷却',
+  source: 'mp.svg',
+  intrinsicWidth: 32,
+  intrinsicHeight: 32,
+  anchors: [{
+    id: 'mp-measurement-point',
+    name: '测量点',
+    x: 16,
+    y: 32,
+    direction: 'bottom',
+    type: 'cooling-general',
+  }],
 }
 
 function element(id: string, assetKey: string): DiagramElement {
@@ -177,6 +264,323 @@ describe('cooling closed-loop topology', () => {
         flowRate: 50,
       },
     ])
+  })
+
+  it('treats a single-anchor MP as a passive sensor instead of an open flow boundary', () => {
+    const topology = deriveCoolingFlowTopology({
+      elements: [element('mp-1', 'mp')],
+      assets: [measurementPointAsset],
+      networks: [{
+        id: 'measured-pipe',
+        diagramId: 'diagram',
+        type: coolingType,
+        nodes: [
+          { id: 'source', kind: 'node', x: 0, y: 0 },
+          { id: 'junction', kind: 'node', x: 8, y: 0 },
+          { id: 'outlet', kind: 'node', x: 16, y: 0 },
+          {
+            id: 'mp-anchor',
+            kind: 'element-anchor',
+            elementId: 'mp-1',
+            anchorId: 'mp-measurement-point',
+          },
+        ],
+        edges: [
+          {
+            id: 'source-pipe',
+            sourceNodeId: 'source',
+            targetNodeId: 'junction',
+            externalSupplyEndpoint: 'source',
+          },
+          { id: 'measured-main-pipe', sourceNodeId: 'junction', targetNodeId: 'outlet' },
+          { id: 'measurement-spur', sourceNodeId: 'junction', targetNodeId: 'mp-anchor' },
+        ],
+      }],
+      runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    })
+
+    expect(topology.edges).toEqual([
+      { edgeId: 'source-pipe', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+      {
+        edgeId: 'measured-main-pipe',
+        direction: 'forward',
+        speedMultiplier: 1,
+        flowRate: 100,
+      },
+    ])
+  })
+
+  it('allows FM flow only from the cold port to the hot port', () => {
+    const fmElement = element('fm-1', 'fm')
+    const coldSourceNetworks: ConnectionNetwork[] = [
+      {
+        id: 'fm-cold-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-cold',
+        nodes: [
+          { id: 'cold-source', kind: 'node', x: 0, y: 0 },
+          {
+            id: 'fm-cold',
+            kind: 'element-anchor',
+            elementId: 'fm-1',
+            anchorId: 'fm-secondary-cold',
+          },
+        ],
+        edges: [{
+          id: 'cold-inlet',
+          sourceNodeId: 'cold-source',
+          targetNodeId: 'fm-cold',
+          externalSupplyEndpoint: 'source',
+        }],
+      },
+      {
+        id: 'fm-hot-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-hot',
+        nodes: [
+          {
+            id: 'fm-hot',
+            kind: 'element-anchor',
+            elementId: 'fm-1',
+            anchorId: 'fm-secondary-hot',
+          },
+          { id: 'hot-return', kind: 'node', x: 24, y: 0 },
+        ],
+        edges: [{ id: 'hot-outlet', sourceNodeId: 'fm-hot', targetNodeId: 'hot-return' }],
+      },
+    ]
+    const runtimeSnapshot = new MockCoolingRuntimeProvider().getSnapshot({
+      elements: [fmElement],
+      assets: [flowManagerAsset],
+    })
+
+    expect(deriveCoolingFlowTopology({
+      elements: [fmElement],
+      assets: [flowManagerAsset],
+      networks: coldSourceNetworks,
+      runtime: runtimeSnapshot,
+    }).edges).toEqual([
+      { edgeId: 'cold-inlet', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+      { edgeId: 'hot-outlet', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+    ])
+
+    const hotBackflowNetworks: ConnectionNetwork[] = [
+      {
+        ...coldSourceNetworks[0],
+        edges: [{ id: 'cold-outlet', sourceNodeId: 'fm-cold', targetNodeId: 'cold-source' }],
+      },
+      {
+        ...coldSourceNetworks[1],
+        edges: [{
+          id: 'hot-inlet',
+          sourceNodeId: 'hot-return',
+          targetNodeId: 'fm-hot',
+          externalSupplyEndpoint: 'source',
+        }],
+      },
+    ]
+
+    expect(deriveCoolingFlowTopology({
+      elements: [fmElement],
+      assets: [flowManagerAsset],
+      networks: hotBackflowNetworks,
+      runtime: runtimeSnapshot,
+    }).edges).toEqual([])
+  })
+
+  it('keeps numbered TMU pairs independent and drives circuit 2 through its external loop', () => {
+    const tmuElement = element('tmu-1', 'tmu')
+    const networks: ConnectionNetwork[] = [
+      {
+        id: 'tmu-cold-1-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-cold',
+        nodes: [
+          { id: 'cold-1-source', kind: 'node', x: 0, y: 0 },
+          {
+            id: 'tmu-cold-1',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-cold-1',
+          },
+        ],
+        edges: [{ id: 'cold-1-inlet', sourceNodeId: 'cold-1-source', targetNodeId: 'tmu-cold-1' }],
+      },
+      {
+        id: 'tmu-hot-1-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-hot',
+        nodes: [
+          {
+            id: 'tmu-hot-1',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-hot-1',
+          },
+          { id: 'hot-1-return', kind: 'node', x: 24, y: 0 },
+        ],
+        edges: [{ id: 'hot-1-outlet', sourceNodeId: 'tmu-hot-1', targetNodeId: 'hot-1-return' }],
+      },
+      {
+        id: 'tmu-cold-2-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-cold',
+        nodes: [
+          { id: 'cold-2-boundary', kind: 'node', x: 0, y: 16 },
+          {
+            id: 'tmu-cold-2',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-cold-2',
+          },
+        ],
+        edges: [{ id: 'cold-2-pipe', sourceNodeId: 'cold-2-boundary', targetNodeId: 'tmu-cold-2' }],
+      },
+      {
+        id: 'tmu-hot-2-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-hot',
+        nodes: [
+          {
+            id: 'tmu-hot-2',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-hot-2',
+          },
+          { id: 'hot-2-boundary', kind: 'node', x: 24, y: 16 },
+        ],
+        edges: [{ id: 'hot-2-pipe', sourceNodeId: 'tmu-hot-2', targetNodeId: 'hot-2-boundary' }],
+      },
+    ]
+    const withOnlySource = (
+      edgeId: string,
+      endpoint: 'source' | 'target',
+    ): ConnectionNetwork[] => networks.map((network) => ({
+      ...network,
+      edges: network.edges.map((edge) => ({
+        ...edge,
+        externalSupplyEndpoint: edge.id === edgeId ? endpoint : undefined,
+      })),
+    }))
+
+    expect(deriveCoolingFlowTopology({
+      elements: [tmuElement],
+      assets: [terminalUnitAsset],
+      networks: withOnlySource('cold-1-inlet', 'source'),
+      runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    }).edges).toEqual([
+      { edgeId: 'cold-1-inlet', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+      { edgeId: 'hot-1-outlet', direction: 'forward', speedMultiplier: 1, flowRate: 100 },
+    ])
+
+    const fmElement = element('fm-1', 'fm')
+    const circuit2LoopNetworks: ConnectionNetwork[] = [
+      {
+        id: 'tmu-to-fm-cold-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-cold',
+        nodes: [
+          {
+            id: 'tmu-loop-cold-2',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-cold-2',
+          },
+          {
+            id: 'fm-loop-cold',
+            kind: 'element-anchor',
+            elementId: 'fm-1',
+            anchorId: 'fm-secondary-cold',
+          },
+        ],
+        edges: [{
+          id: 'tmu-to-fm-cold-pipe',
+          sourceNodeId: 'tmu-loop-cold-2',
+          targetNodeId: 'fm-loop-cold',
+        }],
+      },
+      {
+        id: 'fm-to-tmu-hot-network',
+        diagramId: 'diagram',
+        type: 'cooling-secondary-hot',
+        nodes: [
+          {
+            id: 'fm-loop-hot',
+            kind: 'element-anchor',
+            elementId: 'fm-1',
+            anchorId: 'fm-secondary-hot',
+          },
+          {
+            id: 'tmu-loop-hot-2',
+            kind: 'element-anchor',
+            elementId: 'tmu-1',
+            anchorId: 'tmu-secondary-hot-2',
+          },
+        ],
+        edges: [{
+          id: 'fm-to-tmu-hot-pipe',
+          sourceNodeId: 'fm-loop-hot',
+          targetNodeId: 'tmu-loop-hot-2',
+        }],
+      },
+    ]
+
+    expect(deriveCoolingFlowTopology({
+      elements: [tmuElement, fmElement],
+      assets: [terminalUnitAsset, flowManagerAsset],
+      networks: circuit2LoopNetworks,
+      runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    }).edges).toEqual([
+      {
+        edgeId: 'tmu-to-fm-cold-pipe',
+        direction: 'forward',
+        speedMultiplier: 1,
+        flowRate: 100,
+      },
+      {
+        edgeId: 'fm-to-tmu-hot-pipe',
+        direction: 'forward',
+        speedMultiplier: 1,
+        flowRate: 100,
+      },
+    ])
+  })
+
+  it('drives an unnumbered tertiary TMU-FM loop without connecting the secondary side', () => {
+    const assets: AssetDefinition[] = [
+      { ...terminalUnitAsset, anchors: terminalUnitAsset.anchors.map((anchor) =>
+        anchor.id.endsWith('-2') ? {
+          ...anchor,
+          name: anchor.type.endsWith('-cold') ? '三次回路冷' : '三次回路热',
+          type: anchor.type.endsWith('-cold') ? 'cooling-tertiary-cold' : 'cooling-tertiary-hot',
+        } : anchor) },
+      { ...flowManagerAsset, anchors: flowManagerAsset.anchors.map((anchor) => ({
+        ...anchor,
+        type: anchor.type.endsWith('-cold') ? 'cooling-tertiary-cold' : 'cooling-tertiary-hot',
+      })) },
+    ]
+    const networks: ConnectionNetwork[] = (['cold', 'hot'] as const).map((side) => ({
+      id: side, diagramId: 'diagram', type: `cooling-tertiary-${side}`,
+      nodes: [
+        { id: `tmu-${side}`, kind: 'element-anchor', elementId: 'tmu-1', anchorId: `tmu-secondary-${side}-2` },
+        { id: `fm-${side}`, kind: 'element-anchor', elementId: 'fm-1', anchorId: `fm-secondary-${side}` },
+      ],
+      edges: [{ id: side, sourceNodeId: `tmu-${side}`, targetNodeId: `fm-${side}` }],
+    }))
+    const derive = (input: ConnectionNetwork[]) => deriveCoolingFlowTopology({
+      elements: [element('tmu-1', 'tmu'), element('fm-1', 'fm')], assets,
+      networks: input, runtime: { source: 'mock', timestamp: 0, pumps: {}, valves: {} },
+    }).edges
+    expect(derive(networks)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ edgeId: 'cold', direction: 'forward', flowRate: 100 }),
+      expect.objectContaining({ edgeId: 'hot', direction: 'reverse', flowRate: 100 }),
+    ]))
+    expect(derive([networks[0]])).toEqual([])
+    expect(derive(networks.map((network) => network.id === 'hot' ? {
+      ...network, nodes: network.nodes.map((node) => node.id === 'tmu-hot' ? {
+        ...node, anchorId: 'tmu-secondary-hot-1',
+      } : node),
+    } : network))).toEqual([])
   })
 
   it('stops a configured cooling line source when its pipe direction points inward', () => {

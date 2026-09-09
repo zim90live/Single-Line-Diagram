@@ -1,4 +1,7 @@
 import { Canvas } from '@react-three/fiber'
+import { changeCoolingCircuit } from '../scene/coolingCircuitEditing'
+import { circuitBusbarColor, circuitBusbarKey, circuitColor, circuitDisplayEdges, circuitKey, circuitPaletteStyle, networkPowerChannels, type CircuitPalette } from '../scene/circuitPalette'
+import { completeSceneBounds, fitSceneViewport } from '../scene/sceneFit'
 import {
   forwardRef,
   memo,
@@ -90,6 +93,7 @@ import {
   connectionTypesCompatible,
   crossingPointKeys,
   indexConnectionCrossings,
+  manualRouteConstrainedEdgeIds,
   nearestPointOnBusbar,
   normalizeConnectionNetworks,
   occupiedAnchorKeys,
@@ -98,6 +102,7 @@ import {
   previewConnectionRoutesForDiagram,
   resolveElementAnchor,
   roundedOrthogonalPathData,
+  routeConnectionNetworksForDirtyEdges,
   routeConnectionNetworksForDirtyNetworks,
   routeConnectionNetworksIncrementally,
   routeConnectionPreviewWithContext,
@@ -115,7 +120,6 @@ import {
   elementInsideRect,
   elementsBounds,
   elementsEqual,
-  fitViewportToBounds,
   MIN_ZOOM,
   normalizedRect,
   rotatePoint,
@@ -168,7 +172,6 @@ import {
   clearRouteWaypointsForEdges,
   deleteRouteWaypoints,
   draggedRouteSegmentAlignsWithExistingRoute,
-  insetDraggedRouteSegmentFromElementAnchors,
   previewDraggedSegment,
   removeFoldbackRouteWaypoints,
   routeWaypointBounds,
@@ -209,7 +212,7 @@ import {
   ConnectionBridgeCasing,
   ConnectionLabelItem,
   CoolingPipeShell,
-  CoolingPipeInnerShadowFilter,
+  CoolingPipeOutlineFilter,
   DiagramConnectionVisual,
   DiagramElementVisual,
   ElementLabelItem,
@@ -284,6 +287,7 @@ export interface DiagramCanvasHandle {
   updateElement: (elementId: string, patch: Partial<DiagramElement>) => void
   updateElements: (elementIds: string[], patch: Partial<DiagramElement>) => void
   updateElementMetrics: (elementIds: string[], metrics: MonitorMetric[]) => void
+  updateBusbarMetrics: (busbarIds: string[], metrics: MonitorMetric[]) => void
   previewElementSelectionColor: (
     elementIds: string[],
     color: string | null,
@@ -298,11 +302,15 @@ export interface DiagramCanvasHandle {
   updateBusbars: (busbarIds: string[], patch: Partial<Busbar>) => void
   updateConnectionEdge: (edgeId: string, patch: Partial<ConnectionEdge>) => void
   updateConnectionEdges: (edgeIds: string[], patch: Partial<ConnectionEdge>) => void
+  changeCoolingCircuit: (edgeIds: string[], type: AnchorType) => void
+  changePowerCircuit: (edgeIds: string[], channel?: 'a' | 'b', busbarIds?: string[]) => void
   updateConnectionEdgeMetrics: (edgeIds: string[], metrics: MonitorMetric[]) => void
   resetSelectedConnectionRouting: () => void
 }
 
 interface DiagramCanvasProps {
+  circuitPalette?: CircuitPalette
+  elementLabelScale?: number
   mode: CanvasMode
   animationPlaying: boolean
   runtime: DiagramRuntimeContext
@@ -375,6 +383,7 @@ interface DiagramElementItemProps {
   genericBackgroundColor?: string
   selected: boolean
   anchorsVisible: boolean
+  anchorColors?: ReadonlyMap<string, string>
   wiringType: AnchorType | null
   lineSystemType: LineSystemType
   occupiedAnchors: Set<string>
@@ -397,7 +406,7 @@ interface DiagramElementItemProps {
   drillDownElement: HandlerRef<(elementId: string) => void>
 }
 
-const DiagramElementItem = memo(function DiagramElementItem({
+export const DiagramElementItem = memo(function DiagramElementItem({
   mode,
   element,
   asset,
@@ -406,6 +415,7 @@ const DiagramElementItem = memo(function DiagramElementItem({
   genericBackgroundColor,
   selected,
   anchorsVisible,
+  anchorColors,
   wiringType,
   lineSystemType,
   occupiedAnchors,
@@ -455,21 +465,24 @@ const DiagramElementItem = memo(function DiagramElementItem({
       : lineSystemType === 'power'
         ? anchor.type === 'electrical'
         : anchor.type !== 'electrical'
-    const localX = element.x + (anchor.x / asset.intrinsicWidth) * element.width
-    const localY = element.y + (anchor.y / asset.intrinsicHeight) * element.height
+    // The parent SVG group applies rotation; use the same instance placement
+    // as routing without applying that rotation a second time.
+    const localPoint = resolveElementAnchor({ ...element, rotation: 0 }, asset, anchor).point
     return (
       <circle
         key={anchor.id}
         className="connection-anchor"
         data-anchor-id={anchor.id}
         data-anchor-type={anchor.type}
+        style={anchorColors?.has(`${element.id}::${anchor.id}`) ? { '--connection-color': anchorColors.get(`${element.id}::${anchor.id}`) } as CSSProperties : undefined}
+        data-power-supply-channel={anchor.powerSupplyChannel}
         data-flow-role={anchor.flowRole}
         data-compatible={compatible || undefined}
         data-occupied={occupiedAnchors.has(`${element.id}::${anchor.id}`) || undefined}
         data-world-x={resolved.point.x}
         data-world-y={resolved.point.y}
-        cx={localX}
-        cy={localY}
+        cx={localPoint.x}
+        cy={localPoint.y}
         r={5 / zoom}
         onPointerEnter={() => enterAnchor.current(element.id, anchor.id, anchor.type)}
         onPointerLeave={() => leaveAnchor.current(element.id, anchor.id)}
@@ -1028,6 +1041,13 @@ function createElement(
   gridSize: number,
   elements: DiagramElement[],
 ): DiagramElement {
+  const defaultMonitorMetrics = symbol.defaultMonitorMetrics?.map((metric) => ({
+    ...metric,
+    id: crypto.randomUUID(),
+    ...(metric.valueType === 'number' ? { alarm: { ...metric.alarm } } : {
+      textOptions: metric.textOptions.map((option) => ({ ...option })),
+    }),
+  })) ?? []
   return {
     id: crypto.randomUUID(),
     diagramId,
@@ -1038,8 +1058,8 @@ function createElement(
     width: symbol.intrinsicWidth,
     height: symbol.intrinsicHeight,
     rotation: 0,
-    monitorDataVisible: false,
-    monitorMetrics: [],
+    monitorDataVisible: defaultMonitorMetrics.length > 0,
+    monitorMetrics: defaultMonitorMetrics,
     ...(symbolSupportsOnOffState(symbol)
       ? { onOffState: symbol.defaultState ?? 'off' as const }
       : {}),
@@ -1206,8 +1226,12 @@ function busbarsEqual(left: Busbar[], right: Busbar[]) {
       busbar.orientation === candidate.orientation &&
       busbar.color === candidate.color &&
       busbar.label === candidate.label &&
+      busbar.labelVisible === candidate.labelVisible &&
       busbar.labelEndpoint === candidate.labelEndpoint &&
       busbar.labelSide === candidate.labelSide &&
+      busbar.monitorDataVisible === candidate.monitorDataVisible &&
+      busbar.monitorMetricLabelsVisible === candidate.monitorMetricLabelsVisible &&
+      JSON.stringify(busbar.monitorMetrics) === JSON.stringify(candidate.monitorMetrics) &&
       busbar.labelColor === candidate.labelColor &&
       busbar.monitorFlowDirection === candidate.monitorFlowDirection
   })
@@ -1277,6 +1301,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       gridSize,
       viewport,
       assets,
+      circuitPalette,
+      elementLabelScale,
       elements,
       busbars,
       connections,
@@ -1300,6 +1326,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const viewportElementRef = useRef<HTMLDivElement>(null)
     const canvasStageRef = useRef<HTMLDivElement>(null)
     const viewportWorldRef = useRef<SVGGElement>(null)
+    const labelWorldRef = useRef<SVGGElement>(null)
     const gridFallbackRef = useRef<HTMLDivElement>(null)
     const callbacksRef = useRef({
       onDiagramChange,
@@ -1506,8 +1533,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
 
     const syncViewportPresentation = (nextViewport: DiagramViewport) => {
       const nextGridScale = getAdaptiveGridScale(gridSize, nextViewport.zoom)
-      const world = viewportWorldRef.current
-      if (world) {
+      for (const world of [viewportWorldRef.current, labelWorldRef.current]) {
+        if (!world) continue
         world.setAttribute(
           'transform',
           `translate(${nextViewport.tx} ${nextViewport.ty}) scale(${nextViewport.zoom})`,
@@ -2213,9 +2240,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const selectedConnectionEdgeIdSet = useMemo(() => new Set(
       selectedConnectionEdges(selectedConnectionId, displayedConnections).map((edge) => edge.id),
     ), [displayedConnections, selectedConnectionId])
-    const displayedConnectionEdgesById = useMemo(() => new Map(
-      displayedConnections.flatMap((network) => network.edges.map((edge) => [edge.id, edge] as const)),
-    ), [displayedConnections])
+    const displayedConnectionEdgesById = useMemo(() => circuitDisplayEdges(displayedConnections, displayedElements, new Map(assets.map((asset) => [asset.key, asset])), circuitPalette), [displayedConnections, displayedElements, assets, circuitPalette])
+    const displayedAnchorColors = useMemo(() => {
+      const assetMap = new Map(assets.map((asset) => [asset.key, asset]))
+      return new Map(displayedConnections.flatMap((network) => {
+        const key = circuitKey(network, displayedElements, assetMap)
+        return key ? network.nodes.flatMap((node) => node.kind === 'element-anchor' ? [[`${node.elementId}::${node.anchorId}`, circuitColor(key, circuitPalette)] as const] : []) : []
+      }))
+    }, [displayedConnections, displayedElements, assets, circuitPalette])
     const displayedConnectionRouteIdentities = useMemo(() => new Set(
       displayedConnections.flatMap((network) => network.edges.map((edge) => (
         `${network.id}::${edge.id}`
@@ -2405,7 +2437,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         height: canvasSize.height / viewportValue.zoom + overscan * 2,
       }
     }, [canvasSize.height, canvasSize.width, viewportValue])
-    const cullingEnabled = displayedElements.length + displayedBusbars.length +
+    const cullingEnabled = autoFitViewportScopeRef.current === `${documentEpoch}:${diagramId}` && displayedElements.length + displayedBusbars.length +
       renderedRoutedConnections.edges.length > RENDER_CULLING_OBJECT_THRESHOLD
     const visibleElements = useMemo(() => {
       if (!cullingEnabled) return displayedElements
@@ -2627,13 +2659,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           points: [busbar, busbarEndPoint(busbar)],
           screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
           style: 'power' as const,
-          baseColor: busbar.color ?? DEFAULT_BUSBAR_COLOR,
+          baseColor: circuitBusbarColor(busbar, displayedConnections, displayedElements, new Map(assets.map((asset) => [asset.key, asset])), circuitPalette) ?? DEFAULT_BUSBAR_COLOR,
           renderPriority: -1,
         })),
       ]
-    }, [lineSystemType, mode, monitorDisplayedRoutePaths, visibleBusbars])
+    }, [lineSystemType, mode, monitorDisplayedRoutePaths, visibleBusbars, displayedConnections, displayedElements, assets, circuitPalette])
     const monitorActiveFlowPaths = useMemo<MonitorFlowPath[]>(() => {
       if (mode !== 'monitor') return []
+      const displayColors = new Map(monitorDisplayedFlowPaths.map((path) => [path.id, path.baseColor]))
       const activeFlowEdges = lineSystemType === 'cooling'
         ? coolingFlowTopology.edges
         : powerFlowTopology.edges
@@ -2684,6 +2717,17 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             id: `edge-flow:${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}:${fragmentIndex}`,
             connectionEdgeId: route.edgeId,
             points: fragment,
+            phasePath: {
+              id: `${route.edgeId}:${flow.startNodeId ?? 'all'}:${index}`,
+              networkId: route.networkId,
+              startNodeId: flow.direction === 'reverse'
+                ? flow.endNodeId ?? route.targetNodeId
+                : flow.startNodeId ?? route.sourceNodeId,
+              endNodeId: flow.direction === 'reverse'
+                ? flow.startNodeId ?? route.sourceNodeId
+                : flow.endNodeId ?? route.targetNodeId,
+              points: flowPoints,
+            },
             worldWidth: displayedPath?.worldWidth,
             speedMultiplier: flow.speedMultiplier,
             style: coolingRoute ? 'cooling' as const : 'power' as const,
@@ -2715,11 +2759,18 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             exclusions,
           ).map((fragment, fragmentIndex) => ({
             id: `${segment.id}:${fragmentIndex}`,
+            phasePath: {
+              id: segment.id,
+              networkId: `busbar:${segment.busbarId}`,
+              startNodeId: `${segment.start.x}:${segment.start.y}`,
+              endNodeId: `${segment.end.x}:${segment.end.y}`,
+              points: [segment.start, segment.end],
+            },
             points: fragment,
             screenWidth: FLOW_BUSBAR_SCREEN_WIDTH,
             style: 'power' as const,
             animated: true,
-            baseColor: displayedBusbarsById.get(segment.busbarId)?.color ??
+            baseColor: displayColors.get(`busbar-display:${segment.busbarId}`) ??
               DEFAULT_BUSBAR_COLOR,
             renderPriority: -1,
           }))
@@ -2729,7 +2780,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       cullingEnabled,
       coolingFlowTopology.edges,
       displayedConnections,
-      displayedBusbarsById,
+      monitorDisplayedFlowPaths,
       lineSystemType,
       mode,
       monitorDisplayedRoutePaths,
@@ -2757,9 +2808,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       ),
       [monitorActiveFlowPaths, monitorInactiveFlowPaths, visibleRouteRenderGroups],
     )
-    const monitorFlowPaths = useMemo(() => (
-      animationPlaying ? monitorActiveFlowPaths : []
-    ), [animationPlaying, monitorActiveFlowPaths])
+    const monitorFlowPaths = monitorActiveFlowPaths
     const assetsByKey = useMemo(
       () => new Map(assets.map((asset) => [asset.key, asset])),
       [assets],
@@ -2771,6 +2820,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     const elementLabelLayouts = useMemo(() => {
       const nextCache = new Map<string, ElementLabelLayout>()
       const layouts = layoutElementLabels(visibleElements, assetsByKey, {
+        scale: elementLabelScale,
         connectedAnchorIdsByElement,
         readings: resolvedMonitorMetricReadings,
       }).map((layout) => {
@@ -2798,10 +2848,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       connectedAnchorIdsByElement,
       resolvedMonitorMetricReadings,
       visibleElements,
+      elementLabelScale,
     ])
     const busbarLabelLayouts = useMemo(
-      () => layoutBusbarLabels(visibleBusbars),
-      [visibleBusbars],
+      () => layoutBusbarLabels(visibleBusbars, resolvedMonitorMetricReadings),
+      [visibleBusbars, resolvedMonitorMetricReadings],
     )
     const connectionLabelLayouts = useMemo(
       () => layoutConnectionLabels(
@@ -4255,7 +4306,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         return { ...element, ...normalizedPatch }
       })
       if (patch.labelVisible === false) setSelectedLabelElementId(null)
-      const patchesGeometry = ['x', 'y', 'width', 'height', 'rotation'].some((key) => (
+      const patchesGeometry = ['x', 'y', 'width', 'height', 'rotation', 'tmuPortsSwapped'].some((key) => (
         Object.prototype.hasOwnProperty.call(patch, key)
       ))
       if (patchesGeometry) {
@@ -4327,6 +4378,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       commitElements(next)
     }
 
+    const updateBusbarMetrics = (busbarIds: string[], metrics: MonitorMetric[]) => {
+      const ids = new Set(busbarIds)
+      if (!committedBusbarsRef.current.some(bar => ids.has(bar.id))) return
+      commitBusbars(committedBusbarsRef.current.map(bar => ids.has(bar.id)
+        ? { ...bar, monitorMetrics: cloneMonitorMetricsWithNewIds(metrics) }
+        : bar))
+    }
+
     const updateBusbars = (busbarIds: string[], patch: Partial<Busbar>) => {
       if (!busbarIds.length) return
       const busbarIdSet = new Set(busbarIds)
@@ -4391,6 +4450,10 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         patch,
         'externalSupplyEndpoint',
       )
+      const patchesExternalSupplyChannel = Object.prototype.hasOwnProperty.call(
+        patch,
+        'externalSupplyChannel',
+      )
       const patchesCoolingLineRole = Object.prototype.hasOwnProperty.call(
         patch,
         'coolingLineRole',
@@ -4411,9 +4474,17 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           if (patchesExternalSupplyEndpoint && patch.externalSupplyEndpoint === undefined) {
             const {
               externalSupplyEndpoint: _externalSupplyEndpoint,
+              externalSupplyChannel: _externalSupplyChannel,
               ...withoutExternalSupplyEndpoint
             } = updated
             updated = withoutExternalSupplyEndpoint
+          }
+          if (patchesExternalSupplyChannel && patch.externalSupplyChannel === undefined) {
+            const {
+              externalSupplyChannel: _externalSupplyChannel,
+              ...withoutExternalSupplyChannel
+            } = updated
+            updated = withoutExternalSupplyChannel
           }
           if (patchesCoolingLineRole && patch.coolingLineRole === undefined) {
             const { coolingLineRole: _coolingLineRole, ...withoutCoolingLineRole } = updated
@@ -4459,6 +4530,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }
 
     const paintBusbarColor = (busbarId: string, color: string | null) => {
+      const bar = committedBusbarsRef.current.find((item) => item.id === busbarId)
+      if (bar && circuitBusbarKey(bar, committedConnectionsRef.current, committedElementsRef.current, assetsByKey)) return
       const busbarNode = busbarNodeRefs.current.get(busbarId)
       if (color) busbarNode?.style.setProperty('--busbar-color', color)
       else busbarNode?.style.removeProperty('--busbar-color')
@@ -4490,6 +4563,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       ).map((edge) => edge.id))
       for (const network of committedConnectionsRef.current) {
         const fallback = defaultConnectionColor(network.type)
+        if (circuitKey(network, committedElementsRef.current, assetsByKey)) continue
         for (const edge of network.edges) {
           if (!selectedEdgeIds.has(edge.id)) continue
           const node = connectionEdgeNodeRefs.current.get(edge.id)
@@ -4551,6 +4625,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       for (const network of committedConnectionsRef.current) {
         for (const edge of network.edges) {
           const currentColor = resolvedConnectionColor(network, edge)
+          if (circuitKey(network, committedElementsRef.current, assetsByKey)) continue
           if (currentColor !== target.color) continue
           const node = connectionEdgeNodeRefs.current.get(edge.id)
           const nextColor = previewColor ?? edge.color ?? null
@@ -4567,6 +4642,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         busbars: committedBusbarsRef.current,
         connections: committedConnectionsRef.current,
       }, target, color)
+      next.connections = next.connections.map((network) => circuitKey(network, committedElementsRef.current, assetsByKey) ? committedConnectionsRef.current.find((original) => original.id === network.id)! : network)
+      next.busbars = next.busbars.map((bar) => circuitBusbarKey(bar, committedConnectionsRef.current, committedElementsRef.current, assetsByKey) ? committedBusbarsRef.current.find((original) => original.id === bar.id)! : bar)
       commitDiagram(next.elements, next.busbars, next.connections)
     }
 
@@ -4583,12 +4660,14 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         : normalizeHexColor(color, DEFAULT_BUSBAR_COLOR)
       const nextBusbars = committedBusbarsRef.current.map((busbar) => {
         if (!selectedBusbars.has(busbar.id)) return busbar
+        if (circuitBusbarKey(busbar, committedConnectionsRef.current, committedElementsRef.current, assetsByKey)) return busbar
         if (normalizedBusbarColor) return { ...busbar, color: normalizedBusbarColor }
         const { color: _color, ...rest } = busbar
         return rest
       })
       const normalizedByType = new Map<AnchorType, string>()
       const nextConnections = committedConnectionsRef.current.map((network) => {
+        if (circuitKey(network, committedElementsRef.current, assetsByKey)) return network
         return {
           ...network,
           edges: network.edges.map((edge) => {
@@ -4710,12 +4789,33 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       updateElement,
       updateElements,
       updateElementMetrics,
+      updateBusbarMetrics,
       previewElementSelectionColor,
       updateElementSelectionColor,
       updateBusbar,
       updateBusbars,
       updateConnectionEdge,
       updateConnectionEdges,
+      changePowerCircuit: (edgeIds, channel, busbarIds = []) => {
+        const ids = new Set(edgeIds)
+        const bars = new Set(busbarIds)
+        const selected = committedConnectionsRef.current.filter((network) => network.edges.some((edge) => ids.has(edge.id)) || network.nodes.some((node) => node.kind === 'busbar-tap' && bars.has(node.busbarId)))
+        if ((!selected.length && !bars.size) || selected.some((network) => network.type !== 'electrical' || networkPowerChannels(network, committedElementsRef.current, assetsByKey).size)) {
+          callbacksRef.current.onActionMessage('该管网已连接明确 A/B 接口，不能修改链路类型。', 'danger')
+          return
+        }
+        const networkIds = new Set(selected.map((network) => network.id))
+        selected.forEach((network) => network.nodes.forEach((node) => { if (node.kind === 'busbar-tap') bars.add(node.busbarId) }))
+        commitDiagram(committedElementsRef.current, committedBusbarsRef.current.map((bar) => bars.has(bar.id) ? { ...bar, powerSupplyChannel: channel } : bar), committedConnectionsRef.current.map((network) => networkIds.has(network.id) ? { ...network, powerSupplyChannel: channel } : network))
+      },
+      changeCoolingCircuit: (edgeIds, type) => {
+        const next = changeCoolingCircuit(committedConnectionsRef.current, edgeIds, type, committedElementsRef.current, assetsByKey)
+        if (!next) {
+          callbacksRef.current.onActionMessage('该管网已连接特定回路接口，不能更改回路类型。', 'danger')
+          return
+        }
+        commitConnections(next)
+      },
       updateConnectionEdgeMetrics,
       resetSelectedConnectionRouting,
     }))
@@ -4760,14 +4860,13 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     }, [panViewportFrameScheduler, viewport, viewportFrameScheduler, wheelGestureEndScheduler])
 
     useEffect(() => {
-      if (canvasSize.width <= 1 || canvasSize.height <= 1) return
+      if (canvasSize.width <= 1 || canvasSize.height <= 1 || isRouting) return
       const scopeKey = `${documentEpoch}:${diagramId}`
       if (autoFitViewportScopeRef.current === scopeKey) return
       autoFitViewportScopeRef.current = scopeKey
 
-      const nextViewport = contentBounds
-        ? fitViewportToBounds(contentBounds, canvasSize)
-        : { zoom: 1, tx: 0, ty: 0 }
+      const bounds = completeSceneBounds(contentBounds, renderedRoutedConnections.edges, [...elementLabelLayouts, ...busbarLabelLayouts, ...connectionLabelLayouts])
+      const nextViewport = fitSceneViewport(bounds, canvasSize, viewportElementRef.current)
       viewportFrameScheduler.cancel()
       panViewportFrameScheduler.cancel()
       wheelGestureEndScheduler.cancel()
@@ -4782,6 +4881,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       contentBounds,
       diagramId,
       documentEpoch,
+      isRouting,
+      renderedRoutedConnections.edges,
+      elementLabelLayouts,
+      busbarLabelLayouts,
+      connectionLabelLayouts,
       panViewportFrameScheduler,
       viewportFrameScheduler,
       wheelGestureEndScheduler,
@@ -5798,7 +5902,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       nextBusbars: Busbar[],
       nextConnections: ConnectionNetwork[],
       nextRouteWaypoints: RouteWaypoint[],
-      requestedNetworkIds?: Set<string>,
+      requestedEdgeIds?: Set<string>,
     ) => {
       const nextInput = {
         ...routeInput,
@@ -5807,46 +5911,48 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         busbars: nextBusbars,
         routeWaypoints: nextRouteWaypoints,
       }
-      const incremental = requestedNetworkIds
+      const previouslyInvalidEdgeIds = new Set(
+        committedRoutedConnections.invalidEdgeIds,
+      )
+      const constrainedEdgeIds = manualRouteConstrainedEdgeIds(nextConnections)
+      const validationSkippedEdgeIds = new Set([
+        ...previouslyInvalidEdgeIds,
+        ...nextConnections.flatMap((network) => network.edges.flatMap((edge) => (
+          constrainedEdgeIds.has(edge.id) ? [] : [edge.id]
+        ))),
+      ])
+      const validationEdgeIds = requestedEdgeIds && new Set(
+        [...requestedEdgeIds].filter((edgeId) => !validationSkippedEdgeIds.has(edgeId)),
+      )
+      const incremental = requestedEdgeIds
         ? null
         : routeConnectionNetworksIncrementally(
             routeInput,
             committedRoutedConnections,
             nextInput,
+            { skipDirtyEdgeIds: validationSkippedEdgeIds },
           )
-      const routed = incremental?.routed ?? routeConnectionNetworksForDirtyNetworks(
+      const routed = incremental?.routed ?? routeConnectionNetworksForDirtyEdges(
         nextInput,
         committedRoutedConnections,
-        requestedNetworkIds ?? new Set(),
+        validationEdgeIds ?? new Set(),
       )
       const previousRouteByEdgeId = new Map(committedRoutedConnections.edges.map((edge) => (
         [edge.edgeId, edge] as const
       )))
       const nextRouteByEdgeId = new Map(routed.edges.map((edge) => [edge.edgeId, edge] as const))
       const invalidEdgeIds = new Set(routed.invalidEdgeIds)
-      const dirtyNetworkIds = requestedNetworkIds ?? new Set(nextConnections.flatMap((network) => (
-        network.edges.some((edge) => (
-          invalidEdgeIds.has(edge.id) ||
-          nextRouteByEdgeId.get(edge.id) !== previousRouteByEdgeId.get(edge.id)
-        )) ? [network.id] : []
-      )))
+      const dirtyNetworkIds = requestedEdgeIds
+        ? new Set(nextConnections.flatMap((network) => (
+            network.edges.some((edge) => requestedEdgeIds.has(edge.id)) ? [network.id] : []
+          )))
+        : new Set(nextConnections.flatMap((network) => (
+            network.edges.some((edge) => (
+              invalidEdgeIds.has(edge.id) ||
+              nextRouteByEdgeId.get(edge.id) !== previousRouteByEdgeId.get(edge.id)
+            )) ? [network.id] : []
+          )))
       if (!dirtyNetworkIds.size) return 0
-      const constrainedEdgeIds = new Set(nextConnections.flatMap((network) => {
-        if (!dirtyNetworkIds.has(network.id)) return []
-        const constrainedNodeIds = new Set(network.nodes.flatMap((node) => (
-          node.kind === 'node' || node.kind === 'busbar-tap' ? [node.id] : []
-        )))
-        return network.edges.flatMap((edge) => (
-          edge.routeNodeIds?.length ||
-          constrainedNodeIds.has(edge.sourceNodeId) ||
-          constrainedNodeIds.has(edge.targetNodeId)
-            ? [edge.id]
-            : []
-        ))
-      }))
-      const previouslyInvalidEdgeIds = new Set(
-        committedRoutedConnections.invalidEdgeIds,
-      )
       return routed.invalidEdgeIds.filter((edgeId) => (
         constrainedEdgeIds.has(edgeId) && !previouslyInvalidEdgeIds.has(edgeId)
       )).length
@@ -5985,21 +6091,13 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           interaction.currentEnd.x !== interaction.segment.end.x ||
           interaction.currentEnd.y !== interaction.segment.end.y
         ) {
-          const insetSegment = insetDraggedRouteSegmentFromElementAnchors(
-            interaction.baseConnections,
-            interaction.routedEdges,
-            interaction.segment,
-            interaction.currentStart,
-            interaction.currentEnd,
-            gridSize,
-          )
           const candidate = applyDraggedRouteSegment(
             interaction.baseConnections,
             interaction.baseRouteWaypoints,
             interaction.routedEdges,
             interaction.segment,
-            insetSegment.start,
-            insetSegment.end,
+            interaction.currentStart,
+            interaction.currentEnd,
           )
           const merged = mergeCollidingConnectionPoints({
             networks: candidate.networks,
@@ -6102,7 +6200,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
             committedBusbarsRef.current,
             cleaned.networks,
             cleaned.routeWaypoints,
-            new Set([interaction.segment.networkId]),
+            new Set(interaction.segment.edgeIds),
           )
           if (conflicts) reportManualRouteConflict(conflicts)
           else if (commitDiagram(
@@ -6725,7 +6823,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       <div
         ref={canvasStageRef}
         className="canvas-stage"
-        style={CANVAS_STAGE_STYLE}
+        style={{ ...CANVAS_STAGE_STYLE, ...circuitPaletteStyle(circuitPalette) }}
         data-testid="diagram-canvas"
         data-grid-presentation={GRID_PRESENTATION}
         data-grid-size={gridSize}
@@ -6740,6 +6838,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         data-route-mode={routeStats?.mode}
         data-route-duration-ms={routeStats ? routeStats.durationMs.toFixed(2) : undefined}
         data-route-dirty-networks={routeStats?.dirtyNetworkCount}
+        data-route-dirty-edges={routeStats?.dirtyEdgeCount}
         data-route-reused-edges={routeStats?.reusedEdgeCount}
         data-render-culling={cullingEnabled || undefined}
         data-rendered-elements={visibleElements.length}
@@ -6819,7 +6918,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 const shell = coolingPipeShellsByRenderKey.get(group.renderKey)
                 if (!filterId || !shell || !group.coolingLineRole) return []
                 return [(
-                  <CoolingPipeInnerShadowFilter
+                  <CoolingPipeOutlineFilter
                     key={filterId}
                     id={filterId}
                     points={shell.points}
@@ -6829,7 +6928,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
               })}
               {mode === 'edit' && coolingPipeShellPreview && wiring?.source.type &&
               isCoolingConnectionType(wiring.source.type) ? (
-                <CoolingPipeInnerShadowFilter
+                <CoolingPipeOutlineFilter
                   id={COOLING_PIPE_PREVIEW_FILTER_ID}
                   points={coolingPipeShellPreview}
                 />
@@ -6864,7 +6963,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                   return (
                     <BusbarVisual
                       key={busbar.id}
-                      busbar={busbar}
+                      busbar={{ ...busbar, color: circuitBusbarColor(busbar, displayedConnections, displayedElements, assetsByKey, circuitPalette) }}
                       selected={selectedBusbarIdSet.has(busbar.id)}
                       nodeRegistry={busbarNodeRefs}
                     >
@@ -6944,6 +7043,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                       {pipeShell && pipeFilterId && group.coolingLineRole ? (
                         <CoolingPipeShell
                           key={`connection-pipe-shell:${group.renderKey}`}
+                          color={group.color}
                           path={pipeShell.path}
                           type={group.type}
                           coolingLineRole={group.coolingLineRole}
@@ -7026,6 +7126,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                           })}
                           {pipeShell && pipeFilterId && group.coolingLineRole ? (
                             <CoolingPipeShell
+                              color={group.color}
                               path={pipeShell.path}
                               type={group.type}
                               coolingLineRole={group.coolingLineRole}
@@ -7163,7 +7264,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                           busbarId={node.busbarId}
                           offset={resolvedOffset}
                           point={point}
-                          color={busbar.color}
+                          color={circuitBusbarColor(busbar, displayedConnections, displayedElements, assetsByKey, circuitPalette)}
                           zoom={viewportValue.zoom}
                           nodeRegistry={busbarTapNodeRefs}
                         />
@@ -7314,6 +7415,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
               }) => {
                 return (
                   <DiagramElementItem
+                    anchorColors={displayedAnchorColors}
                     key={element.id}
                     mode={mode}
                     element={element}
@@ -7346,39 +7448,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                 )
               })}
 
-              <g className="element-label-layer" data-testid="element-label-layer">
-                {elementLabelLayouts.map((layout) => (
-                  <ElementLabelItem
-                    key={layout.elementId}
-                    layout={layout}
-                    interactive={mode === 'edit' && selectedElement?.id === layout.elementId}
-                    selected={selectedLabelElementId === layout.elementId}
-                    pointerDownRef={startLabelDragRef}
-                  />
-                ))}
-                {busbarLabelLayouts.map((layout) => (
-                  <BusbarLabelItem
-                    key={layout.busbarId}
-                    layout={layout}
-                    interactive={mode === 'edit' && (
-                      selectedBusbar?.id === layout.busbarId &&
-                      selectedConnectionId === null
-                    )}
-                    selected={selectedLabelBusbarId === layout.busbarId}
-                    nodeRegistry={busbarLabelNodeRefs}
-                    pointerDownRef={startBusbarLabelDragRef}
-                  />
-                ))}
-                {connectionLabelLayouts.map((layout) => (
-                  <ConnectionLabelItem
-                    key={layout.edgeId}
-                    layout={layout}
-                    interactive={mode === 'edit' && selectedConnectionLabelEdgeId === layout.edgeId}
-                    selected={selectedLabelConnectionEdgeId === layout.edgeId}
-                    pointerDownRef={startConnectionLabelDragRef}
-                  />
-                ))}
-              </g>
 
               {mode === 'edit' && selectedObjectCount > 1 ? selectedElements.map((element) => (
                 <g
@@ -7526,9 +7595,49 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
               ) : null}
             </g>
           </svg>
+          <svg className="editor-overlay label-overlay" data-testid="label-overlay" data-wiring={wiring ? 'true' : undefined} aria-hidden="true">
+            <g ref={labelWorldRef} className="viewport-world"
+              style={{ transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})` }}
+              transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}>
+              <g className="element-label-layer" data-testid="element-label-layer">
+                {elementLabelLayouts.map((layout) => (
+                  <ElementLabelItem
+                    key={layout.elementId}
+                    layout={layout}
+                    interactive={mode === 'edit' && selectedElement?.id === layout.elementId}
+                    selected={selectedLabelElementId === layout.elementId}
+                    pointerDownRef={startLabelDragRef}
+                  />
+                ))}
+                {busbarLabelLayouts.map((layout) => (
+                  <BusbarLabelItem
+                    key={layout.busbarId}
+                    layout={layout}
+                    interactive={mode === 'edit' && (
+                      selectedBusbar?.id === layout.busbarId &&
+                      selectedConnectionId === null
+                    )}
+                    selected={selectedLabelBusbarId === layout.busbarId}
+                    nodeRegistry={busbarLabelNodeRefs}
+                    pointerDownRef={startBusbarLabelDragRef}
+                  />
+                ))}
+                {connectionLabelLayouts.map((layout) => (
+                  <ConnectionLabelItem
+                    key={layout.edgeId}
+                    layout={layout}
+                    interactive={mode === 'edit' && selectedConnectionLabelEdgeId === layout.edgeId}
+                    selected={selectedLabelConnectionEdgeId === layout.edgeId}
+                    pointerDownRef={startConnectionLabelDragRef}
+                  />
+                ))}
+              </g>
+            </g>
+          </svg>
           {mode === 'monitor' && monitorFlowPaths.length > 0 ? (
             <FlowAnimationLayer
               paths={monitorFlowPaths}
+              playing={animationPlaying}
               viewportRef={viewportValueRef}
               invalidateRef={flowInvalidateRef}
             />

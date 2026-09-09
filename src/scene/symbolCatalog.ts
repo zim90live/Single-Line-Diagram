@@ -2,6 +2,7 @@ import type {
   AssetDefinition,
   CoolingDeviceRole,
   DiagramElement,
+  MonitorMetric,
   SymbolAnchor,
 } from '../domain/project'
 import {
@@ -22,6 +23,7 @@ const symbolUrls = import.meta.glob<string>([
 })
 
 const COOLING_PUMP_STOPPED_SYMBOL_FILE = 'PumpOff.png'
+const CHWP_CWP_STOPPED_SYMBOL_FILE = 'CHWP CWP Off.svg'
 
 export interface SymbolDefinition extends AssetDefinition {
   url: string
@@ -32,11 +34,17 @@ export interface SymbolDefinition extends AssetDefinition {
   stateMode?: SymbolStateMode
   defaultState?: SymbolVisualState
   stateUrls?: Partial<Record<SymbolVisualState, string>>
+  anchorMode?: SymbolAnchorMode
+  defaultMonitorMetrics?: SymbolMonitorMetricTemplate[]
   renderMode: 'image' | 'generic-frame'
 }
 
 export type SymbolVisualState = 'off' | 'on'
 export type SymbolStateMode = 'on-off' | 'running-standby'
+export type SymbolAnchorMode = 'standard' | 'measurement-point'
+export type SymbolMonitorMetricTemplate = MonitorMetric extends infer Metric
+  ? Metric extends MonitorMetric ? Omit<Metric, 'id'> : never
+  : never
 export type SymbolColorSlot = 'default' | 'switch-off' | 'switch-on' | 'generic-background'
 
 export const DEFAULT_CONFIGURABLE_SYMBOL_COLOR = '#777777'
@@ -54,6 +62,8 @@ interface SymbolMetadata {
   stateMode?: SymbolStateMode
   defaultState?: SymbolVisualState
   stateFiles?: Partial<Record<SymbolVisualState, string>>
+  anchorMode?: SymbolAnchorMode
+  defaultMonitorMetrics?: SymbolMonitorMetricTemplate[]
   renderMode?: SymbolDefinition['renderMode']
   coolingDeviceRole?: CoolingDeviceRole
   anchors?: SymbolAnchor[]
@@ -71,9 +81,9 @@ const metadata: SymbolMetadata[] = [
     defaultState: 'off',
     stateFiles: { off: '2WV_Off.svg', on: '2WV_On.svg' },
   },
-  { file: 'CDU.svg', name: 'CDU', category: '冷却', width: 192, height: 96 },
-  { file: 'CHWP.png', name: 'CHWP', category: '冷却', width: 200, height: 80 },
-  { file: 'CT.png', name: 'CT', category: '冷却', width: 160, height: 160 },
+  { file: 'CDU.svg', name: 'CDU', category: '冷却', width: 48, height: 48 },
+  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 80, height: 128 },
+  { file: 'CT.svg', name: 'CT', category: '冷却', width: 96, height: 96 },
   {
     file: 'CV_Off.svg',
     key: 'cv',
@@ -106,11 +116,80 @@ const metadata: SymbolMetadata[] = [
       },
     ],
   },
-  { file: 'CWP.png', name: 'CWP', category: '冷却', width: 200, height: 80 },
+  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 80, height: 128 },
   { file: 'FM.svg', name: 'FM', category: '电力', width: 64, height: 64 },
-  { file: 'MP.svg', name: 'MP', category: '冷却', width: 32, height: 32, configurableColor: true },
-  { file: 'PHE.png', name: 'PHE', category: '冷却', width: 200, height: 80 },
-  { file: 'TMU.png', name: 'TMU', category: '冷却', width: 64, height: 96 },
+  {
+    file: 'MP.svg',
+    name: 'MP',
+    category: '冷却',
+    width: 32,
+    height: 32,
+    configurableColor: true,
+    anchorMode: 'measurement-point',
+    anchors: [{
+      id: 'mp-measurement-point',
+      name: '测量点',
+      x: 16,
+      y: 32,
+      direction: 'bottom',
+      type: 'cooling-general',
+    }],
+    defaultMonitorMetrics: [
+      {
+        name: '温度',
+        valueType: 'number',
+        unit: '°C',
+        precision: 1,
+        simulationMin: 16,
+        simulationMax: 32,
+        alarm: {
+          mode: 'outside',
+          criticalLow: 5,
+          majorLow: 10,
+          minorLow: 14,
+          minorHigh: 34,
+          majorHigh: 38,
+          criticalHigh: 45,
+        },
+      },
+      {
+        name: '压力',
+        valueType: 'number',
+        unit: 'kPa',
+        precision: 1,
+        simulationMin: 200,
+        simulationMax: 450,
+        alarm: {
+          mode: 'outside',
+          criticalLow: 60,
+          majorLow: 120,
+          minorLow: 160,
+          minorHigh: 500,
+          majorHigh: 560,
+          criticalHigh: 650,
+        },
+      },
+      {
+        name: '流量',
+        valueType: 'number',
+        unit: 'm³/h',
+        precision: 1,
+        simulationMin: 40,
+        simulationMax: 120,
+        alarm: {
+          mode: 'outside',
+          criticalLow: 5,
+          majorLow: 20,
+          minorLow: 30,
+          minorHigh: 130,
+          majorHigh: 150,
+          criticalHigh: 180,
+        },
+      },
+    ],
+  },
+  { file: 'PHE.svg', name: 'PHE', category: '冷却', width: 80, height: 128 },
+  { file: 'TMU.svg', name: 'TMU', category: '冷却', width: 48, height: 48 },
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
   { file: 'Battery-group.svg', name: 'Battery-group', category: '电力', width: 48, height: 48 },
@@ -167,7 +246,10 @@ const registeredFiles = new Set(metadata.flatMap((symbol) => [
   ...Object.values(symbol.stateFiles ?? {})
     .filter((file): file is string => Boolean(file))
     .map((file) => `../assets/symbols/${file}`),
-]).concat(`../assets/symbols/${COOLING_PUMP_STOPPED_SYMBOL_FILE}`))
+]).concat(
+  `../assets/symbols/${COOLING_PUMP_STOPPED_SYMBOL_FILE}`,
+  `../assets/symbols/${CHWP_CWP_STOPPED_SYMBOL_FILE}`,
+))
 const unregisteredFiles = Object.keys(symbolUrls).filter((path) => !registeredFiles.has(path))
 if (unregisteredFiles.length) {
   throw new Error(`存在未登记的图元文件：${unregisteredFiles.join('、')}`)
@@ -208,6 +290,13 @@ export const symbolCatalog: SymbolDefinition[] = metadata.map((symbol) => ({
           .map(([state, file]) => [state, getSymbolUrl(file)]),
       )
     : undefined,
+  anchorMode: symbol.anchorMode ?? 'standard',
+  defaultMonitorMetrics: symbol.defaultMonitorMetrics?.map((metric) => ({
+    ...metric,
+    ...(metric.valueType === 'number' ? { alarm: { ...metric.alarm } } : {
+      textOptions: metric.textOptions.map((option) => ({ ...option })),
+    }),
+  })),
   renderMode: symbol.renderMode ?? 'image',
 }))
 
@@ -274,7 +363,9 @@ export function getSymbolDisplayUrl(
   coolingPumpStopped = false,
 ) {
   return coolingPumpStopped
-    ? COOLING_PUMP_STOPPED_SYMBOL_URL
+    ? symbol.key === 'chwp' || symbol.key === 'cwp'
+      ? getSymbolUrl(CHWP_CWP_STOPPED_SYMBOL_FILE)
+      : COOLING_PUMP_STOPPED_SYMBOL_URL
     : getSymbolStateUrl(symbol, state)
 }
 

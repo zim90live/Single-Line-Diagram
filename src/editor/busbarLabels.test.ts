@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Busbar } from '../domain/project'
+import { createDefaultProject, parseProjectDocument } from '../domain/project'
+import { generateMonitorMetricPreviewReadings } from '../monitoring/elementMetrics'
 import {
   BUSBAR_LABEL_ENDPOINT_GAP,
   BUSBAR_LABEL_ENDPOINT_PADDING,
@@ -24,6 +26,21 @@ function busbar(patch: Partial<Busbar> = {}): Busbar {
 }
 
 describe('busbar labels', () => {
+  it('renders data without a title and preserves fields and project label scale in JSON', () => {
+    const item = busbar({ monitorDataVisible: true, labelVisible: false, monitorMetrics: [{ id: 'status', name: '状态', valueType: 'text', textOptions: [{ id: 'normal', value: '正常', severity: 'normal' }] }] })
+    const readings = generateMonitorMetricPreviewReadings([item])
+    const layout = layoutBusbarLabels([item], readings)[0]
+    expect(layout.text).toBe('')
+    expect(layout.metricRows).toHaveLength(1)
+    expect(layout.metricRows[0].valueText).toBe('正常')
+    expect(layoutBusbarLabels([{ ...item, monitorDataVisible: false }], readings)).toEqual([])
+    const project = createDefaultProject()
+    project.busbars = [{ ...item, diagramId: project.diagrams.find(d => project.lineSystems.find(l => l.id === d.lineSystemId)?.type === 'power')!.id }]
+    project.elementLabelScale = 1.5
+    const restored = parseProjectDocument(JSON.parse(JSON.stringify(project)))
+    expect(restored.elementLabelScale).toBe(1.5)
+    expect(restored.busbars[0].monitorMetrics).toEqual(item.monitorMetrics)
+  })
   it('does not create a label until content is provided', () => {
     expect(layoutBusbarLabels([busbar()])).toEqual([])
     expect(layoutBusbarLabels([busbar({ label: '  ' } as Partial<Busbar>)]))

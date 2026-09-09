@@ -12,6 +12,7 @@ export interface RouteComputationStats {
   durationMs: number
   mode: 'full' | 'incremental' | 'reused'
   dirtyNetworkCount: number
+  dirtyEdgeCount: number
   reusedEdgeCount: number
 }
 
@@ -111,6 +112,7 @@ class DeferredMainThreadRouteRunner implements RouteJobRunner {
           durationMs: performance.now() - startedAt,
           mode: incremental.mode,
           dirtyNetworkCount: incremental.dirtyNetworkCount,
+          dirtyEdgeCount: incremental.dirtyEdgeCount,
           reusedEdgeCount: incremental.reusedEdgeCount,
         },
       })

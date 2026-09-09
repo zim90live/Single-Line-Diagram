@@ -1,7 +1,7 @@
 import { memo } from 'react'
 
 import { SymbolBrowser } from './SymbolBrowser'
-import { Pressable } from './ui'
+import { Pressable } from '@aidc/ui'
 
 interface SymbolLibraryProps {
   onInsert: (symbolKey: string) => void

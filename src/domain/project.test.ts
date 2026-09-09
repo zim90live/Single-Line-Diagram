@@ -24,6 +24,20 @@ const asset = {
 }
 
 describe('project document', () => {
+  it('round-trips tertiary ports and accepts unchanged v37 documents', () => {
+    const document = createDefaultProject('三次回路', [{
+      ...asset,
+      anchors: [
+        { id: 'cold', name: '三次回路冷', type: 'cooling-tertiary-cold', x: 8, y: 0, direction: 'top' },
+        { id: 'hot', name: '三次回路热', type: 'cooling-tertiary-hot', x: 16, y: 0, direction: 'top' },
+      ],
+    }])
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(document))).assets[0].anchors)
+      .toEqual(document.assets[0].anchors)
+    const legacy = { ...createDefaultProject('旧图纸', [asset]), schemaVersion: 37 }
+    expect(parseProjectDocument(legacy).schemaVersion).toBe(SCHEMA_VERSION)
+  })
+
   it('persists per-instance Switch monitor interactions and keeps v33 Switches controllable', () => {
     const document = createDefaultProject('开关监控交互', [
       asset,
@@ -178,7 +192,8 @@ describe('project document', () => {
       sourceNodeId: 'outside',
       targetNodeId: 'inside',
       externalSupplyEndpoint: 'source',
-    }).externalSupplyEndpoint).toBe('source')
+      externalSupplyChannel: 'a',
+    })).toMatchObject({ externalSupplyEndpoint: 'source', externalSupplyChannel: 'a' })
     expect(() => connectionEdgeSchema.parse({
       id: 'invalid-entry',
       sourceNodeId: 'outside',
@@ -208,6 +223,15 @@ describe('project document', () => {
     })
     expect(parseProjectDocument(document).connections.at(-1)?.edges[0]
       .externalSupplyEndpoint).toBe('source')
+
+    const invalidChannel = structuredClone(document)
+    const invalidChannelEdge = invalidChannel.connections.find((network) => (
+      network.id === 'external-entry-network'
+    ))!.edges[0]
+    delete invalidChannelEdge.externalSupplyEndpoint
+    invalidChannelEdge.externalSupplyChannel = 'b'
+    expect(() => parseProjectDocument(invalidChannel))
+      .toThrow('入口通道只能配置在已标记的电力外部供电入口上')
 
     const coolingLine = document.lineSystems.find((line) => line.type === 'cooling')!
     const coolingDiagram = document.diagrams.find((diagram) => (
@@ -245,6 +269,52 @@ describe('project document', () => {
     }
     legacy.schemaVersion = 30
     expect(parseProjectDocument(legacy).schemaVersion).toBe(SCHEMA_VERSION)
+  })
+
+  it('migrates conventional dual-input assets to A/B anchor roles', () => {
+    const dualAsset = {
+      key: 'cabinet-device', name: 'Cabinet', category: '电力', source: 'Cabinet.svg',
+      intrinsicWidth: 48, intrinsicHeight: 48,
+      anchors: [
+        { id: 'input-1', name: '电路 1', x: 24, y: 0, direction: 'top' as const, type: 'electrical' as const },
+        { id: 'input-2', name: '电路 2', x: 24, y: 48, direction: 'bottom' as const, type: 'electrical' as const },
+      ],
+    }
+    const legacy = createDefaultProject('v35 A/B 输入迁移', [dualAsset]) as unknown as {
+      schemaVersion: number
+      assets: typeof dualAsset[]
+    }
+    legacy.schemaVersion = 35
+    const migrated = parseProjectDocument(legacy)
+    expect(migrated.assets.find((asset) => asset.key === dualAsset.key)?.anchors)
+      .toMatchObject([
+        { id: 'input-1', powerSupplyChannel: 'a' },
+        { id: 'input-2', powerSupplyChannel: 'b' },
+      ])
+  })
+
+  it('rejects duplicate or non-electrical A/B input roles on one asset', () => {
+    const duplicated = createDefaultProject('重复 A 路', [{
+      key: 'dual-device', name: '双路设备', category: '电力', source: 'dual.svg',
+      intrinsicWidth: 48, intrinsicHeight: 48,
+      anchors: [
+        { id: 'a-1', name: 'A1', x: 16, y: 0, direction: 'top', type: 'electrical', powerSupplyChannel: 'a' },
+        { id: 'a-2', name: 'A2', x: 32, y: 0, direction: 'top', type: 'electrical', powerSupplyChannel: 'a' },
+      ],
+    }])
+    expect(() => parseProjectDocument(duplicated))
+      .toThrow('同一供电输入角色只能配置一次')
+
+    const nonElectrical = createDefaultProject('错误冷却端口', [{
+      key: 'invalid-role', name: '错误角色', category: '冷却', source: 'invalid.svg',
+      intrinsicWidth: 48, intrinsicHeight: 48,
+      anchors: [{
+        id: 'cold', name: '冷端', x: 16, y: 0, direction: 'top',
+        type: 'cooling-secondary-cold', powerSupplyChannel: 'a',
+      }],
+    }])
+    expect(() => parseProjectDocument(nonElectrical))
+      .toThrow('只能在电力锚点上配置 A/B 供电输入')
   })
 
   it('persists cooling line roles and treats legacy lines as primary', () => {
@@ -1470,7 +1540,7 @@ describe('project document', () => {
       key: 'tmu',
       name: 'TMU',
       category: '冷却',
-      source: 'src/assets/symbols/TMU.png',
+      source: 'src/assets/symbols/TMU.svg',
       intrinsicWidth: 64,
       intrinsicHeight: 96,
     }
@@ -1564,13 +1634,13 @@ describe('project document', () => {
     expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)
   })
 
-  it('migrates the initial TMU default size and edge anchors to 64 by 96 once', () => {
+  it('migrates the initial TMU default size and edge anchors to 48 by 48 once', () => {
     const legacyTmu = {
       ...asset,
       key: 'tmu',
       name: 'TMU',
       category: '冷却',
-      source: 'src/assets/symbols/TMU.png',
+      source: 'src/assets/symbols/TMU.svg',
       intrinsicWidth: 48,
       intrinsicHeight: 64,
       anchors: [
@@ -1594,8 +1664,8 @@ describe('project document', () => {
     }
     const currentTmu = {
       ...legacyTmu,
-      intrinsicWidth: 64,
-      intrinsicHeight: 96,
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
       anchors: [],
     }
     const document = createDefaultProject('TMU 尺寸兼容', [legacyTmu])
@@ -1631,13 +1701,13 @@ describe('project document', () => {
     const parsed = parseProjectDocument(document, [currentTmu])
     const parsedTmu = parsed.assets.find((candidate) => candidate.key === 'tmu')
 
-    expect(parsedTmu).toMatchObject({ intrinsicWidth: 64, intrinsicHeight: 96 })
+    expect(parsedTmu).toMatchObject({ intrinsicWidth: 48, intrinsicHeight: 48 })
     expect(parsedTmu?.anchors).toEqual([
-      expect.objectContaining({ id: 'top-port', x: 32, y: 0, direction: 'top' }),
-      expect.objectContaining({ id: 'right-port', x: 64, y: 48, direction: 'right' }),
+      expect.objectContaining({ id: 'top-port', x: 24, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 48, y: 24, direction: 'right' }),
     ])
     expect(parsed.elements.find((element) => element.id === 'legacy-default-tmu'))
-      .toMatchObject({ width: 64, height: 96 })
+      .toMatchObject({ width: 48, height: 48 })
     expect(parsed.elements.find((element) => element.id === 'resized-tmu'))
       .toMatchObject({ width: 96, height: 128 })
     expect(parseProjectDocument(parsed, [currentTmu])).toEqual(parsed)
@@ -1649,7 +1719,7 @@ describe('project document', () => {
       key: 'tmu',
       name: 'TMU',
       category: '冷却',
-      source: 'src/assets/symbols/TMU.png',
+      source: 'src/assets/symbols/TMU.svg',
       intrinsicWidth: 72,
       intrinsicHeight: 96,
       anchors: [
@@ -1673,8 +1743,8 @@ describe('project document', () => {
     }
     const currentTmu = {
       ...releasedTmu,
-      intrinsicWidth: 64,
-      intrinsicHeight: 96,
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
       anchors: [],
     }
     const document = createDefaultProject('TMU 已发布尺寸兼容', [releasedTmu])
@@ -1710,13 +1780,13 @@ describe('project document', () => {
     const parsed = parseProjectDocument(document, [currentTmu])
     const parsedTmu = parsed.assets.find((candidate) => candidate.key === 'tmu')
 
-    expect(parsedTmu).toMatchObject({ intrinsicWidth: 64, intrinsicHeight: 96 })
+    expect(parsedTmu).toMatchObject({ intrinsicWidth: 48, intrinsicHeight: 48 })
     expect(parsedTmu?.anchors).toEqual([
-      expect.objectContaining({ id: 'top-port', x: 32, y: 0, direction: 'top' }),
-      expect.objectContaining({ id: 'right-port', x: 64, y: 48, direction: 'right' }),
+      expect.objectContaining({ id: 'top-port', x: 24, y: 0, direction: 'top' }),
+      expect.objectContaining({ id: 'right-port', x: 48, y: 24, direction: 'right' }),
     ])
     expect(parsed.elements.find((element) => element.id === 'released-default-tmu'))
-      .toMatchObject({ width: 64, height: 96 })
+      .toMatchObject({ width: 48, height: 48 })
     expect(parsed.elements.find((element) => element.id === 'custom-tmu'))
       .toMatchObject({ width: 144, height: 192 })
     expect(parseProjectDocument(parsed, [currentTmu])).toEqual(parsed)
@@ -1801,6 +1871,170 @@ describe('project document', () => {
     expect(parseProjectDocument(parsed, [currentCdu])).toEqual(parsed)
   })
 
+  it('migrates legacy inline MP ports into one measurement point without breaking the pipe', () => {
+    const legacyMp = {
+      ...asset,
+      key: 'mp',
+      name: 'MP',
+      category: '冷却',
+      source: 'src/assets/symbols/MP.svg',
+      intrinsicWidth: 32,
+      intrinsicHeight: 32,
+      anchors: [
+        {
+          id: 'legacy-mp-top',
+          name: '通用 1',
+          x: 16,
+          y: 0,
+          direction: 'top' as const,
+          type: 'cooling-general' as const,
+        },
+        {
+          id: 'legacy-mp-bottom',
+          name: '通用 2',
+          x: 16,
+          y: 32,
+          direction: 'bottom' as const,
+          type: 'cooling-general' as const,
+        },
+      ],
+    }
+    const installedMp = {
+      ...legacyMp,
+      anchors: [{
+        id: 'mp-measurement-point',
+        name: '测量点',
+        x: 16,
+        y: 32,
+        direction: 'bottom' as const,
+        type: 'cooling-general' as const,
+      }],
+    }
+    const endpointAsset = {
+      ...asset,
+      key: 'pipe-endpoint',
+      name: '管路端点',
+      category: '冷却',
+      anchors: [
+        {
+          id: 'left',
+          name: '左侧',
+          x: 0,
+          y: 32,
+          direction: 'left' as const,
+          type: 'cooling-primary-cold' as const,
+        },
+        {
+          id: 'right',
+          name: '右侧',
+          x: 64,
+          y: 32,
+          direction: 'right' as const,
+          type: 'cooling-primary-cold' as const,
+        },
+      ],
+    }
+    const document = createDefaultProject('MP 测点迁移', [legacyMp, endpointAsset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    document.elements = [
+      {
+        id: 'left-device',
+        diagramId,
+        assetKey: endpointAsset.key,
+        name: endpointAsset.name,
+        x: 0,
+        y: 0,
+        width: 64,
+        height: 64,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'legacy-mp',
+        diagramId,
+        assetKey: legacyMp.key,
+        name: legacyMp.name,
+        x: 96,
+        y: 0,
+        width: 32,
+        height: 32,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+      {
+        id: 'right-device',
+        diagramId,
+        assetKey: endpointAsset.key,
+        name: endpointAsset.name,
+        x: 160,
+        y: 0,
+        width: 64,
+        height: 64,
+        rotation: 0,
+        properties: {},
+        extensions: {},
+      },
+    ]
+    document.connections = [
+      {
+        id: 'legacy-mp-left-network',
+        diagramId,
+        type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'left-node', kind: 'element-anchor', elementId: 'left-device', anchorId: 'right' },
+          { id: 'legacy-mp-top-node', kind: 'element-anchor', elementId: 'legacy-mp', anchorId: 'legacy-mp-top' },
+        ],
+        edges: [{
+          id: 'left-pipe',
+          sourceNodeId: 'left-node',
+          targetNodeId: 'legacy-mp-top-node',
+        }],
+      },
+      {
+        id: 'legacy-mp-right-network',
+        diagramId,
+        type: 'cooling-primary-cold',
+        nodes: [
+          { id: 'legacy-mp-bottom-node', kind: 'element-anchor', elementId: 'legacy-mp', anchorId: 'legacy-mp-bottom' },
+          { id: 'right-node', kind: 'element-anchor', elementId: 'right-device', anchorId: 'left' },
+        ],
+        edges: [{
+          id: 'right-pipe',
+          sourceNodeId: 'legacy-mp-bottom-node',
+          targetNodeId: 'right-node',
+        }],
+      },
+    ]
+    const legacy = JSON.parse(JSON.stringify(document))
+    legacy.schemaVersion = 36
+
+    const parsed = parseProjectDocument(legacy, [installedMp, endpointAsset])
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(parsed.assets.find((candidate) => candidate.key === 'mp')?.anchors).toEqual(
+      installedMp.anchors,
+    )
+    expect(parsed.connections).toHaveLength(1)
+    expect(parsed.connections[0]).toMatchObject({
+      id: 'legacy-mp-left-network',
+      type: 'cooling-primary-cold',
+      edges: expect.arrayContaining([
+        expect.objectContaining({ id: 'left-pipe', targetNodeId: 'legacy-mp-bottom-node' }),
+        expect.objectContaining({ id: 'right-pipe', sourceNodeId: 'legacy-mp-bottom-node' }),
+      ]),
+    })
+    expect(parsed.connections[0].nodes.filter((node) => (
+      node.kind === 'element-anchor' && node.elementId === 'legacy-mp'
+    ))).toEqual([{
+      id: 'legacy-mp-bottom-node',
+      kind: 'element-anchor',
+      elementId: 'legacy-mp',
+      anchorId: 'mp-measurement-point',
+    }])
+    expect(parseProjectDocument(parsed, [installedMp, endpointAsset])).toEqual(parsed)
+  })
+
   it('migrates legacy portrait PHE assets and instances to the PNG landscape layout', () => {
     const legacyPhe = {
       ...asset,
@@ -1864,6 +2098,108 @@ describe('project document', () => {
       properties: { tag: 'HE1' },
     })
     expect(parseProjectDocument(parsed, [currentPhe])).toEqual(parsed)
+  })
+
+  it('migrates the previous cooling PNG layouts to the latest SVG dimensions', () => {
+    const previousLayouts = [
+      { key: 'cwp', name: 'CWP', width: 200, height: 80, anchor: { x: 104, y: 0, direction: 'top' as const } },
+      { key: 'chwp', name: 'CHWP', width: 200, height: 80, anchor: { x: 176, y: 80, direction: 'bottom' as const } },
+      { key: 'ct', name: 'CT', width: 160, height: 160, anchor: { x: 160, y: 16, direction: 'right' as const } },
+      { key: 'phe', name: 'PHE', width: 200, height: 80, anchor: { x: 144, y: 80, direction: 'bottom' as const } },
+      { key: 'cdu', name: 'CDU', width: 192, height: 96, anchor: { x: 96, y: 0, direction: 'top' as const } },
+    ]
+    const currentLayouts = [
+      { key: 'cwp', name: 'CWP', width: 80, height: 128 },
+      { key: 'chwp', name: 'CHWP', width: 80, height: 128 },
+      { key: 'ct', name: 'CT', width: 96, height: 96 },
+      { key: 'phe', name: 'PHE', width: 80, height: 128 },
+      { key: 'cdu', name: 'CDU', width: 48, height: 48 },
+    ]
+    const previousAssets = previousLayouts.map((layout) => ({
+      ...asset,
+      key: layout.key,
+      name: layout.name,
+      category: '冷却',
+      source: `src/assets/symbols/${layout.name}.png`,
+      intrinsicWidth: layout.width,
+      intrinsicHeight: layout.height,
+      anchors: [{
+        id: `${layout.key}-anchor`,
+        name: '接口',
+        ...layout.anchor,
+        type: 'cooling-general' as const,
+      }],
+    }))
+    const installedAssets = currentLayouts.map((layout) => ({
+      ...asset,
+      key: layout.key,
+      name: layout.name,
+      category: '冷却',
+      source: `src/assets/symbols/${layout.name}.svg`,
+      intrinsicWidth: layout.width,
+      intrinsicHeight: layout.height,
+      anchors: [],
+    }))
+    const document = createDefaultProject('冷却 SVG 版式迁移', previousAssets)
+    const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    document.elements = previousLayouts.map((layout, index) => ({
+      id: `${layout.key}-element`,
+      diagramId,
+      assetKey: layout.key,
+      name: layout.name,
+      x: index * 240,
+      y: 0,
+      width: layout.width,
+      height: layout.height,
+      rotation: 0,
+      properties: {},
+      extensions: {},
+    }))
+
+    const parsed = parseProjectDocument(document, installedAssets)
+
+    expect(parsed.assets.map((candidate) => ({
+      key: candidate.key,
+      source: candidate.source,
+      width: candidate.intrinsicWidth,
+      height: candidate.intrinsicHeight,
+      anchor: candidate.anchors[0],
+    }))).toEqual([
+      {
+        key: 'cwp', source: 'src/assets/symbols/CWP.svg', width: 80, height: 128,
+        anchor: expect.objectContaining({ id: 'cwp-anchor', x: 40, y: 0, direction: 'top' }),
+      },
+      {
+        key: 'chwp', source: 'src/assets/symbols/CHWP.svg', width: 80, height: 128,
+        anchor: expect.objectContaining({ id: 'chwp-anchor', x: 72, y: 128, direction: 'bottom' }),
+      },
+      {
+        key: 'ct', source: 'src/assets/symbols/CT.svg', width: 96, height: 96,
+        anchor: expect.objectContaining({ id: 'ct-anchor', x: 96, y: 8, direction: 'right' }),
+      },
+      {
+        key: 'phe', source: 'src/assets/symbols/PHE.svg', width: 80, height: 128,
+        anchor: expect.objectContaining({ id: 'phe-anchor', x: 56, y: 128, direction: 'bottom' }),
+      },
+      {
+        key: 'cdu', source: 'src/assets/symbols/CDU.svg', width: 48, height: 48,
+        anchor: expect.objectContaining({ id: 'cdu-anchor', x: 24, y: 0, direction: 'top' }),
+      },
+    ])
+    expect(parsed.elements.map((element) => ({
+      key: element.assetKey,
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    }))).toEqual([
+      { key: 'cwp', x: 64, y: -24, width: 80, height: 128 },
+      { key: 'chwp', x: 304, y: -24, width: 80, height: 128 },
+      { key: 'ct', x: 512, y: 32, width: 96, height: 96 },
+      { key: 'phe', x: 784, y: -24, width: 80, height: 128 },
+      { key: 'cdu', x: 1032, y: 24, width: 48, height: 48 },
+    ])
+    expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)
   })
 
   it('validates anchor grid, edge, corner, duplicate, and outward direction rules', () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 35 as const
+export const SCHEMA_VERSION = 41 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -13,6 +13,8 @@ export const anchorTypeSchema = z.enum([
   'cooling-primary-hot',
   'cooling-secondary-cold',
   'cooling-secondary-hot',
+  'cooling-tertiary-cold',
+  'cooling-tertiary-hot',
   'cooling-general',
 ])
 
@@ -24,6 +26,7 @@ export const elementOnOffStateSchema = z.enum(['off', 'on'])
 export const elementMonitorInteractionSchema = z.enum(['control', 'device-panel'])
 export const connectionFlowDirectionSchema = z.enum(['forward', 'reverse'])
 export const externalSupplyEndpointSchema = z.enum(['source', 'target'])
+export const powerSupplyChannelSchema = z.enum(['a', 'b'])
 export const coolingLineRoleSchema = z.enum(['primary', 'auxiliary'])
 export const connectionCrossingLayerSchema = z.enum(['lower', 'upper'])
 export const connectionPointSchema = z.object({
@@ -151,6 +154,7 @@ export const symbolAnchorSchema = z.object({
   direction: anchorDirectionSchema,
   type: anchorTypeSchema,
   flowRole: coolingFlowRoleSchema.optional(),
+  powerSupplyChannel: powerSupplyChannelSchema.optional(),
 })
 
 export const assetDefinitionSchema = z.object({
@@ -174,6 +178,7 @@ export const diagramElementSchema = z.object({
   width: z.number().positive(),
   height: z.number().positive(),
   rotation: z.number().finite(),
+  tmuPortsSwapped: z.boolean().optional(),
   labelVisible: z.boolean().optional(),
   labelPlacement: elementLabelPlacementSchema.optional(),
   monitorDataVisible: z.boolean().optional(),
@@ -196,6 +201,9 @@ export const busbarLabelSideSchema = z.enum(['negative', 'positive'])
 export const busbarMonitorFlowDirectionSchema = z.enum(['start-to-end', 'end-to-start'])
 
 export const busbarSchema = z.object({
+  monitorDataVisible: z.boolean().optional(),
+  monitorMetricLabelsVisible: z.boolean().optional(),
+  monitorMetrics: z.array(monitorMetricSchema).max(5).optional(),
   id: z.string().min(1),
   diagramId: z.string().min(1),
   type: z.literal('electrical'),
@@ -210,6 +218,7 @@ export const busbarSchema = z.object({
   labelSide: busbarLabelSideSchema.optional(),
   labelColor: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
   monitorFlowDirection: busbarMonitorFlowDirectionSchema.optional(),
+  powerSupplyChannel: powerSupplyChannelSchema.optional(),
 })
 
 export const connectionNodeSchema = z.discriminatedUnion('kind', [
@@ -240,6 +249,7 @@ export const connectionEdgeSchema = z.object({
   logicalConnectionId: z.string().min(1).optional(),
   flowDirection: connectionFlowDirectionSchema.optional(),
   externalSupplyEndpoint: externalSupplyEndpointSchema.optional(),
+  externalSupplyChannel: powerSupplyChannelSchema.optional(),
   coolingLineRole: coolingLineRoleSchema.optional(),
   crossingLayer: connectionCrossingLayerSchema.optional(),
   color: z.string().regex(/^#[0-9a-f]{6}$/i, '颜色必须是六位十六进制值').optional(),
@@ -257,6 +267,7 @@ export const connectionNetworkSchema = z.object({
   id: z.string().min(1),
   diagramId: z.string().min(1),
   type: anchorTypeSchema,
+  powerSupplyChannel: powerSupplyChannelSchema.optional(),
   nodes: z.array(connectionNodeSchema).min(2),
   edges: z.array(connectionEdgeSchema).min(1),
 })
@@ -286,6 +297,7 @@ export const lineSystemSchema = z.object({
 
 export const projectDocumentSchema = z
   .object({
+    elementLabelScale: z.number().min(0.5).max(3).optional(),
     schemaVersion: z.literal(SCHEMA_VERSION),
     project: z.object({
       id: z.string().min(1),
@@ -300,6 +312,7 @@ export const projectDocumentSchema = z
     connections: z.array(connectionNetworkSchema),
     assets: z.array(assetDefinitionSchema),
     extensions: z.record(z.string(), z.unknown()),
+    circuitPalette: z.partialRecord(z.enum(['a', 'b', 'cooling-primary-cold', 'cooling-primary-hot', 'cooling-secondary-cold', 'cooling-secondary-hot', 'cooling-tertiary-cold', 'cooling-tertiary-hot']), z.string().regex(/^#[0-9a-fA-F]{6}$/)).optional(),
   })
   .superRefine((document, context) => {
     const lineSystemIds = new Set(document.lineSystems.map((line) => line.id))
@@ -342,9 +355,27 @@ export const projectDocumentSchema = z
     for (const asset of document.assets) {
       const anchorIds = new Set<string>()
       const anchorCoordinates = new Set<string>()
+      const powerSupplyChannels = new Set<string>()
 
       for (const anchor of asset.anchors) {
         const path = ['assets', asset.key, 'anchors', anchor.id]
+        if (anchor.powerSupplyChannel) {
+          if (anchor.type !== 'electrical') {
+            context.addIssue({
+              code: 'custom',
+              path: [...path, 'powerSupplyChannel'],
+              message: `图元“${asset.name}”只能在电力锚点上配置 A/B 供电输入`,
+            })
+          }
+          if (powerSupplyChannels.has(anchor.powerSupplyChannel)) {
+            context.addIssue({
+              code: 'custom',
+              path: [...path, 'powerSupplyChannel'],
+              message: `图元“${asset.name}”的同一供电输入角色只能配置一次`,
+            })
+          }
+          powerSupplyChannels.add(anchor.powerSupplyChannel)
+        }
         if (anchorIds.has(anchor.id)) {
           context.addIssue({
             code: 'custom',
@@ -639,6 +670,16 @@ export const projectDocumentSchema = z
           })
         }
         if (
+          edge.externalSupplyChannel !== undefined &&
+          (edge.externalSupplyEndpoint === undefined || network.type !== 'electrical')
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: [...networkPath, 'edges', edge.id, 'externalSupplyChannel'],
+            message: '入口通道只能配置在已标记的电力外部供电入口上',
+          })
+        }
+        if (
           edge.sourceNodeId === edge.targetNodeId ||
           !nodeIds.has(edge.sourceNodeId) ||
           !nodeIds.has(edge.targetNodeId)
@@ -815,7 +856,7 @@ export const projectDocumentSchema = z
         }
       }
 
-      const resolvedType = resolveConnectionType(anchorTypes)
+      const resolvedType = resolveConnectionType([network.type, ...anchorTypes])
       if (!resolvedType || resolvedType !== network.type) {
         context.addIssue({
           code: 'custom',
@@ -868,6 +909,7 @@ export type AnchorType = z.infer<typeof anchorTypeSchema>
 export type AnchorDirection = z.infer<typeof anchorDirectionSchema>
 export type CoolingDeviceRole = z.infer<typeof coolingDeviceRoleSchema>
 export type CoolingFlowRole = z.infer<typeof coolingFlowRoleSchema>
+export type PowerSupplyChannel = z.infer<typeof powerSupplyChannelSchema>
 export type ElementLabelPlacement = z.infer<typeof elementLabelPlacementSchema>
 export type ElementOnOffState = z.infer<typeof elementOnOffStateSchema>
 export type ElementMonitorInteraction = z.infer<typeof elementMonitorInteractionSchema>
@@ -1730,7 +1772,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 
@@ -1791,20 +1833,51 @@ function migrateProjectDocument(
       }
     : withCurrentAssetShape
 
+  const dualSupplyAssetKeys = new Set([
+    'compute-pod',
+    'power-pod',
+    'ups-group',
+    'cabinet-device',
+  ])
+  const withPowerSupplyChannels = sourceSchemaVersion < 36 && Array.isArray(withCvCheckValve.assets)
+    ? {
+        ...withCvCheckValve,
+        assets: withCvCheckValve.assets.map((value) => {
+          if (
+            !isRecord(value) ||
+            typeof value.key !== 'string' ||
+            !dualSupplyAssetKeys.has(value.key) ||
+            !Array.isArray(value.anchors) ||
+            value.anchors.some((anchor) => isRecord(anchor) && anchor.powerSupplyChannel !== undefined)
+          ) return value
+          return {
+            ...value,
+            anchors: value.anchors.map((anchor) => {
+              if (!isRecord(anchor) || anchor.type !== 'electrical') return anchor
+              const name = typeof anchor.name === 'string' ? anchor.name.trim() : ''
+              if (/(?:^|\D)1$/.test(name)) return { ...anchor, powerSupplyChannel: 'a' }
+              if (/(?:^|\D)2$/.test(name)) return { ...anchor, powerSupplyChannel: 'b' }
+              return anchor
+            }),
+          }
+        }),
+      }
+    : withCvCheckValve
+
   const withUnifiedConnections = migrateUnifiedConnectionNodes({
-    ...withCvCheckValve,
+    ...withPowerSupplyChannels,
     schemaVersion: SCHEMA_VERSION,
-    busbars: Array.isArray(withCvCheckValve.busbars)
-      ? withCvCheckValve.busbars
+    busbars: Array.isArray(withPowerSupplyChannels.busbars)
+      ? withPowerSupplyChannels.busbars
       : [],
-    connections: Array.isArray(withCvCheckValve.connections)
+    connections: Array.isArray(withPowerSupplyChannels.connections)
       ? sourceSchemaVersion < SCHEMA_VERSION
         ? repairLegacyConnectionReferences(
             sourceSchemaVersion <= 5
-              ? migrateLegacyConnectionJunctions(withCvCheckValve.connections)
-              : withCvCheckValve.connections,
+              ? migrateLegacyConnectionJunctions(withPowerSupplyChannels.connections)
+              : withPowerSupplyChannels.connections,
           )
-        : withCvCheckValve.connections
+        : withPowerSupplyChannels.connections
       : [],
   }, sourceSchemaVersion >= 27)
   const withNodeBoundedConnectionEdges = sourceSchemaVersion < 26
@@ -1877,11 +1950,30 @@ const CURRENT_CDU_HEIGHT = 96
 const LEGACY_TMU_LAYOUTS = [
   { width: 48, height: 64 },
   { width: 72, height: 96 },
+  { width: 64, height: 96 },
 ] as const
-const CURRENT_TMU_WIDTH = 64
-const CURRENT_TMU_HEIGHT = 96
+const CURRENT_TMU_WIDTH = 48
+const CURRENT_TMU_HEIGHT = 48
+const RESIZED_COOLING_SVG_LAYOUTS = new Map<string, {
+  source: string
+  width: number
+  height: number
+}>([
+  ['chwp', { source: '/CHWP.svg', width: 80, height: 128 }],
+  ['cwp', { source: '/CWP.svg', width: 80, height: 128 }],
+  ['ct', { source: '/CT.svg', width: 96, height: 96 }],
+  ['phe', { source: '/PHE.svg', width: 80, height: 128 }],
+  ['cdu', { source: '/CDU.svg', width: 48, height: 48 }],
+] as const)
 
 interface LegacyTmuLayout {
+  width: number
+  height: number
+}
+
+interface AssetLayoutMigration {
+  previousWidth: number
+  previousHeight: number
   width: number
   height: number
 }
@@ -1892,6 +1984,87 @@ function normalizeRotation(value: number) {
 
 function snapToGrid(value: number) {
   return Math.round(value / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
+}
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = Math.abs(Math.round(left))
+  let b = Math.abs(Math.round(right))
+  while (b) [a, b] = [b, a % b]
+  return a || 1
+}
+
+function layoutScaleStep(width: number, height: number) {
+  return 1 / greatestCommonDivisor(
+    width / EDITOR_GRID_SIZE,
+    height / EDITOR_GRID_SIZE,
+  )
+}
+
+function nearestUnusedEdgeCoordinate(
+  desired: number,
+  edgeLength: number,
+  occupied: Set<number>,
+) {
+  const candidates: number[] = []
+  for (let value = EDITOR_GRID_SIZE; value < edgeLength; value += EDITOR_GRID_SIZE) {
+    if (!occupied.has(value)) candidates.push(value)
+  }
+  const coordinate = candidates.sort((left, right) => (
+    Math.abs(left - desired) - Math.abs(right - desired) || left - right
+  ))[0]
+  return coordinate ?? Math.min(
+    edgeLength - EDITOR_GRID_SIZE,
+    Math.max(EDITOR_GRID_SIZE, snapToGrid(desired)),
+  )
+}
+
+function migrateAssetLayoutAnchors(
+  anchors: SymbolAnchor[],
+  migration: AssetLayoutMigration,
+) {
+  const occupiedByDirection = new Map<SymbolAnchor['direction'], Set<number>>()
+  return anchors.map((anchor) => {
+    const horizontal = anchor.direction === 'top' || anchor.direction === 'bottom'
+    const edgeLength = horizontal ? migration.width : migration.height
+    const previousEdgeLength = horizontal
+      ? migration.previousWidth
+      : migration.previousHeight
+    const previousCoordinate = horizontal ? anchor.x : anchor.y
+    const desired = snapToGrid(edgeLength * previousCoordinate / previousEdgeLength)
+    const occupied = occupiedByDirection.get(anchor.direction) ?? new Set<number>()
+    const coordinate = nearestUnusedEdgeCoordinate(desired, edgeLength, occupied)
+    occupied.add(coordinate)
+    occupiedByDirection.set(anchor.direction, occupied)
+    if (anchor.direction === 'top') return { ...anchor, x: coordinate, y: 0 }
+    if (anchor.direction === 'bottom') {
+      return { ...anchor, x: coordinate, y: migration.height }
+    }
+    if (anchor.direction === 'left') return { ...anchor, x: 0, y: coordinate }
+    return { ...anchor, x: migration.width, y: coordinate }
+  })
+}
+
+function migrateAssetLayoutElement(
+  element: DiagramElement,
+  migration: AssetLayoutMigration,
+) {
+  const requestedScale = (
+    element.width / migration.previousWidth +
+    element.height / migration.previousHeight
+  ) / 2
+  const step = layoutScaleStep(migration.width, migration.height)
+  const scale = Math.max(step, Math.round(requestedScale / step) * step)
+  const width = Math.round(migration.width * scale)
+  const height = Math.round(migration.height * scale)
+  const centerX = element.x + element.width / 2
+  const centerY = element.y + element.height / 2
+  return {
+    ...element,
+    x: snapToGrid(centerX - width / 2),
+    y: snapToGrid(centerY - height / 2),
+    width,
+    height,
+  }
 }
 
 function rotateLegacyPheDirection(direction: SymbolAnchor['direction']): SymbolAnchor['direction'] {
@@ -2011,13 +2184,210 @@ function migrateLegacyTmuElement(
   }
 }
 
+interface MeasurementPointMigrationResult {
+  document: ProjectDocument
+  migrated: boolean
+}
+
+/**
+ * MP used to be drawn as an inline two-port device. The current symbol is a
+ * non-invasive measurement point: every connection touching one MP instance
+ * must therefore share its single anchor. Networks formerly separated by the
+ * two ports are merged at that anchor so the physical pipe remains continuous.
+ */
+function migrateMeasurementPointSensors(
+  document: ProjectDocument,
+  installedAssets: AssetDefinition[],
+): MeasurementPointMigrationResult {
+  const installedMp = installedAssets.find((asset) => asset.key === 'mp')
+  const measurementAnchor = installedMp?.anchors.length === 1
+    ? installedMp.anchors[0]
+    : undefined
+  const currentMp = document.assets.find((asset) => asset.key === 'mp')
+  if (!installedMp || !measurementAnchor || !currentMp) {
+    return { document, migrated: false }
+  }
+  if (
+    currentMp.anchors.length === 1 &&
+    currentMp.anchors[0].id === measurementAnchor.id &&
+    currentMp.anchors[0].x === measurementAnchor.x &&
+    currentMp.anchors[0].y === measurementAnchor.y &&
+    currentMp.anchors[0].direction === measurementAnchor.direction &&
+    currentMp.anchors[0].type === measurementAnchor.type &&
+    currentMp.anchors[0].flowRole === undefined
+  ) {
+    return { document, migrated: false }
+  }
+
+  const mpElementIds = new Set(document.elements.flatMap((element) => (
+    element.assetKey === 'mp' ? [element.id] : []
+  )))
+  const occurrencesByElement = new Map<string, Array<{
+    networkIndex: number
+    node: Extract<ConnectionNode, { kind: 'element-anchor' }>
+  }>>()
+  document.connections.forEach((network, networkIndex) => {
+    network.nodes.forEach((node) => {
+      if (node.kind !== 'element-anchor' || !mpElementIds.has(node.elementId)) return
+      const occurrences = occurrencesByElement.get(node.elementId) ?? []
+      occurrences.push({ networkIndex, node })
+      occurrencesByElement.set(node.elementId, occurrences)
+    })
+  })
+
+  const legacyBottomAnchorIds = new Set(currentMp.anchors.flatMap((anchor) => (
+    anchor.y === currentMp.intrinsicHeight && anchor.direction === 'bottom'
+      ? [anchor.id]
+      : []
+  )))
+  const replacementNodeIds = new Map<string, string>()
+  const canonicalNodeIdByElement = new Map<string, string>()
+  occurrencesByElement.forEach((occurrences, elementId) => {
+    const retained = occurrences.find(({ node }) => legacyBottomAnchorIds.has(node.anchorId))
+      ?? occurrences[0]
+    if (!retained) return
+    canonicalNodeIdByElement.set(elementId, retained.node.id)
+    occurrences.forEach(({ node }) => replacementNodeIds.set(node.id, retained.node.id))
+  })
+
+  const parent = document.connections.map((_, index) => index)
+  const affectedNetworkIndexes = new Set<number>()
+  const find = (index: number): number => {
+    const current = parent[index]
+    if (current === index) return index
+    const root = find(current)
+    parent[index] = root
+    return root
+  }
+  const union = (left: number, right: number) => {
+    const leftRoot = find(left)
+    const rightRoot = find(right)
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot
+  }
+  occurrencesByElement.forEach((occurrences) => {
+    const first = occurrences[0]?.networkIndex
+    if (first === undefined) return
+    occurrences.forEach(({ networkIndex }) => affectedNetworkIndexes.add(networkIndex))
+    occurrences.slice(1).forEach(({ networkIndex }) => union(first, networkIndex))
+  })
+
+  const componentIndexes = new Map<number, number[]>()
+  document.connections.forEach((_, index) => {
+    const root = find(index)
+    const indexes = componentIndexes.get(root) ?? []
+    indexes.push(index)
+    componentIndexes.set(root, indexes)
+  })
+  const resolvedTypes = new Map<number, AnchorType>()
+  for (const [root, indexes] of componentIndexes) {
+    if (!indexes.some((index) => affectedNetworkIndexes.has(index))) continue
+    const members = indexes.map((index) => document.connections[index])
+    const diagramIds = new Set(members.map((network) => network.diagramId))
+    const type = resolveConnectionType(members.map((network) => network.type))
+    if (diagramIds.size !== 1 || !type) {
+      return { document, migrated: false }
+    }
+    resolvedTypes.set(root, type)
+  }
+
+  const migratedConnections: ConnectionNetwork[] = []
+  componentIndexes.forEach((indexes, root) => {
+    const members = indexes.map((index) => document.connections[index])
+    const first = members[0]
+    if (!first) return
+    if (!indexes.some((index) => affectedNetworkIndexes.has(index))) {
+      migratedConnections.push(first)
+      return
+    }
+    const nodesById = new Map<string, ConnectionNode>()
+    members.forEach((network) => network.nodes.forEach((node) => {
+      if (node.kind === 'element-anchor' && mpElementIds.has(node.elementId)) {
+        const canonicalNodeId = canonicalNodeIdByElement.get(node.elementId) ?? node.id
+        nodesById.set(canonicalNodeId, {
+          id: canonicalNodeId,
+          kind: 'element-anchor',
+          elementId: node.elementId,
+          anchorId: measurementAnchor.id,
+        })
+        return
+      }
+      if (!nodesById.has(node.id)) nodesById.set(node.id, node)
+    }))
+    const edges = members.flatMap((network) => network.edges.flatMap((edge) => {
+      const sourceNodeId = replacementNodeIds.get(edge.sourceNodeId) ?? edge.sourceNodeId
+      const targetNodeId = replacementNodeIds.get(edge.targetNodeId) ?? edge.targetNodeId
+      if (sourceNodeId === targetNodeId) return []
+      const routeNodeIds = edge.routeNodeIds?.flatMap((nodeId) => {
+        const resolvedNodeId = replacementNodeIds.get(nodeId) ?? nodeId
+        return resolvedNodeId === sourceNodeId || resolvedNodeId === targetNodeId
+          ? []
+          : [resolvedNodeId]
+      })
+      return [{
+        ...edge,
+        sourceNodeId,
+        targetNodeId,
+        ...(routeNodeIds ? { routeNodeIds: [...new Set(routeNodeIds)] } : {}),
+      }]
+    }))
+    if (!edges.length) return
+    const usedNodeIds = new Set(edges.flatMap((edge) => [
+      edge.sourceNodeId,
+      edge.targetNodeId,
+      ...(edge.routeNodeIds ?? []),
+    ]))
+    const nodes = [...nodesById.values()].filter((node) => usedNodeIds.has(node.id))
+    if (nodes.length < 2) return
+    migratedConnections.push({
+      ...first,
+      type: resolvedTypes.get(root) ?? first.type,
+      nodes,
+      edges,
+    })
+  })
+
+  return {
+    migrated: true,
+    document: {
+      ...document,
+      assets: document.assets.map((asset) => asset.key === 'mp'
+        ? {
+            ...asset,
+            anchors: [{ ...measurementAnchor }],
+          }
+        : asset),
+      connections: migratedConnections,
+    },
+  }
+}
+
 export function parseProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[] = [],
 ): ProjectDocument {
-  const document = projectDocumentSchema.parse(migrateProjectDocument(input, installedAssets))
+  const parsed = projectDocumentSchema.parse(migrateProjectDocument(input, installedAssets))
+  const { document } = migrateMeasurementPointSensors(parsed, installedAssets)
   const installedByKey = new Map(installedAssets.map((asset) => [asset.key, asset]))
   const documentAssetKeys = new Set(document.assets.map((asset) => asset.key))
+  const resizedCoolingLayoutsByKey = new Map<string, AssetLayoutMigration>(
+    document.assets.flatMap((asset) => {
+      const installed = installedByKey.get(asset.key)
+      const layout = RESIZED_COOLING_SVG_LAYOUTS.get(asset.key)
+      return installed &&
+        layout &&
+        installed.source.endsWith(layout.source) &&
+        installed.intrinsicWidth === layout.width &&
+        installed.intrinsicHeight === layout.height &&
+        (asset.intrinsicWidth !== layout.width || asset.intrinsicHeight !== layout.height)
+        ? [[asset.key, {
+            previousWidth: asset.intrinsicWidth,
+            previousHeight: asset.intrinsicHeight,
+            width: layout.width,
+            height: layout.height,
+          }]]
+        : []
+    }),
+  )
   const legacyPheAssetKeys = new Set(document.assets.flatMap((asset) => {
     const installed = installedByKey.get(asset.key)
     return asset.key === 'phe' &&
@@ -2047,7 +2417,7 @@ export function parseProjectDocument(
     ))
     return asset.key === 'tmu' &&
       legacyLayout &&
-      installed?.source.endsWith('/TMU.png') &&
+      installed?.source.endsWith('/TMU.svg') &&
       installed.intrinsicWidth === CURRENT_TMU_WIDTH &&
       installed.intrinsicHeight === CURRENT_TMU_HEIGHT
       ? [[asset.key, legacyLayout] as [string, LegacyTmuLayout]]
@@ -2083,6 +2453,12 @@ export function parseProjectDocument(
             legacyTmuLayoutsByKey.get(asset.key)!,
           )),
         } : {}),
+        ...(resizedCoolingLayoutsByKey.has(asset.key) ? {
+          anchors: migrateAssetLayoutAnchors(
+            asset.anchors,
+            resizedCoolingLayoutsByKey.get(asset.key)!,
+          ),
+        } : {}),
         ...(asset.key === 'cv' ? { coolingDeviceRole: 'check-valve' as const } : {}),
       }
     }).concat(
@@ -2104,16 +2480,22 @@ export function parseProjectDocument(
       const withCurrentTmuLayout = legacyTmuLayout
         ? migrateLegacyTmuElement(withCurrentCduLayout, legacyTmuLayout)
         : withCurrentCduLayout
-      if (
-        withCurrentTmuLayout.assetKey === 'cabinet' &&
-        ['Cabinet', 'Cabinet A'].includes(withCurrentTmuLayout.name)
-      ) {
-        return { ...withCurrentTmuLayout, name: 'Tap-off Unit A' }
-      }
-      return withCurrentTmuLayout.assetKey === 'cabinet-b' &&
-        withCurrentTmuLayout.name === 'Cabinet B'
-        ? { ...withCurrentTmuLayout, name: 'Tap-off Unit B' }
+      const resizedCoolingLayout = resizedCoolingLayoutsByKey.get(
+        withCurrentTmuLayout.assetKey,
+      )
+      const withCurrentCoolingSvgLayout = resizedCoolingLayout
+        ? migrateAssetLayoutElement(withCurrentTmuLayout, resizedCoolingLayout)
         : withCurrentTmuLayout
+      if (
+        withCurrentCoolingSvgLayout.assetKey === 'cabinet' &&
+        ['Cabinet', 'Cabinet A'].includes(withCurrentCoolingSvgLayout.name)
+      ) {
+        return { ...withCurrentCoolingSvgLayout, name: 'Tap-off Unit A' }
+      }
+      return withCurrentCoolingSvgLayout.assetKey === 'cabinet-b' &&
+        withCurrentCoolingSvgLayout.name === 'Cabinet B'
+        ? { ...withCurrentCoolingSvgLayout, name: 'Tap-off Unit B' }
+        : withCurrentCoolingSvgLayout
     }),
     diagrams: document.diagrams.map((diagram) => ({
       ...diagram,

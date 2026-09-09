@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { AssetDefinition, DiagramElement } from '../domain/project'
 import { monitorMetricReadingKey } from '../monitoring/elementMetrics'
 import {
+  positionMonitorMetricLabelRows,
   ELEMENT_LABEL_AVOIDANCE_STEP,
   ELEMENT_LABEL_FONT_SIZE,
   ELEMENT_LABEL_GAP,
@@ -51,6 +52,49 @@ function element(patch: Partial<DiagramElement> = {}): DiagramElement {
 }
 
 describe('element label layout', () => {
+  it('ignores other elements and labels regardless of ordering', () => {
+    const item = element()
+    const assets = new Map([[asset.key, asset]])
+    const baseline = layoutElementLabels([item], assets)[0]
+    const overlappingElement = element({ id: 'obstacle', x: 0, y: 42 })
+    const overlappingLabel = element({ id: 'same-position' })
+    for (const items of [
+      [overlappingElement, overlappingLabel, item],
+      [item, overlappingLabel, overlappingElement],
+    ]) {
+      expect(layoutElementLabels(items, assets).find(row => row.elementId === item.id))
+        .toEqual(baseline)
+    }
+  })
+  it('scales only the element label geometry and preserves placement', () => {
+    const item = element({ labelPlacement: 'right' })
+    const base = layoutElementLabels([item], new Map([[asset.key, asset]]))[0]
+    const larger = layoutElementLabels([item], new Map([[asset.key, asset]]), { scale: 1.5 })[0]
+    expect(larger.bounds.width).toBe(base.bounds.width * 1.5)
+    expect(larger.bounds.height).toBe(base.bounds.height * 1.5)
+    expect(larger.bounds.x).toBe(base.bounds.x)
+    expect(larger.scale).toBe(1.5)
+  })
+  it('left-aligns metric names beside one compact value column', () => {
+    const lines = ['状态', '有功功率(kW)'].map((labelText, index) => ({ metricId: String(index), label: labelText, labelText, labelVisible: true, valueText: '50', unit: '', severity: 'normal' as const, ariaLabel: labelText }))
+    const rows = positionMonitorMetricLabelRows(lines, { x: 0, y: 0, width: 200, height: 32 }, 0)
+    expect(rows[0].labelX).toBe(rows[1].labelX)
+    expect(rows[0].labelX).toBe(2)
+  })
+  it('keeps UPS numeric values compact independently of a long supply status', () => {
+    const lines = ['主路供电', '25.0', '17.4', '39.4'].map((valueText, index) => ({
+      metricId: String(index), valueType: index === 0 ? 'text' as const : 'number' as const,
+      label: index === 0 ? '供电方式' : `L${index} 输入电流(A)`, labelText: index === 0 ? '供电方式' : `L${index} 输入电流(A)`,
+      labelVisible: true, valueText, unit: '', severity: 'normal' as const, ariaLabel: valueText,
+    }))
+    const rows = positionMonitorMetricLabelRows(lines, { x: 0, y: 0, width: 200, height: 64 }, 0)
+    expect(rows.every(row => row.labelX === 2)).toBe(true)
+    expect(rows.slice(1).every(row => row.valueX === rows[1].valueX)).toBe(true)
+    expect(rows[1].valueBounds.width).toBe(estimateLabelTextWidth('25.0'))
+    expect(rows[0].valueBounds.width).toBe(estimateLabelTextWidth('主路供电'))
+    const extended = positionMonitorMetricLabelRows([{ ...lines[0], valueText: '更加长的供电状态' }, ...lines.slice(1)], { x: 0, y: 0, width: 240, height: 64 }, 0)
+    expect(extended[1].valueX).toBe(rows[1].valueX)
+  })
   it('uses the device identifier and generates the next unused default', () => {
     const current = element()
     expect(ELEMENT_LABEL_FONT_SIZE).toBe(10)
@@ -158,7 +202,7 @@ describe('element label layout', () => {
         valueBounds: {
           x: layout.bounds.x + layout.bounds.width - estimateLabelTextWidth('82.3'),
           y: layout.bounds.y + ELEMENT_LABEL_LINE_HEIGHT,
-          width: estimateLabelTextWidth('82.3'),
+          width: estimateLabelTextWidth('离线'),
           height: ELEMENT_LABEL_LINE_HEIGHT,
         },
       }),

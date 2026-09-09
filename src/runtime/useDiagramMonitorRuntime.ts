@@ -22,7 +22,12 @@ import { defaultDemoMonitorMetricDataProvider } from './demoMetricDataProvider'
 import { useMonitorMetricRuntimeSnapshot } from './useMonitorMetricReadings'
 
 function emptyPowerFlowTopology(): PowerFlowTopology {
-  return { edges: [], busbarSegments: [], energizedElementIds: new Set<string>() }
+  return {
+    edges: [],
+    busbarSegments: [],
+    energizedElementIds: new Set<string>(),
+    selectedSupplyChannels: {},
+  }
 }
 
 export function useDiagramMonitorRuntime({
@@ -48,6 +53,7 @@ export function useDiagramMonitorRuntime({
 }) {
   const metricProvider = runtime.providers?.metrics ?? defaultDemoMonitorMetricDataProvider
   const sourceMetricOwners = useMemo(() => [
+    ...busbars,
     ...elements.map((element) => {
       const role = assets.find((asset) => asset.key === element.assetKey)?.coolingDeviceRole
       const runtimeOperation = role === 'pump'
@@ -62,7 +68,7 @@ export function useDiagramMonitorRuntime({
       return runtimeOperation ? { ...element, runtimeOperation } : element
     }),
     ...connections.flatMap((network) => network.edges),
-  ], [assets, connections, elements, runtime.state])
+  ], [assets, busbars, connections, elements, runtime.state])
   const metricOwners = useMemo(() => (
     enabled
       ? metricProvider.prepareOwners?.(sourceMetricOwners) ?? sourceMetricOwners
@@ -99,20 +105,26 @@ export function useDiagramMonitorRuntime({
   const powerFlowTopology = useMemo(() => lineSystemType === 'power'
     ? derivePowerFlowTopology({
         elements,
+        assets,
         busbars,
         networks: connections,
         switchStates: effectiveRuntimeState.onOffStates,
         externalSupply: effectiveRuntimeState.powerExternalSupplyActive,
+        externalSupplyChannel: effectiveRuntimeState.powerExternalSupplyChannel,
+        batteryBackup: effectiveRuntimeState.powerBatteryBackupActive,
         resolvedBusbarTapOffsets,
       })
     : emptyPowerFlowTopology(), [
       busbars,
       connections,
       elements,
+      assets,
       lineSystemType,
       resolvedBusbarTapOffsets,
       effectiveRuntimeState.onOffStates,
       effectiveRuntimeState.powerExternalSupplyActive,
+      effectiveRuntimeState.powerExternalSupplyChannel,
+      effectiveRuntimeState.powerBatteryBackupActive,
     ])
   const coolingRuntime = useMemo(() => evaluateCoolingRuntime({
     active: enabled && lineSystemType === 'cooling',

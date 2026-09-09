@@ -9,11 +9,12 @@ import {
   BusbarTapVisual,
   ConnectionBridgeCasing,
   ConnectionDirectionArrow,
-  CoolingPipeInnerShadowFilter,
+  CoolingPipeOutlineFilter,
   CoolingPipeShell,
   DiagramElementVisual,
   ElementLabelItem,
   MonitorStaticFlowLines,
+  MonitorAnimatedFlowLines,
   SymbolColorFilter,
   symbolColorFilterId,
 } from './DiagramScenePrimitives'
@@ -100,7 +101,7 @@ describe('diagram scene primitives', () => {
     const { container } = render(
       <svg>
         <defs>
-          <CoolingPipeInnerShadowFilter
+          <CoolingPipeOutlineFilter
             id="cooling-filter"
             points={[{ x: 0, y: 0 }, { x: 80, y: 0 }]}
             role="primary"
@@ -154,6 +155,8 @@ describe('diagram scene primitives', () => {
     )
 
     expect(container.querySelector('#cooling-filter')).toBeInTheDocument()
+    expect(container.querySelector('#cooling-filter feMorphology')).toHaveAttribute('operator', 'erode')
+    expect(container.querySelector('#cooling-filter feGaussianBlur')).toBeNull()
     expect(container.querySelector('.monitor-static-flow-line')).toHaveAttribute(
       'vector-effect',
       'non-scaling-stroke',
@@ -173,4 +176,17 @@ describe('diagram scene primitives', () => {
     expect(container.querySelector('.connection-edge__direction-arrow'))
       .toHaveAttribute('d', 'M 40 32 L 48 32')
   })
+})
+
+it('renders embedded power waves in the line color with a continuous half-opacity tail', () => {
+  const { container } = render(<svg><MonitorAnimatedFlowLines paths={[{
+    id: 'power', style: 'power', baseColor: '#1BA4FF',
+    points: [{ x: 0, y: 0 }, { x: 120, y: 0 }],
+  }]} /></svg>)
+  const gradient = container.querySelector('linearGradient')!
+  expect(gradient).toHaveAttribute('spreadMethod', 'repeat')
+  expect(Number(gradient.getAttribute('x2')) - Number(gradient.getAttribute('x1'))).toBe(49)
+  expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-color'))).toEqual(['#1BA4FF', '#1BA4FF', '#1BA4FF'])
+  expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-opacity'))).toEqual(['0.5', '1', '0.5'])
+  expect(container.querySelector('[stroke-dasharray]')).toBeNull()
 })

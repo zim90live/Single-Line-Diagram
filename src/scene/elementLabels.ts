@@ -19,9 +19,10 @@ export const ELEMENT_LABEL_FONT_SIZE = 10
 export const ELEMENT_LABEL_LINE_HEIGHT = 16
 export const ELEMENT_LABEL_GAP = 2
 export const ELEMENT_LABEL_AVOIDANCE_STEP = 2
-export const ELEMENT_METRIC_COLUMN_GAP = 0
+export const ELEMENT_METRIC_COLUMN_GAP = 2
 
 export interface ElementLabelLayout {
+  scale?: number
   elementId: string
   text: string
   nameText: string | null
@@ -33,6 +34,7 @@ export interface ElementLabelLayout {
 }
 
 export interface ElementMetricLabelRow {
+  valueType?: 'number' | 'text'
   metricId: string
   label: string
   labelText: string
@@ -61,6 +63,7 @@ export interface MonitorMetricLabelColumnWidths {
 export type MonitorMetricLabelHorizontalAlignment = 'start' | 'center' | 'end'
 
 export interface ElementLabelLayoutOptions {
+  scale?: number
   readings?: MonitorMetricReadings
   connectedAnchorIdsByElement?: ReadonlyMap<string, ReadonlySet<string>>
 }
@@ -71,45 +74,6 @@ const DIRECTION_VECTOR: Record<ElementLabelPlacement, Point> = {
   right: { x: 1, y: 0 },
   bottom: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
-}
-const LABEL_SPATIAL_CELL_SIZE = 128
-
-interface SpatialRectEntry<T> {
-  id: T
-  rect: Rect
-}
-
-class RectSpatialIndex<T> {
-  private cells = new Map<string, SpatialRectEntry<T>[]>()
-
-  insert(id: T, rect: Rect) {
-    const entry = { id, rect }
-    this.cellKeys(rect).forEach((key) => {
-      const entries = this.cells.get(key) ?? []
-      entries.push(entry)
-      this.cells.set(key, entries)
-    })
-  }
-
-  query(rect: Rect) {
-    const matches = new Set<SpatialRectEntry<T>>()
-    this.cellKeys(rect).forEach((key) => {
-      this.cells.get(key)?.forEach((entry) => matches.add(entry))
-    })
-    return [...matches]
-  }
-
-  private cellKeys(rect: Rect) {
-    const left = Math.floor(rect.x / LABEL_SPATIAL_CELL_SIZE)
-    const right = Math.floor((rect.x + rect.width) / LABEL_SPATIAL_CELL_SIZE)
-    const top = Math.floor(rect.y / LABEL_SPATIAL_CELL_SIZE)
-    const bottom = Math.floor((rect.y + rect.height) / LABEL_SPATIAL_CELL_SIZE)
-    const keys: string[] = []
-    for (let x = left; x <= right; x += 1) {
-      for (let y = top; y <= bottom; y += 1) keys.push(`${x},${y}`)
-    }
-    return keys
-  }
 }
 
 export function estimateLabelTextWidth(
@@ -141,6 +105,7 @@ export function resolveMonitorMetricLabelLines(
     const labelText = unit ? `${metric.name}(${unit})` : metric.name
     return [{
       metricId: metric.id,
+      valueType: metric.valueType,
       label: metric.name,
       labelText,
       labelVisible: labelsVisible,
@@ -181,6 +146,11 @@ export function positionMonitorMetricLabelRows(
   horizontalAlignment: MonitorMetricLabelHorizontalAlignment = 'start',
 ): ElementMetricLabelRow[] {
   const columns = monitorMetricLabelColumnWidths(lines)
+  const valueWidths = { number: 0, text: 0 }
+  for (const line of lines) {
+    const type = line.valueType ?? 'number'
+    valueWidths[type] = Math.max(valueWidths[type], estimateLabelTextWidth(line.valueText))
+  }
   const rowsX = horizontalAlignment === 'end'
     ? bounds.x + bounds.width - columns.total
     : horizontalAlignment === 'center'
@@ -191,16 +161,17 @@ export function positionMonitorMetricLabelRows(
   )
   return lines.map((line, index) => {
     const y = bounds.y + (index + leadingLineCount) * ELEMENT_LABEL_LINE_HEIGHT
+    const valueWidth = valueWidths[line.valueType ?? 'number']
     return {
       ...line,
       valueBounds: {
         x: valueColumnX,
         y,
-        width: columns.value,
+        width: valueWidth,
         height: ELEMENT_LABEL_LINE_HEIGHT,
       },
       labelX: rowsX + 2,
-      valueX: valueColumnX + columns.value - 2,
+      valueX: valueColumnX + valueWidth - 2,
       textY: y + 11,
     }
   })
@@ -210,15 +181,6 @@ function intersectionArea(left: Rect, right: Rect) {
   const width = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x)
   const height = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y)
   return Math.max(0, width) * Math.max(0, height)
-}
-
-function expandRect(rect: Rect, amount: number): Rect {
-  return {
-    x: rect.x - amount,
-    y: rect.y - amount,
-    width: rect.width + amount * 2,
-    height: rect.height + amount * 2,
-  }
 }
 
 function candidateBounds(
@@ -322,15 +284,20 @@ export function layoutElementLabels(
   assetsByKey: Map<string, AssetDefinition>,
   options: ElementLabelLayoutOptions = {},
 ): ElementLabelLayout[] {
+  const scale = options.scale ?? 1
+  if (scale !== 1) return layoutElementLabels(elements, assetsByKey, { ...options, scale: 1 }).map(layout => {
+    const ox = layout.placement === 'left' ? layout.bounds.x + layout.bounds.width : layout.placement === 'right' ? layout.bounds.x : layout.bounds.x + layout.bounds.width / 2
+    const oy = layout.placement === 'top' ? layout.bounds.y + layout.bounds.height : layout.bounds.y
+    const x = (value: number) => ox + (value - ox) * scale
+    const y = (value: number) => oy + (value - oy) * scale
+    const rect = (value: Rect) => ({ x: x(value.x), y: y(value.y), width: value.width * scale, height: value.height * scale })
+    return { ...layout, scale, bounds: rect(layout.bounds), textX: x(layout.textX), textY: y(layout.textY), metricRows: layout.metricRows.map(row => ({ ...row, valueBounds: rect(row.valueBounds), labelX: x(row.labelX), valueX: x(row.valueX), textY: y(row.textY) })) }
+  })
   const readings = options.readings ?? {}
   const elementRects = new Map(elements.flatMap((element) => {
     const bounds = elementsBounds([element])
     return bounds ? [[element.id, bounds] as const] : []
   }))
-  const elementRectIndex = new RectSpatialIndex<string>()
-  elementRects.forEach((rect, id) => elementRectIndex.insert(id, expandRect(rect, 2)))
-  const placedRectIndex = new RectSpatialIndex<number>()
-  let placedCount = 0
   return elements.flatMap((element) => {
     const nameText = element.labelVisible === false || isGenericSymbolKey(element.assetKey)
       ? null
@@ -380,17 +347,7 @@ export function layoutElementLabels(
           (total, corridor) => total + intersectionArea(bounds, corridor),
           0,
         )
-        const otherElementOverlap = elementRectIndex.query(bounds).reduce((total, candidate) => {
-          if (candidate.id === element.id) return total
-          return total + intersectionArea(bounds, candidate.rect)
-        }, 0)
-        const labelOverlap = placedRectIndex.query(bounds).reduce(
-          (total, candidate) => total + intersectionArea(bounds, candidate.rect),
-          0,
-        )
         const score = corridorOverlap * 1_000_000_000 +
-          labelOverlap * 1_000_000 +
-          otherElementOverlap * 10_000 +
           Math.abs(shift) * 10 +
           placementIndex
         if (!best || score < best.score) best = { bounds, placement, score }
@@ -403,7 +360,6 @@ export function layoutElementLabels(
     }
 
     if (!best) return []
-    placedRectIndex.insert(placedCount++, expandRect(best.bounds, 2))
     return [{
       elementId: element.id,
       text,

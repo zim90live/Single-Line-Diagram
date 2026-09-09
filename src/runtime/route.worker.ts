@@ -27,6 +27,7 @@ workerScope.onmessage = (event) => {
       durationMs: performance.now() - startedAt,
       mode: incremental.mode,
       dirtyNetworkCount: incremental.dirtyNetworkCount,
+      dirtyEdgeCount: incremental.dirtyEdgeCount,
       reusedEdgeCount: incremental.reusedEdgeCount,
     },
   })

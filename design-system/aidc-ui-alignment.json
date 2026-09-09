@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "sharedPackage": "@aidc/ui",
+  "upstream": {
+    "repository": "AIDC",
+    "rootHint": "../AIDC",
+    "commit": "024e3911f0d9034ee2d6085975f7d4a8692b9ea9",
+    "themeSchemaVersion": 2,
+    "componentManifestSchemaVersion": 9,
+    "sourceOfTruth": "frontend"
+  },
+  "canonicalComponents": [
+    "button",
+    "icon-button",
+    "text-field",
+    "numeric-field",
+    "select-field",
+    "switch",
+    "segmented-control",
+    "tab",
+    "status-tag"
+  ],
+  "canonicalHelpers": ["pressable", "tab-list"],
+  "sourceFiles": {
+    "design-system/theme.json": "40f780e5e2ca160f38f69f8a229454888699144091a5ea556baff9ac244fecb5",
+    "design-system/component-manifest.json": "23fcc1ebf71435866a610f47a6cdeb0e23eb2ae968e3d7c0051d0ebab31f8942",
+    "src/styles/components.css": "dfddec8a6740012ceb80133c25e6cc30f15a80734041f61e9fa1d99de6af01aa",
+    "src/components/ui/Button.tsx": "723e5d29e81ec91da175c9212a43897330930daf9c98f36353f52e8c1193be08",
+    "src/components/ui/Field.tsx": "6a07d31f67965b9e927f693e07d7743f79ce81b8165488c24a890d02136d0b70",
+    "src/components/ui/IconButton.tsx": "02dc700f6a2c68b236eb4bb4f00446a63af59b7cd7b241f8871e768b2374dc2b",
+    "src/components/ui/NumericField.tsx": "f2d26356a1ad72d4c4186abda0a471e6081f1cd75eb4cc06aa9e5a8cfce1f36e",
+    "src/components/ui/Pressable.tsx": "43613c96b325da617ae8a4c74e873b91a86aad78ed7e13f4df5c6076c9fc14b7",
+    "src/components/ui/SegmentedControl.tsx": "6104c8b0adbf24afcaec75babdbd2b0806c9b590451149c86af83cba4dd9383b",
+    "src/components/ui/StatusTag.tsx": "64cbf4c615e10bb04ead3bdd4efa8d0f213a6a826c7b7a17ebe568ba866a5597",
+    "src/components/ui/Switch.tsx": "55f7df952644942fd7be7387f767357d1c59e7a07822031c0a4781701d03cb8d",
+    "src/components/ui/Tabs.tsx": "11a8c14c006aff1f3beb37d90341cdd4254d7202798f09789ba528659b7e8761",
+    "src/components/ui/classNames.ts": "0d50d30b44c3a8543978e0c4d3601eb7d4c67a8708c08c402bd1b66363d91a88",
+    "src/components/ui/index.ts": "4e9b4b8f8590cd92c16ba564b130c10883b560a96e45e7f2b54587dad3b3ac9d"
+  },
+  "pendingUpstreamChanges": [
+    {
+      "component": "text-field/select-field",
+      "contract": "hideLabel",
+      "reason": "搜索、锚点编辑器和紧凑指标面板需要保留可访问名称但隐藏视觉标签。"
+    },
+    {
+      "component": "icon-button",
+      "contract": "default title",
+      "reason": "纯图形按钮默认复用可访问名称作为悬停提示。"
+    },
+    {
+      "component": "numeric-field",
+      "contract": "onCommit and optional range defaults",
+      "reason": "接线图属性编辑在 blur 边界提交有效数值，并允许通用坐标字段省略显式范围。"
+    },
+    {
+      "component": "switch",
+      "contract": "indeterminate",
+      "reason": "手动多选批量编辑需要可访问的 mixed 状态。"
+    },
+    {
+      "component": "tab-list/tab",
+      "contract": "roving focus and automatic keyboard activation",
+      "reason": "方向键、Home 和 End 需要在两项目保持同一可访问行为。"
+    }
+  ],
+  "policy": {
+    "featureImport": "@aidc/ui",
+    "visualSourceOwner": "AIDC",
+    "diagramExtensions": "业务 Pattern 和 Domain Token 必须与基础组件包分层。",
+    "completion": "共享包发布前，pendingUpstreamChanges 必须合入 AIDC，随后两个项目删除本地基础组件副本。"
+  }
+}

@@ -1,10 +1,13 @@
 import type {
+  AssetDefinition,
   Busbar,
   ConnectionNetwork,
   ConnectionNode,
   DiagramElement,
+  PowerSupplyChannel,
 } from '../domain/project'
 import { busbarPoint } from '../scene/connections'
+import { networkPowerChannels } from '../scene/circuitPalette'
 import type { Point } from '../scene/geometry'
 
 export const POWER_SOURCE_ASSET_KEYS = new Set(['grid', 'generator', 'battery'])
@@ -33,6 +36,7 @@ export interface PowerFlowTopology {
   edges: DirectedFlowEdge[]
   busbarSegments: DirectedBusbarFlowSegment[]
   energizedElementIds: Set<string>
+  selectedSupplyChannels: Record<string, PowerSupplyChannel>
 }
 
 interface GraphLink {
@@ -139,23 +143,60 @@ function uniqueFlowDirection(directions: Set<FlowDirection> | undefined) {
 
 export function derivePowerFlowTopology({
   elements,
+  assets = [],
   busbars,
   networks,
   switchStates,
   externalSupply = false,
+  externalSupplyChannel,
+  batteryBackup = false,
   resolvedBusbarTapOffsets = {},
 }: {
   elements: DiagramElement[]
+  assets?: AssetDefinition[]
   busbars: Busbar[]
   networks: ConnectionNetwork[]
   switchStates: Record<string, boolean>
   externalSupply?: boolean
+  externalSupplyChannel?: PowerSupplyChannel
+  batteryBackup?: boolean
   resolvedBusbarTapOffsets?: Record<string, number>
 }): PowerFlowTopology {
   const elementsById = new Map(elements.map((element) => [element.id, element]))
+  const assetsByKey = new Map(assets.map((asset) => [asset.key, asset]))
   const busbarsById = new Map(busbars.map((busbar) => [busbar.id, busbar]))
   const nodes = networks.flatMap((network) => network.nodes)
   const nodesById = new Map(nodes.map((node) => [node.id, node]))
+  const channelsByNetworkId = new Map(networks.map((network) => {
+    const channels = networkPowerChannels(network, elements, assetsByKey)
+    return [network.id, channels.size === 1 ? [...channels][0] : channels.size ? undefined : network.powerSupplyChannel] as const
+  }))
+  const channelsByNodeId = new Map(networks.flatMap((network) => network.nodes.map((node) => [node.id, channelsByNetworkId.get(network.id)] as const)))
+  const powerSupplyChannelByNodeId = new Map<string, PowerSupplyChannel>()
+  for (const node of nodes) {
+    if (node.kind !== 'element-anchor') continue
+    const element = elementsById.get(node.elementId)
+    const anchor = element
+      ? assetsByKey.get(element.assetKey)?.anchors.find((candidate) => candidate.id === node.anchorId)
+      : undefined
+    // Network classification identifies a receiving device's supply, but must
+    // not turn pass-through equipment (Switch, Transformer, etc.) into sinks.
+    const isReceivingElement = element && (
+      POWER_TARGET_ASSET_KEYS.has(element.assetKey) ||
+      POWER_DETAIL_TARGET_ASSET_KEYS.has(element.assetKey)
+    )
+    const channel = anchor?.powerSupplyChannel ?? (
+      isReceivingElement ? channelsByNodeId.get(node.id) : undefined
+    )
+    if (channel) {
+      powerSupplyChannelByNodeId.set(node.id, channel)
+    }
+  }
+  const dualSupplyElementIds = new Set(nodes.flatMap((node) => (
+    node.kind === 'element-anchor' && powerSupplyChannelByNodeId.has(node.id)
+      ? [node.elementId]
+      : []
+  )))
   const graph: FlowGraph = {
     outgoing: new Map<string, GraphLink[]>(),
     incoming: new Map<string, GraphLink[]>(),
@@ -207,6 +248,7 @@ export function derivePowerFlowTopology({
     const element = elementsById.get(elementId)
     if (
       !element ||
+      dualSupplyElementIds.has(element.id) ||
       POWER_TARGET_ASSET_KEYS.has(element.assetKey) ||
       POWER_DETAIL_TARGET_ASSET_KEYS.has(element.assetKey)
     ) continue
@@ -225,16 +267,22 @@ export function derivePowerFlowTopology({
 
   const busbarLinks: BusbarGraphLink[] = []
   const orderedBusbarTapNodeIds = new Map<string, string[]>()
+  const configuredExternalEntries = networks.flatMap((network) => network.edges.flatMap((edge) => {
+    if (!edge.externalSupplyEndpoint) return []
+    const nodeId = edge.externalSupplyEndpoint === 'source'
+      ? edge.sourceNodeId
+      : edge.targetNodeId
+    return nodesById.has(nodeId) ? [{ nodeId, channel: channelsByNetworkId.get(network.id) ?? edge.externalSupplyChannel }] : []
+  }))
+  const hasConfiguredExternalSources = configuredExternalEntries.length > 0
+  const hasTypedExternalSources = configuredExternalEntries.some((entry) => entry.channel)
   const configuredExternalSourceNodeIds = externalSupply
-    ? networks.flatMap((network) => network.edges.flatMap((edge) => {
-        if (!edge.externalSupplyEndpoint) return []
-        const nodeId = edge.externalSupplyEndpoint === 'source'
-          ? edge.sourceNodeId
-          : edge.targetNodeId
-        return nodesById.has(nodeId) ? [nodeId] : []
-      }))
+    ? configuredExternalEntries.flatMap((entry) => {
+        if (!externalSupplyChannel) return [entry.nodeId]
+        if (!hasTypedExternalSources) return entry.channel ? [] : [entry.nodeId]
+        return entry.channel === externalSupplyChannel ? [entry.nodeId] : []
+      })
     : []
-  const hasConfiguredExternalSources = configuredExternalSourceNodeIds.length > 0
   const externalSourceNodeIds: string[] = [...configuredExternalSourceNodeIds]
   for (const [busbarId, tapNodes] of busbarNodeGroups) {
     const busbar = busbarsById.get(busbarId)
@@ -283,20 +331,52 @@ export function derivePowerFlowTopology({
   const sourceNodeGroups = [
     ...[...elementNodeGroups].flatMap(([elementId, nodeIds]) => {
       const element = elementsById.get(elementId)
-      return element && POWER_SOURCE_ASSET_KEYS.has(element.assetKey) ? [nodeIds] : []
+      return element && (
+        POWER_SOURCE_ASSET_KEYS.has(element.assetKey) ||
+        (batteryBackup && element.assetKey === 'battery-group')
+      ) ? [nodeIds] : []
     }),
     ...(externalSourceNodeGroup.length ? [externalSourceNodeGroup] : []),
   ]
   const sourceNodeIds = sourceNodeGroups.flat()
+  const blockedLineEdgeIds = new Set(networks.flatMap((network) => (
+    network.edges.flatMap((edge) => (
+      openSwitchNodeIds.has(edge.sourceNodeId) || openSwitchNodeIds.has(edge.targetNodeId)
+        ? [edge.id]
+        : []
+    ))
+  )))
+  const availableDistance = graphDistances(graph.outgoing, sourceNodeIds, blockedLineEdgeIds)
+  const selectedSupplyChannels: Record<string, PowerSupplyChannel> = {}
+  for (const elementId of dualSupplyElementIds) {
+    const channelNodeIds = nodes.flatMap((node) => (
+      node.kind === 'element-anchor' && node.elementId === elementId
+        ? [{ nodeId: node.id, channel: powerSupplyChannelByNodeId.get(node.id) }]
+        : []
+    ))
+    if (channelNodeIds.some(({ nodeId, channel }) => channel === 'a' && availableDistance.has(nodeId))) {
+      selectedSupplyChannels[elementId] = 'a'
+    } else if (channelNodeIds.some(({ nodeId, channel }) => channel === 'b' && availableDistance.has(nodeId))) {
+      selectedSupplyChannels[elementId] = 'b'
+    }
+  }
   const targetNodeIds = nodes.flatMap((node) => {
     if (node.kind === 'element-anchor') {
       const element = elementsById.get(node.elementId)
-      return element && (
+      const isTarget = element && (
         POWER_TARGET_ASSET_KEYS.has(element.assetKey) ||
-        POWER_DETAIL_TARGET_ASSET_KEYS.has(element.assetKey)
-      ) ? [node.id] : []
+        POWER_DETAIL_TARGET_ASSET_KEYS.has(element.assetKey) ||
+        dualSupplyElementIds.has(element.id)
+      )
+      if (!isTarget) return []
+      const selectedChannel = selectedSupplyChannels[node.elementId]
+      const nodeChannel = powerSupplyChannelByNodeId.get(node.id)
+      if (dualSupplyElementIds.has(node.elementId)) {
+        return selectedChannel && nodeChannel === selectedChannel ? [node.id] : []
+      }
+      return [node.id]
     }
-    if (!externalSupply || node.kind !== 'node') return []
+    if ((!externalSupply && !batteryBackup) || node.kind !== 'node') return []
     const outgoingNeighbors = new Set(
       (graph.outgoing.get(node.id) ?? []).map((link) => link.to),
     )
@@ -305,15 +385,6 @@ export function derivePowerFlowTopology({
     )
     return outgoingNeighbors.size === 0 && incomingNeighbors.size > 0 ? [node.id] : []
   })
-  const blockedLineEdgeIds = new Set(networks.flatMap((network) => (
-    network.edges.flatMap((edge) => (
-      openSwitchNodeIds.has(edge.sourceNodeId) || openSwitchNodeIds.has(edge.targetNodeId)
-        ? [edge.id]
-        : []
-    ))
-  )))
-  const energizedDistance = graphDistances(graph.outgoing, sourceNodeIds)
-  const availableDistance = graphDistances(graph.outgoing, sourceNodeIds, blockedLineEdgeIds)
   const lineLinkDirections = new Map<string, Set<FlowDirection>>()
   const busbarLinkDirections = new Map<string, Set<FlowDirection>>()
   const flowingNodeIds = new Set<string>()
@@ -422,6 +493,20 @@ export function derivePowerFlowTopology({
           POWER_SOURCE_ASSET_KEYS.has(element.assetKey) ||
           !flowingElementIds.has(element.id)
         ) continue
+        const selectedChannel = selectedSupplyChannels[element.id]
+        const edgeElementNode = sourceNode?.kind === 'element-anchor'
+          ? sourceNode
+          : targetNode?.kind === 'element-anchor'
+            ? targetNode
+            : null
+        const edgeChannel = edgeElementNode
+          ? powerSupplyChannelByNodeId.get(edgeElementNode.id)
+          : undefined
+        if (
+          selectedChannel &&
+          dualSupplyElementIds.has(element.id) &&
+          edgeChannel !== selectedChannel
+        ) continue
         for (const link of lineLinksByEdgeId.get(edge.id) ?? []) {
           addFlowDirection(lineLinkDirections, link.id, busbarToElementDirection)
           flowingNodeIds.add(link.startNodeId)
@@ -466,8 +551,8 @@ export function derivePowerFlowTopology({
     const fillConfiguredDetailBusbar = hasConfiguredExternalSources &&
       tapNodeIds.some((nodeId) => flowingNodeIds.has(nodeId))
     if (!direction && !configuredDirections && fillConfiguredDetailBusbar) {
-      const leftDistance = energizedDistance.get(link.leftNodeId)
-      const rightDistance = energizedDistance.get(link.rightNodeId)
+      const leftDistance = availableDistance.get(link.leftNodeId)
+      const rightDistance = availableDistance.get(link.rightNodeId)
       if (
         leftDistance !== undefined &&
         rightDistance !== undefined &&
@@ -556,7 +641,7 @@ export function derivePowerFlowTopology({
   ]
 
   const energizedElementIds = new Set<string>()
-  for (const nodeId of energizedDistance.keys()) {
+  for (const nodeId of availableDistance.keys()) {
     const node = nodesById.get(nodeId)
     if (node?.kind === 'element-anchor') energizedElementIds.add(node.elementId)
   }
@@ -565,5 +650,6 @@ export function derivePowerFlowTopology({
     edges: directedEdges,
     busbarSegments: directedBusbarSegments,
     energizedElementIds,
+    selectedSupplyChannels,
   }
 }

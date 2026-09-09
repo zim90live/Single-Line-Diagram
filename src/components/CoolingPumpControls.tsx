@@ -1,7 +1,7 @@
 import { Gauge } from 'lucide-react'
 
 import { clampCoolingPumpOutputPower } from '../monitoring/coolingRuntime'
-import { NumericField, Switch } from './ui'
+import { NumericField, Switch } from '@aidc/ui'
 
 export function RuntimeStateToggle({
   label,

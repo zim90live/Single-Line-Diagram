@@ -497,8 +497,10 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByLabelText('项目名称')).toBeDisabled()
     expect(screen.queryByText('CHWP')).not.toBeInTheDocument()
     expect(document.querySelector('.properties-panel')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '播放流动' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '暂停流动' })).toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: '暂停流动' }))
+    expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-animation-playing', 'false')
     await user.click(screen.getByRole('button', { name: '播放流动' }))
     expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute(
       'data-animation-playing',
@@ -688,6 +690,29 @@ describe('AIDC editor workspace', () => {
     const valve = useAppStore.getState().document.assets.find((asset) => asset.key === 'chwp')
     expect(valve?.coolingDeviceRole).toBe('valve')
     expect(valve?.anchors.every((anchor) => anchor.flowRole === undefined)).toBe(true)
+  })
+
+  it('configures unique A/B input roles on an electrical asset', async () => {
+    const user = userEvent.setup()
+    const document = useAppStore.getState().document
+    const powerLine = document.lineSystems.find((line) => line.type === 'power')!
+    useAppStore.setState({ currentDiagramId: powerLine.rootDiagramId })
+    renderApp()
+
+    await user.click(screen.getByRole('button', { name: '编辑 UPS-group 锚点' }))
+    await user.click(screen.getByRole('button', { name: '在 0, 8 添加锚点' }))
+    await user.selectOptions(screen.getByLabelText('供电输入角色'), 'a')
+    expect(screen.getByText(/双路受电设备需要各配置一个 A 路输入和 B 路输入/))
+      .toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '在 0, 16 添加锚点' }))
+    await user.selectOptions(screen.getByLabelText('供电输入角色'), 'b')
+
+    expect(
+      useAppStore.getState().document.assets.find((asset) => asset.key === 'ups-group')
+        ?.anchors.map((anchor) => anchor.powerSupplyChannel),
+    ).toEqual(['a', 'b'])
+    expect(screen.queryByText(/双路受电设备需要各配置一个 A 路输入和 B 路输入/))
+      .not.toBeInTheDocument()
   })
 
   it('keeps CV fixed as a top-to-bottom check valve', async () => {

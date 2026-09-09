@@ -13,6 +13,9 @@
     "noUnusedParameters": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@aidc/ui": ["./src/components/ui/index.ts"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

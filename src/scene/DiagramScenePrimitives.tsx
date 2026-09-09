@@ -1,4 +1,4 @@
-import { memo, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { memo, useId, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 
 import type {
   AnchorType,
@@ -10,18 +10,16 @@ import type {
 } from '../domain/project'
 import {
   FLOW_ANIMATION_STYLES,
-  FLOW_CHILD_LINE_SCREEN_WIDTH,
+  FLOW_BUSBAR_SCREEN_WIDTH,
+  FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
+  FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH,
   type MonitorFlowPath,
   type MonitorStaticFlowLineGroup,
 } from '../monitoring/flowPresentation'
+import { flowPhaseOffsets } from '../monitoring/flowPathGeometry'
 import type { BusbarLabelLayout } from './busbarLabels'
 import {
-  COOLING_PIPE_INNER_SHADOW_BLUR,
-  COOLING_PIPE_INNER_SHADOW_COLOR,
-  COOLING_PIPE_INNER_SHADOW_DX,
-  COOLING_PIPE_INNER_SHADOW_DY,
   coolingPipeFilterRegion,
-  coolingPipeInnerShadowOpacity,
 } from './connectionAppearance'
 import type { ConnectionLabelLayout } from './connectionLabels'
 import { busbarEndPoint, pathData } from './connections'
@@ -95,28 +93,48 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
 }: {
   paths: MonitorFlowPath[]
 }) {
-  return paths.map((path) => {
+  const scope = useId().replace(/[^a-z0-9_-]/gi, '')
+  const offsets = flowPhaseOffsets(paths)
+  const reducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  return paths.flatMap((path, pathIndex) => {
     const style = FLOW_ANIMATION_STYLES[path.style ?? 'power']
     const speed = style.baseSpeed * Math.max(0, path.speedMultiplier ?? 1)
+    if (!speed) return []
     const period = style.dashLength + style.gapLength
-    return (
-      <path
-        key={path.id}
-        className="monitor-animated-flow-line"
-        d={pathData(path.points)}
-        stroke={style.color}
-        strokeWidth={path.worldWidth ?? path.screenWidth ?? FLOW_CHILD_LINE_SCREEN_WIDTH}
-        strokeDasharray={`${style.dashLength} ${style.gapLength}`}
-        strokeOpacity={style.opacity}
-        strokeLinecap="butt"
-        strokeLinejoin="round"
-        vectorEffect={path.worldWidth === undefined ? 'non-scaling-stroke' : undefined}
-        style={{
-          '--monitor-flow-dash-offset': `${-period}px`,
-          '--monitor-flow-cycle-duration': speed > 0 ? `${period / speed}s` : '0s',
-        } as CSSProperties}
-      />
-    )
+    let distance = offsets.get(path.id) ?? 0
+    const width = path.worldWidth ?? (path.screenWidth === FLOW_BUSBAR_SCREEN_WIDTH
+      ? FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH : FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH)
+    return path.points.slice(1).flatMap((end, index) => {
+      const start = path.points[index]
+      const length = Math.hypot(end.x - start.x, end.y - start.y)
+      if (!length) return []
+      const dx = (end.x - start.x) / length
+      const dy = (end.y - start.y) / length
+      const x = start.x - dx * distance
+      const y = start.y - dy * distance
+      distance += length
+      const id = `${scope}-wave-${pathIndex}-${index}`
+      return [(
+        <g key={id}>
+          <defs>
+            <linearGradient id={id} gradientUnits="userSpaceOnUse" spreadMethod="repeat"
+              x1={x} y1={y} x2={x + dx * period} y2={y + dy * period}>
+              <stop offset="0" stopColor={path.baseColor ?? style.color} stopOpacity={0.5} />
+              <stop offset={style.dashLength / period} stopColor={path.baseColor ?? style.color} stopOpacity={1} />
+              <stop offset="1" stopColor={path.baseColor ?? style.color} stopOpacity={0.5} />
+              {!reducedMotion ? <animateTransform attributeName="gradientTransform" type="translate"
+                from="0 0" to={`${dx * period} ${dy * period}`} dur={`${period / speed}s`}
+                repeatCount="indefinite" /> : null}
+            </linearGradient>
+          </defs>
+          <path className="monitor-wave-flow-line" d={pathData([start, end])}
+            fill="none" pointerEvents="none" stroke={`url(#${id})`}
+            strokeWidth={width * 0.8} strokeLinecap="butt"
+            vectorEffect={path.worldWidth === undefined ? 'non-scaling-stroke' : undefined} />
+        </g>
+      )]
+    })
   })
 })
 
@@ -227,12 +245,14 @@ export const ConnectionBridgeCasing = memo(function ConnectionBridgeCasing({
 export const CoolingPipeShell = memo(function CoolingPipeShell({
   path,
   type,
+  color,
   coolingLineRole,
   filterId,
   monitorReplay = false,
 }: {
   path: string
   type: AnchorType
+  color?: string
   coolingLineRole: CoolingLineRole
   filterId: string
   monitorReplay?: boolean
@@ -240,6 +260,7 @@ export const CoolingPipeShell = memo(function CoolingPipeShell({
   return (
     <path
       className="connection-edge__pipe-shell"
+      style={color ? { '--connection-color': color } as CSSProperties : undefined}
       data-monitor-pipe-shell-replay={monitorReplay || undefined}
       data-connection-type={type}
       data-cooling-line-role={coolingLineRole}
@@ -385,6 +406,7 @@ export const MetricLabelRows = memo(function MetricLabelRows({
       {row.labelVisible ? (
         <text
           className="element-metric-row__label"
+          textAnchor="start"
           x={row.labelX}
           y={row.textY}
         >
@@ -547,6 +569,7 @@ export const ElementLabelItem = memo(function ElementLabelItem({
     <g
       className="element-label"
       data-element-id={layout.elementId}
+      style={{ '--element-label-font-size': `${10 * (layout.scale ?? 1)}px` } as CSSProperties}
       data-placement={layout.placement}
       data-interactive={interactive || undefined}
       data-selected={selected || undefined}
@@ -580,6 +603,7 @@ export const ElementLabelItem = memo(function ElementLabelItem({
 })
 
 export interface BusbarLabelItemProps {
+  metricPointerDownRef?: MetricPointerDownRef
   layout: BusbarLabelLayout
   interactive?: boolean
   selected?: boolean
@@ -593,6 +617,7 @@ export interface BusbarLabelItemProps {
 }
 
 export const BusbarLabelItem = memo(function BusbarLabelItem({
+  metricPointerDownRef,
   layout,
   interactive = false,
   selected = false,
@@ -634,6 +659,7 @@ export const BusbarLabelItem = memo(function BusbarLabelItem({
       >
         {layout.text}
       </text>
+      <MetricLabelRows rows={layout.metricRows ?? []} ownerId={layout.busbarId} metricPointerDownRef={metricPointerDownRef} />
     </g>
   )
 })
@@ -800,17 +826,17 @@ export const DiagramElementVisual = memo(function DiagramElementVisual({
   )
 })
 
-export interface CoolingPipeInnerShadowFilterProps {
+export interface CoolingPipeOutlineFilterProps {
   id: string
   points: Point[]
   role?: CoolingLineRole
 }
 
-export const CoolingPipeInnerShadowFilter = memo(function CoolingPipeInnerShadowFilter({
+export const CoolingPipeOutlineFilter = memo(function CoolingPipeOutlineFilter({
   id,
   points,
   role,
-}: CoolingPipeInnerShadowFilterProps) {
+}: CoolingPipeOutlineFilterProps) {
   const region = coolingPipeFilterRegion(points)
   return (
     <filter
@@ -823,35 +849,18 @@ export const CoolingPipeInnerShadowFilter = memo(function CoolingPipeInnerShadow
       primitiveUnits="userSpaceOnUse"
       colorInterpolationFilters="sRGB"
     >
-      <feGaussianBlur
-        in="SourceAlpha"
-        stdDeviation={COOLING_PIPE_INNER_SHADOW_BLUR}
-        result="cooling-pipe-blur"
-      />
-      <feOffset
-        in="cooling-pipe-blur"
-        dx={COOLING_PIPE_INNER_SHADOW_DX}
-        dy={COOLING_PIPE_INNER_SHADOW_DY}
-        result="cooling-pipe-offset-blur"
-      />
-      <feComposite
-        in="SourceAlpha"
-        in2="cooling-pipe-offset-blur"
-        operator="out"
-        result="cooling-pipe-inner-shadow-mask"
-      />
-      <feFlood
-        floodColor={COOLING_PIPE_INNER_SHADOW_COLOR}
-        floodOpacity={coolingPipeInnerShadowOpacity(role)}
-        result="cooling-pipe-inner-shadow-color"
-      />
-      <feComposite
-        in="cooling-pipe-inner-shadow-color"
-        in2="cooling-pipe-inner-shadow-mask"
-        operator="in"
-        result="cooling-pipe-inner-shadow"
-      />
-      <feComposite in="cooling-pipe-inner-shadow" in2="SourceGraphic" operator="over" />
+      <feMorphology in="SourceAlpha" operator="erode" radius={role === 'auxiliary' ? 0.8 : 1} result="pipe-interior" />
+      <feComponentTransfer in="SourceGraphic" result="pipe-base">
+        <feFuncR type="linear" slope={0.25} />
+        <feFuncG type="linear" slope={0.25} />
+        <feFuncB type="linear" slope={0.25} />
+      </feComponentTransfer>
+      <feComposite in="pipe-base" in2="pipe-interior" operator="in" result="pipe-fill" />
+      <feComposite in="SourceGraphic" in2="pipe-interior" operator="out" result="pipe-outline" />
+      <feMerge>
+        <feMergeNode in="pipe-outline" />
+        <feMergeNode in="pipe-fill" />
+      </feMerge>
     </filter>
   )
 })

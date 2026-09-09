@@ -1192,6 +1192,10 @@ button:focus-visible,
   pointer-events: none;
 }
 
+.label-overlay {
+  z-index: 4;
+}
+
 .monitor-flow-layer > div,
 .monitor-flow-layer canvas {
   width: 100% !important;
@@ -1277,7 +1281,7 @@ button:focus-visible,
   stroke-linejoin: round;
   paint-order: stroke fill;
   font-family: var(--font-interface);
-  font-size: 10px;
+  font-size: var(--element-label-font-size, 10px);
   font-weight: 500;
   letter-spacing: 0.01em;
   pointer-events: none;
@@ -1367,7 +1371,7 @@ button:focus-visible,
   fill: none;
   stroke: var(--busbar-color);
   stroke-linecap: square;
-  stroke-width: 4;
+  stroke-width: 6;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -1406,7 +1410,7 @@ button:focus-visible,
 
 .busbar[data-selected='true'] .busbar__line {
   stroke: color-mix(in srgb, var(--busbar-color) 68%, var(--ink));
-  stroke-width: 5;
+  stroke-width: 7.5;
 }
 
 .busbar__hit {
@@ -1443,8 +1447,8 @@ button:focus-visible,
 .connection-anchor {
   --connection-color: var(--muted);
   --connection-display-color: var(--connection-color);
-  --connection-line-width: 1.5px;
-  --connection-selected-line-width: 2.5px;
+  --connection-line-width: 2.25px;
+  --connection-selected-line-width: 3.75px;
   --connection-hit-width: 12px;
 }
 
@@ -1508,6 +1512,8 @@ button:focus-visible,
 
 [data-connection-type='electrical'],
 [data-anchor-type='electrical'] { --connection-color: var(--electrical); }
+[data-anchor-type='electrical'][data-power-supply-channel='a'] { --connection-color: var(--power-a, #1BA4FF); }
+[data-anchor-type='electrical'][data-power-supply-channel='b'] { --connection-color: var(--power-b, #00B387); }
 [data-connection-type='cooling-primary-cold'],
 [data-anchor-type='cooling-primary-cold'] { --connection-color: var(--cooling-primary-cold); }
 [data-connection-type='cooling-primary-hot'],
@@ -1516,6 +1522,10 @@ button:focus-visible,
 [data-anchor-type='cooling-secondary-cold'] { --connection-color: var(--cooling-secondary-cold); }
 [data-connection-type='cooling-secondary-hot'],
 [data-anchor-type='cooling-secondary-hot'] { --connection-color: var(--cooling-secondary-hot); }
+[data-connection-type='cooling-tertiary-cold'],
+[data-anchor-type='cooling-tertiary-cold'] { --connection-color: var(--cooling-tertiary-cold); }
+[data-connection-type='cooling-tertiary-hot'],
+[data-anchor-type='cooling-tertiary-hot'] { --connection-color: var(--cooling-tertiary-hot); }
 [data-connection-type='cooling-general'],
 [data-anchor-type='cooling-general'] { --connection-color: var(--muted); }
 
@@ -1550,7 +1560,8 @@ button:focus-visible,
 .connection-edge__pipe-shell {
   display: none;
   fill: none;
-  stroke: var(--connection-cooling-pipe-shell-color);
+  stroke: color-mix(in srgb, var(--connection-display-color, var(--connection-color)) var(--connection-cooling-pipe-shell-color-weight), #000);
+  opacity: 1;
   stroke-linecap: butt;
   stroke-linejoin: miter;
   stroke-width: var(--connection-cooling-pipe-shell-width);
@@ -1588,7 +1599,7 @@ button:focus-visible,
   stroke: var(--canvas);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 12;
+  stroke-width: 8;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -1641,7 +1652,7 @@ button:focus-visible,
 }
 
 .canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge__pipe-shell[data-connection-type^='cooling-'][data-cooling-line-role='auxiliary'] {
-  stroke: var(--connection-cooling-auxiliary-pipe-shell-color);
+  stroke: color-mix(in srgb, var(--connection-display-color, var(--connection-color)) var(--connection-cooling-auxiliary-pipe-shell-color-weight), #000);
   stroke-width: var(--connection-cooling-auxiliary-pipe-shell-width);
 }
 
@@ -1742,7 +1753,8 @@ button:focus-visible,
 
 .canvas-stage[data-mode='edit'] .connection-preview--pipe-shell[data-connection-type^='cooling-'] {
   display: block;
-  stroke: var(--connection-cooling-pipe-shell-color);
+  stroke: color-mix(in srgb, var(--connection-display-color, var(--connection-color)) var(--connection-cooling-pipe-shell-color-weight), #000);
+  opacity: 1;
   stroke-linecap: butt;
   stroke-width: var(--connection-cooling-pipe-shell-width);
 }
@@ -3335,10 +3347,14 @@ button:focus-visible,
 }
 
 .anchor-node[data-anchor-type='electrical'] { --anchor-node-color: var(--electrical); }
+.anchor-node[data-anchor-type='electrical'][data-power-supply-channel='a'] { --anchor-node-color: var(--power-a, #1BA4FF); }
+.anchor-node[data-anchor-type='electrical'][data-power-supply-channel='b'] { --anchor-node-color: var(--power-b, #00B387); }
 .anchor-node[data-anchor-type='cooling-primary-cold'] { --anchor-node-color: var(--cooling-primary-cold); }
 .anchor-node[data-anchor-type='cooling-primary-hot'] { --anchor-node-color: var(--cooling-primary-hot); }
 .anchor-node[data-anchor-type='cooling-secondary-cold'] { --anchor-node-color: var(--cooling-secondary-cold); }
 .anchor-node[data-anchor-type='cooling-secondary-hot'] { --anchor-node-color: var(--cooling-secondary-hot); }
+.anchor-node[data-anchor-type='cooling-tertiary-cold'] { --anchor-node-color: var(--cooling-tertiary-cold); }
+.anchor-node[data-anchor-type='cooling-tertiary-hot'] { --anchor-node-color: var(--cooling-tertiary-hot); }
 .anchor-node[data-anchor-type='cooling-general'] { --anchor-node-color: var(--muted); }
 
 .anchor-node__direction {
@@ -3541,4 +3557,22 @@ button:focus-visible,
   color: var(--error);
   background: var(--canvas);
 }
+}
+
+/* Cooling pipe interiors remain flat and opaque; only the flow head/tail moves. */
+.canvas-stage:is([data-mode='edit'], [data-mode='monitor']) .connection-edge[data-connection-type^='cooling-'] .connection-edge__line,
+.canvas-stage[data-mode='edit'] .connection-preview[data-connection-type^='cooling-']:not(.connection-preview--pipe-shell) {
+  stroke: color-mix(in srgb, var(--connection-display-color, var(--connection-color)) 25%, #000);
+  stroke-linecap: butt;
+}
+.canvas-stage[data-mode='edit'] .connection-preview[data-connection-type^='cooling-'] {
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
+.connection-edge__pipe-shell {
+  --connection-display-color: var(--connection-color);
+}
+.connection-edge__pipe-shell[data-cooling-line-role='auxiliary'] {
+  --connection-display-color: color-mix(in srgb, var(--connection-color) var(--connection-cooling-auxiliary-color-weight), var(--connection-cooling-auxiliary-neutral));
 }

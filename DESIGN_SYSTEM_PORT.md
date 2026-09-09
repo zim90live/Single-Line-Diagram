@@ -1,5 +1,7 @@
 # AIDC Design System 迁移记录
 
+> 2026-09-03 更新：本文保留 `97ecddf` 一次性迁移的历史映射；长期策略已由 KD-144 取代为 AIDC `@aidc/ui` 单一真源。本项目不再独立演进基础组件和公共 Token，当前差异、上游化清单与共享包步骤见 `docs/AIDC_INTEGRATION_PREPARATION.md`。
+
 - 参考项目：`/Users/gwx783510/Documents/Code/AIDC`
 - 参考版本：`97ecddf`
 - 迁移日期：2026-09-03

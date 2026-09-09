@@ -15,7 +15,8 @@ import {
 } from './coolingRuntime'
 
 type FlowDirection = DirectedFlowEdge['direction']
-type CoolingCircuitFamily = 'primary' | 'secondary' | 'general'
+type CoolingCircuitFamily = 'primary' | 'secondary' | 'tertiary' | 'general'
+type CoolingThermalSide = 'cold' | 'hot'
 type AllowedDirection = 'both' | 'forward' | 'reverse'
 
 interface CoolingHydraulicLink {
@@ -64,6 +65,7 @@ export interface CoolingFlowTopology {
 
 const FLOW_EPSILON = 1e-5
 const COOLING_LINE_SOURCE_FLOW = 100
+const VISUAL_CIRCULATION_FLOW = 1
 
 function directCoolingTypesCompatible(left: AnchorType, right: AnchorType) {
   return left !== 'electrical' &&
@@ -74,7 +76,65 @@ function directCoolingTypesCompatible(left: AnchorType, right: AnchorType) {
 function coolingCircuitFamily(type: AnchorType): CoolingCircuitFamily | null {
   if (type === 'electrical') return null
   if (type === 'cooling-general') return 'general'
-  return type.startsWith('cooling-primary-') ? 'primary' : 'secondary'
+  if (type.startsWith('cooling-primary-')) return 'primary'
+  return type.startsWith('cooling-tertiary-') ? 'tertiary' : 'secondary'
+}
+
+function coolingThermalSide(type: AnchorType | undefined): CoolingThermalSide | null {
+  if (!type || type === 'electrical' || type === 'cooling-general') return null
+  return type.endsWith('-cold') ? 'cold' : 'hot'
+}
+
+function isFmAsset(asset: AssetDefinition) {
+  return asset.key === 'fm'
+}
+
+function isTmuAsset(asset: AssetDefinition) {
+  return asset.key === 'tmu'
+}
+
+function numberedCoolingCircuitKeys(asset: AssetDefinition) {
+  const keys = new Map<string, string>()
+  const portsByFamily = new Map<
+    Exclude<CoolingCircuitFamily, 'general'>,
+    Array<{ anchorId: string; thermalSide: CoolingThermalSide; circuitNumber: string | null }>
+  >()
+  for (const anchor of asset.anchors) {
+    const family = coolingCircuitFamily(anchor.type)
+    const thermalSide = coolingThermalSide(anchor.type)
+    if (!family || family === 'general' || !thermalSide) continue
+    const circuitNumber = anchor.name.trim().match(/(?:^|\s)(\d+)$/)?.[1] ?? null
+    const ports = portsByFamily.get(family) ?? []
+    ports.push({ anchorId: anchor.id, thermalSide, circuitNumber })
+    portsByFamily.set(family, ports)
+  }
+
+  for (const [family, ports] of portsByFamily) {
+    const coldNumbers = ports
+      .filter((port) => port.thermalSide === 'cold')
+      .map((port) => port.circuitNumber)
+    const hotNumbers = ports
+      .filter((port) => port.thermalSide === 'hot')
+      .map((port) => port.circuitNumber)
+    if (
+      coldNumbers.length < 2 ||
+      hotNumbers.length < 2 ||
+      coldNumbers.some((number) => number === null) ||
+      hotNumbers.some((number) => number === null)
+    ) continue
+    const coldNumberSet = new Set(coldNumbers)
+    const hotNumberSet = new Set(hotNumbers)
+    if (
+      coldNumberSet.size !== coldNumbers.length ||
+      hotNumberSet.size !== hotNumbers.length ||
+      coldNumberSet.size !== hotNumberSet.size ||
+      [...coldNumberSet].some((number) => !hotNumberSet.has(number))
+    ) continue
+    for (const port of ports) {
+      keys.set(port.anchorId, `${family}:${port.circuitNumber}`)
+    }
+  }
+  return keys
 }
 
 function resolveInternalPortFamily(
@@ -123,6 +183,15 @@ function directedAdjacency(
   }
   adjacency.forEach((targets) => targets.sort())
   return adjacency
+}
+
+function reversedAdjacency(adjacency: Map<string, string[]>) {
+  const reversed = new Map<string, string[]>()
+  for (const [sourceNodeId, targetNodeIds] of adjacency) {
+    for (const targetNodeId of targetNodeIds) connect(reversed, targetNodeId, sourceNodeId)
+  }
+  reversed.forEach((sources) => sources.sort())
+  return reversed
 }
 
 function findShortestNodePath({
@@ -198,6 +267,51 @@ function openCoolingBoundaryNodeIds(
       ? [nodeId]
       : []
   )).sort()
+}
+
+function undirectedBridgeLinkIds(
+  links: CoolingHydraulicLink[],
+  activeLinkIds: Set<string>,
+) {
+  const adjacency = new Map<string, Array<{ linkId: string; nodeId: string }>>()
+  for (const link of links) {
+    if (!activeLinkIds.has(link.id)) continue
+    const startLinks = adjacency.get(link.startNodeId) ?? []
+    startLinks.push({ linkId: link.id, nodeId: link.endNodeId })
+    adjacency.set(link.startNodeId, startLinks)
+    const endLinks = adjacency.get(link.endNodeId) ?? []
+    endLinks.push({ linkId: link.id, nodeId: link.startNodeId })
+    adjacency.set(link.endNodeId, endLinks)
+  }
+  adjacency.forEach((entries) => entries.sort((left, right) => (
+    left.linkId.localeCompare(right.linkId) || left.nodeId.localeCompare(right.nodeId)
+  )))
+
+  const discovery = new Map<string, number>()
+  const low = new Map<string, number>()
+  const bridges = new Set<string>()
+  let timestamp = 0
+  const visit = (nodeId: string, parentLinkId: string | null) => {
+    timestamp += 1
+    discovery.set(nodeId, timestamp)
+    low.set(nodeId, timestamp)
+    for (const entry of adjacency.get(nodeId) ?? []) {
+      if (entry.linkId === parentLinkId) continue
+      if (!discovery.has(entry.nodeId)) {
+        visit(entry.nodeId, entry.linkId)
+        low.set(nodeId, Math.min(low.get(nodeId) ?? 0, low.get(entry.nodeId) ?? 0))
+        if ((low.get(entry.nodeId) ?? 0) > (discovery.get(nodeId) ?? 0)) {
+          bridges.add(entry.linkId)
+        }
+      } else {
+        low.set(nodeId, Math.min(low.get(nodeId) ?? 0, discovery.get(entry.nodeId) ?? 0))
+      }
+    }
+  }
+  for (const nodeId of [...adjacency.keys()].sort()) {
+    if (!discovery.has(nodeId)) visit(nodeId, null)
+  }
+  return bridges
 }
 
 function addHydraulicLink(
@@ -395,6 +509,13 @@ export function deriveCoolingFlowTopology({
     elementAnchorNodes.set(node.elementId, group)
   }
 
+  const tmuBoundaryCandidates: Array<{
+    elementId: string
+    starts: string[]
+    targets: string[]
+    targetFlow: number
+  }> = []
+
   for (const [elementId, anchorNodes] of elementAnchorNodes) {
     const element = elementsById.get(elementId)
     const asset = element ? assetsByKey.get(element.assetKey) : undefined
@@ -403,16 +524,83 @@ export function deriveCoolingFlowTopology({
       (asset.coolingDeviceRole === 'valve' || asset.coolingDeviceRole === 'check-valve') &&
       runtime.valves[elementId]?.open !== true
     ) continue
+    const circuitKeysByAnchorId = numberedCoolingCircuitKeys(asset)
     const internalPorts = anchorNodes.map((node) => ({
       node,
       family: resolveInternalPortFamily(
         nodeTypesById.get(node.id),
         asset.anchors.find((anchor) => anchor.id === node.anchorId)?.type,
       ),
+      thermalSide: coolingThermalSide(
+        asset.anchors.find((anchor) => anchor.id === node.anchorId)?.type ??
+          nodeTypesById.get(node.id),
+      ),
+      circuitKey: circuitKeysByAnchorId.get(node.anchorId),
     }))
     const knownFamilies = new Set(internalPorts.flatMap(({ family }) => (
       family && family !== 'general' ? [family] : []
     )))
+    if (isTmuAsset(asset)) {
+      const portsByCircuitKey = new Map<string, typeof internalPorts>()
+      for (const port of internalPorts) {
+        if (!port.family) continue
+        const key = port.circuitKey ?? port.family
+        const ports = portsByCircuitKey.get(key) ?? []
+        ports.push(port)
+        portsByCircuitKey.set(key, ports)
+      }
+      for (const [circuitKey, ports] of portsByCircuitKey) {
+        const coldPorts = ports.filter(({ thermalSide }) => thermalSide === 'cold')
+        const hotPorts = ports.filter(({ thermalSide }) => thermalSide === 'hot')
+        if (circuitKey === 'tertiary' || circuitKey.startsWith('tertiary:') ||
+          circuitKey === 'secondary:2') {
+          if (coldPorts.length && hotPorts.length) {
+            tmuBoundaryCandidates.push({
+              elementId,
+              starts: coldPorts.map(({ node }) => node.id),
+              targets: hotPorts.map(({ node }) => node.id),
+              targetFlow: COOLING_LINE_SOURCE_FLOW,
+            })
+          }
+          continue
+        }
+        for (const coldPort of coldPorts) {
+          for (const hotPort of hotPorts) {
+            if (!internalPortsCompatible(coldPort.family, hotPort.family, knownFamilies)) continue
+            addHydraulicLink(hydraulicLinks, {
+              id: `cooling-tmu:${elementId}:${coldPort.node.id}:${hotPort.node.id}`,
+              startNodeId: coldPort.node.id,
+              endNodeId: hotPort.node.id,
+              conductance: 1,
+              allowedDirection: 'both',
+            })
+          }
+        }
+      }
+      continue
+    }
+    if (isFmAsset(asset)) {
+      const coldPorts = internalPorts.filter(({ thermalSide }) => thermalSide === 'cold')
+      const hotPorts = internalPorts.filter(({ thermalSide }) => thermalSide === 'hot')
+      for (const coldPort of coldPorts) {
+        for (const hotPort of hotPorts) {
+          if (!internalPortsCompatible(coldPort.family, hotPort.family, knownFamilies)) continue
+          if (
+            coldPort.circuitKey &&
+            hotPort.circuitKey &&
+            coldPort.circuitKey !== hotPort.circuitKey
+          ) continue
+          addHydraulicLink(hydraulicLinks, {
+            id: `cooling-fm:${elementId}:${coldPort.node.id}:${hotPort.node.id}`,
+            startNodeId: coldPort.node.id,
+            endNodeId: hotPort.node.id,
+            conductance: 1,
+            allowedDirection: 'forward',
+          })
+        }
+      }
+      continue
+    }
     if (asset.coolingDeviceRole === 'check-valve') {
       const ports = resolveCoolingCheckValvePorts(asset)
       if (!ports) continue
@@ -437,6 +625,7 @@ export function deriveCoolingFlowTopology({
         const left = internalPorts[leftIndex]
         const right = internalPorts[rightIndex]
         if (!internalPortsCompatible(left.family, right.family, knownFamilies)) continue
+        if (left.circuitKey && right.circuitKey && left.circuitKey !== right.circuitKey) continue
         addHydraulicLink(hydraulicLinks, {
           id: `cooling-device:${elementId}:${left.node.id}:${right.node.id}`,
           startNodeId: left.node.id,
@@ -510,6 +699,7 @@ export function deriveCoolingFlowTopology({
   const activeLinkIds = new Set(allLinkIds)
   let pressures = new Map<string, number>()
   let activePumps: ActivePump[] = []
+  let activeTmuBoundaries: ActivePump[] = []
   for (let pass = 0; pass <= hydraulicLinks.length; pass += 1) {
     const adjacency = directedAdjacency(hydraulicLinks, activeLinkIds)
     activePumps = pumpCandidates.flatMap((pump) => {
@@ -523,8 +713,23 @@ export function deriveCoolingFlowTopology({
           }]
         : []
     })
+    activeTmuBoundaries = tmuBoundaryCandidates.flatMap((boundary) => {
+      const path = findShortestNodePath({
+        adjacency,
+        starts: boundary.starts,
+        targets: boundary.targets,
+      })
+      return path?.length
+        ? [{
+            elementId: boundary.elementId,
+            sourceNodeId: path[0],
+            targetNodeId: path[path.length - 1],
+            targetFlow: boundary.targetFlow,
+          }]
+        : []
+    })
     const injections = new Map<string, number>()
-    for (const pump of activePumps) {
+    for (const pump of [...activePumps, ...activeTmuBoundaries]) {
       injections.set(
         pump.sourceNodeId,
         (injections.get(pump.sourceNodeId) ?? 0) + pump.targetFlow,
@@ -576,6 +781,19 @@ export function deriveCoolingFlowTopology({
           : 0] as const]
       : []
   )))
+  const finalAdjacency = directedAdjacency(hydraulicLinks, activeLinkIds)
+  const finalReversedAdjacency = reversedAdjacency(finalAdjacency)
+  const reachableFromTmuSources = new Set<string>()
+  const canReachTmuTargets = new Set<string>()
+  for (const boundary of activeTmuBoundaries) {
+    for (const nodeId of reachableNodeIds(finalAdjacency, boundary.sourceNodeId)) {
+      reachableFromTmuSources.add(nodeId)
+    }
+    for (const nodeId of reachableNodeIds(finalReversedAdjacency, boundary.targetNodeId)) {
+      canReachTmuTargets.add(nodeId)
+    }
+  }
+  const bridgeLinkIds = undirectedBridgeLinkIds(hydraulicLinks, activeLinkIds)
   const resolvedByLineLinkId = new Map<
     string,
     { direction: FlowDirection; speedMultiplier: number; flowRate: number }
@@ -583,11 +801,27 @@ export function deriveCoolingFlowTopology({
   for (const link of hydraulicLinks) {
     if (!link.lineLinkId || !activeLinkIds.has(link.id)) continue
     const signedFlow = linkFlow(link, pressures)
-    if (Math.abs(signedFlow) <= FLOW_EPSILON) continue
-    const flowRate = Math.round(Math.abs(signedFlow) * 1_000_000) / 1_000_000
+    let direction: FlowDirection | null = signedFlow > FLOW_EPSILON
+      ? 'forward'
+      : signedFlow < -FLOW_EPSILON
+        ? 'reverse'
+        : null
+    let flowRate = Math.abs(signedFlow)
+    if (!direction && activeTmuBoundaries.length && !bridgeLinkIds.has(link.id)) {
+      const supportsForward = link.allowedDirection !== 'reverse' &&
+        reachableFromTmuSources.has(link.startNodeId) &&
+        canReachTmuTargets.has(link.endNodeId)
+      const supportsReverse = link.allowedDirection !== 'forward' &&
+        reachableFromTmuSources.has(link.endNodeId) &&
+        canReachTmuTargets.has(link.startNodeId)
+      direction = supportsForward ? 'forward' : supportsReverse ? 'reverse' : null
+      if (direction) flowRate = VISUAL_CIRCULATION_FLOW
+    }
+    if (!direction) continue
+    flowRate = Math.round(flowRate * 1_000_000) / 1_000_000
     const speedMultiplier = Math.round(speedMultiplierForFlow(flowRate) * 1_000_000) / 1_000_000
     resolvedByLineLinkId.set(link.lineLinkId, {
-      direction: signedFlow > 0 ? 'forward' : 'reverse',
+      direction,
       speedMultiplier,
       flowRate,
     })

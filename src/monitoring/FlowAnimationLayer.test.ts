@@ -39,13 +39,58 @@ describe('monitor flow geometry', () => {
       0, 0, 1, 0, 1, 1,
       0, 0, 1, 0, 1, 1,
     ])
-    expect([...geometry.widths]).toEqual(new Array(12).fill(2))
+    expect([...geometry.widths]).toEqual(new Array(12).fill(2.25))
     expect([...geometry.speeds]).toEqual(new Array(12).fill(1))
     expect([...geometry.widthScales]).toEqual(new Array(12).fill(0))
     expect([...geometry.distances]).toEqual([
       0, 0, 8, 0, 8, 8,
       8, 8, 14, 8, 14, 14,
     ])
+  })
+
+  it('joins cooling strips without overlap at bends and preserves reversed travel', () => {
+    const points = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }]
+    for (const ordered of [points, [...points].reverse()]) {
+      const geometry = buildFlowLineGeometry([{
+        id: 'bend', points: ordered, style: 'cooling', worldWidth: 6,
+      }])
+      // Both segments meet at exactly the same two offset boundary positions.
+      expect([...geometry.joins.slice(4, 6)]).toEqual([...geometry.joins.slice(14, 16)])
+      expect([...geometry.joins.slice(10, 12)]).toEqual([...geometry.joins.slice(12, 14)])
+      expect(geometry.distances[2]).toBe(20)
+      expect(geometry.distances[8]).toBe(40)
+      expect([...geometry.joins].every(Number.isFinite)).toBe(true)
+    }
+  })
+
+  it('uploads the uncut distance to the shader after a crossing mask', () => {
+    const geometry = buildFlowLineGeometry([{
+      id: 'after-mask', style: 'cooling', worldWidth: 6,
+      points: [{ x: 160, y: 0 }, { x: 300, y: 0 }],
+      phasePath: {
+        id: 'whole-pipe', networkId: 'water', startNodeId: 'in', endNodeId: 'out',
+        points: [{ x: 0, y: 0 }, { x: 300, y: 0 }],
+      },
+    }])
+    expect([...geometry.distances]).toEqual([160, 160, 300, 160, 300, 300])
+  })
+
+  it('shares bend boundary vertices across separate connected pipes', () => {
+    const a = [{ x: 0, y: 0 }, { x: 40, y: 0 }]
+    const b = [{ x: 40, y: 0 }, { x: 40, y: 40 }]
+    const paths = [
+      { id: 'a', points: a, style: 'cooling' as const, worldWidth: 6,
+        phasePath: { id: 'a', networkId: 'water', startNodeId: 'in', endNodeId: 'bend', points: a } },
+      { id: 'b', points: b, style: 'cooling' as const, worldWidth: 6,
+        phasePath: { id: 'b', networkId: 'water', startNodeId: 'bend', endNodeId: 'out', points: b } },
+    ]
+    const geometry = buildFlowLineGeometry(paths)
+    expect([...geometry.joins.slice(4, 6)]).toEqual([-1, 1])
+    expect([...geometry.joins.slice(4, 6)]).toEqual([...geometry.joins.slice(14, 16)])
+    expect([...geometry.joins.slice(10, 12)]).toEqual([...geometry.joins.slice(12, 14)])
+    // A visual mask clipping the first pipe must not grow it back to the node.
+    const clipped = buildFlowLineGeometry([{ ...paths[0], points: [{ x: 0, y: 0 }, { x: 35, y: 0 }] }, paths[1]])
+    expect([...clipped.joins.slice(4, 6)]).toEqual([-0, 1])
   })
 
   it('batches a shared directed segment only once', () => {
@@ -65,7 +110,7 @@ describe('monitor flow geometry', () => {
       screenWidth: 4.5,
     }])
 
-    expect([...geometry.widths]).toEqual(new Array(6).fill(4.5))
+    expect([...geometry.widths]).toEqual(new Array(6).fill(6))
     expect([...geometry.widthScales]).toEqual(new Array(6).fill(0))
   })
 
@@ -136,13 +181,13 @@ describe('monitor static flow lines', () => {
     expect(groups).toEqual([
       expect.objectContaining({
         kind: 'connection',
-        color: '#00783A',
+        color: '#001E0F',
         lineWidth: 2,
         widthSpace: 'world',
       }),
       expect.objectContaining({
         kind: 'connection',
-        color: '#00F074',
+        color: '#003C1D',
         lineWidth: 2,
         widthSpace: 'world',
       }),
@@ -167,8 +212,8 @@ describe('monitor static flow lines', () => {
       lineWidth,
       widthSpace,
     }))).toEqual([
-      { kind: 'busbar', lineWidth: 4, widthSpace: 'screen' },
-      { kind: 'connection', lineWidth: 1.5, widthSpace: 'screen' },
+      { kind: 'busbar', lineWidth: 6, widthSpace: 'screen' },
+      { kind: 'connection', lineWidth: 2.25, widthSpace: 'screen' },
     ])
   })
 
@@ -188,8 +233,8 @@ describe('monitor static flow lines', () => {
     }], [])
 
     expect(groups.map(({ color, lineWidth }) => ({ color, lineWidth }))).toEqual([
-      { color: '#8D8459', lineWidth: 1 },
-      { color: '#FFC800', lineWidth: 2 },
+      { color: '#232116', lineWidth: 1 },
+      { color: '#403200', lineWidth: 2 },
     ])
   })
 })

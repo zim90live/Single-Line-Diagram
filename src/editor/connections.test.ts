@@ -195,6 +195,7 @@ describe('connection topology and routing', () => {
         routeNodeIds: ['middle-a', 'middle-b'],
         flowDirection: 'forward',
         externalSupplyEndpoint: 'source',
+        externalSupplyChannel: 'a',
         crossingLayer: 'upper',
         color: '#123456',
         label: '回路 A',
@@ -221,6 +222,7 @@ describe('connection topology and routing', () => {
         logicalConnectionId: 'logical-edge',
         flowDirection: 'forward',
         externalSupplyEndpoint: 'source',
+        externalSupplyChannel: 'a',
         crossingLayer: 'upper',
         color: '#123456',
       }),
@@ -250,6 +252,7 @@ describe('connection topology and routing', () => {
       expect.objectContaining({
         sourceNodeId: 'source',
         externalSupplyEndpoint: 'source',
+        externalSupplyChannel: 'a',
       }),
     ])
     expect(segmented.edges.filter((edge) => edge.label === '回路 A')).toHaveLength(1)
@@ -445,7 +448,8 @@ describe('connection topology and routing', () => {
       [coolingAsset],
     )
     expect(withoutSpecializedBranch).toHaveLength(1)
-    expect(withoutSpecializedBranch[0].type).toBe('cooling-general')
+    // Removing the last typed port unlocks editing but preserves the network's circuit.
+    expect(withoutSpecializedBranch[0].type).toBe('cooling-primary-cold')
     expect(withoutSpecializedBranch[0].edges).toHaveLength(1)
   })
 
@@ -619,7 +623,17 @@ describe('connection topology and routing', () => {
     preview.edges.forEach((edge) => {
       const original = routed.edges.find((candidate) => candidate.edgeId === edge.edgeId)!
       expect(edge.points[0]).toEqual({ x: 112, y: -24 })
-      expect(edge.points.slice(1)).toContainEqual(original.points[1])
+      const trunkPoint = original.points[1]
+      expect(edge.points.slice(1).some((end, index) => {
+        const start = edge.points[index]
+        return start.x === end.x
+          ? trunkPoint.x === start.x &&
+              trunkPoint.y >= Math.min(start.y, end.y) &&
+              trunkPoint.y <= Math.max(start.y, end.y)
+          : trunkPoint.y === start.y &&
+              trunkPoint.x >= Math.min(start.x, end.x) &&
+              trunkPoint.x <= Math.max(start.x, end.x)
+      })).toBe(true)
     })
     expect(preview.invalidEdgeIds).toEqual([])
   })
@@ -914,15 +928,15 @@ describe('connection topology and routing', () => {
     }])
     expect(crossingPointKeys(routed.crossings).has('40,0')).toBe(true)
     const renderedBridge = bridgedPathData(routed.edges[1], routed.crossings, 8)
-    expect(renderedBridge.linePath).toContain(' A 4 4 0 0 1 ')
+    expect(renderedBridge.linePath).not.toContain(' A ')
     expect(renderedBridge.bridgeCasingPath).toContain('M ')
-    expect(renderedBridge.bridgeCasingPath).not.toContain(' L ')
+    expect(renderedBridge.bridgeCasingPath).toContain(' L ')
     expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8))
       .toBe(renderedBridge.linePath)
     const sampledBridge = bridgedPolylinePoints(routed.edges[1], routed.crossings, 8)
     expect(sampledBridge[0]).toEqual(routed.edges[1].points[0])
     expect(sampledBridge.at(-1)).toEqual(routed.edges[1].points.at(-1))
-    expect(sampledBridge.some((point) => point.x > 40)).toBe(true)
+    expect(sampledBridge.every((point) => point.x === 40)).toBe(true)
   })
 
   it('places a cooling bridge on a primary line when it crosses an auxiliary line', () => {
@@ -963,7 +977,9 @@ describe('connection topology and routing', () => {
       underEdgeId: 'auxiliary-edge',
     }])
     expect(pathDataWithBridges(routed.edges[0], routed.crossings, 8))
-      .toContain(' A 4 4 0 0 1 ')
+      .not.toContain(' A ')
+    expect(bridgedPathData(routed.edges[0], routed.crossings, 8).bridgeCasingPath)
+      .not.toBe('')
     expect(pathDataWithBridges(routed.edges[1], routed.crossings, 8))
       .not.toContain(' A 4 4 0 0 1 ')
   })
@@ -1013,7 +1029,7 @@ describe('connection topology and routing', () => {
     })
   })
 
-  it('compresses adjacent bridge arcs without adding per-crossing topology', () => {
+  it('compresses adjacent straight crossing masks without adding topology', () => {
     const route = {
       networkId: 'bridge-network',
       edgeId: 'bridge-edge',
@@ -1028,12 +1044,12 @@ describe('connection topology and routing', () => {
       { x: 16, y: 0, bridgeEdgeId: route.edgeId, underEdgeId: 'under-b' },
     ], 8)
 
-    expect(rendered.linePath.match(/A 4 4/g)).toHaveLength(2)
+    expect(rendered.linePath).toBe('M 0 0 L 32 0')
     expect(rendered.bridgeCasingPath.match(/M /g)).toHaveLength(2)
-    expect(rendered.bridgeCasingPath.match(/A 4 4/g)).toHaveLength(2)
+    expect(rendered.bridgeCasingPath).toBe('M 4 0 L 12 0 M 12 0 L 20 0')
   })
 
-  it('supports a larger cooling-pipe bridge without changing the default bridge', () => {
+  it('supports a larger cooling crossing mask while SVG and animation stay straight', () => {
     const route = {
       networkId: 'cooling-bridge-network',
       edgeId: 'cooling-bridge-edge',
@@ -1050,10 +1066,11 @@ describe('connection topology and routing', () => {
       underEdgeId: 'under-edge',
     }]
 
-    expect(bridgedPathData(route, crossings, 8).linePath).toContain('A 4 4')
+    expect(bridgedPathData(route, crossings, 8).bridgeCasingPath).toBe('M 12 0 L 20 0')
     const rendered = bridgedPathData(route, crossings, 8, { bridgeRadius: 8 })
-    expect(rendered.linePath).toContain('L 8 0 A 8 8 0 0 1 24 0')
-    expect(rendered.bridgeCasingPath).toContain('M 8 0 A 8 8 0 0 1 24 0')
+    expect(rendered.linePath).toBe('M 0 0 L 32 0')
+    expect(rendered.bridgeCasingPath).toBe('M 8 0 L 24 0')
+    expect(bridgedPolylinePoints(route, crossings, 8, { bridgeRadius: 8 })).toEqual(route.points)
   })
 
   it('rounds ordinary orthogonal corners and compresses short elbows', () => {
@@ -1302,7 +1319,7 @@ describe('connection topology and routing', () => {
     }], 8, { cornerRadius: 8 })
 
     expect(rendered.linePath).toBe(
-      'M 0 0 L 4 0 A 4 4 0 0 1 12 0 L 16 0 L 16 16',
+      'M 0 0 L 16 0 L 16 16',
     )
   })
 
@@ -1402,6 +1419,30 @@ describe('connection topology and routing', () => {
     })).toBeNull()
   })
 
+  it.each(['horizontal', 'vertical'] as const)('routes straight outward from both %s busbar ends in either edge direction', (orientation) => {
+    const busbar: Busbar = {
+      id: 'end-busbar', diagramId: 'diagram-power', type: 'electrical',
+      orientation, x: 0, y: 0, length: 160,
+    }
+    for (const offset of [0, 160]) {
+      const outside = offset === 0 ? -80 : 240
+      const point = orientation === 'horizontal' ? { x: outside, y: 0 } : { x: 0, y: outside }
+      const tap = orientation === 'horizontal' ? { x: offset, y: 0 } : { x: 0, y: offset }
+      for (const reverse of [false, true]) {
+        const network: ConnectionNetwork = {
+          id: 'end-network', diagramId: 'diagram-power', type: 'electrical',
+          nodes: [
+            { id: 'tap', kind: 'busbar-tap', busbarId: busbar.id, offset },
+            { id: 'free', kind: 'node', ...point },
+          ],
+          edges: [{ id: 'end-edge', sourceNodeId: reverse ? 'free' : 'tap', targetNodeId: reverse ? 'tap' : 'free' }],
+        }
+        const routed = routeConnectionNetworks([network], [], [], 8, [busbar])
+        expect(routed.edges[0]?.points).toEqual(reverse ? [point, tap] : [tap, point])
+      }
+    }
+  })
+
   it('merges busbar networks through a child line and splits them after that line is deleted', () => {
     const busbarA: Busbar = {
       id: 'busbar-network-a', diagramId: 'diagram-power', type: 'electrical',
@@ -1486,7 +1527,9 @@ describe('connection topology and routing', () => {
       underEdgeId: 'busbar:busbar-bridge',
     })
     expect(pathDataWithBridges(crossing.edges[0], crossing.crossings, 8))
-      .toContain(' A 4 4 0 0 1 ')
+      .not.toContain(' A ')
+    expect(bridgedPathData(crossing.edges[0], crossing.crossings, 8).bridgeCasingPath)
+      .not.toBe('')
 
     const collinearNetwork: ConnectionNetwork = {
       ...crossingNetwork,
@@ -1769,6 +1812,68 @@ describe('connection topology and routing', () => {
       { x: 32, y: 160 },
       { x: 160, y: 160 },
     ])
+  })
+
+  it('allows a route to turn at an element anchor without a perpendicular lead segment', () => {
+    const source = powerElement('free-turn-source', 0, 0)
+    const target = powerElement('free-turn-target', 160, 32)
+    const network: ConnectionNetwork = {
+      id: 'free-turn-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'source-anchor', kind: 'element-anchor',
+          elementId: source.id, anchorId: 'bottom-electrical',
+        },
+        {
+          id: 'target-anchor', kind: 'element-anchor',
+          elementId: target.id, anchorId: 'left-electrical',
+        },
+      ],
+      edges: [{ id: 'free-turn-edge', sourceNodeId: 'source-anchor', targetNodeId: 'target-anchor' }],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [source, target],
+      [directionalElectricalAsset],
+      8,
+    )
+
+    expect(routed.invalidEdgeIds).toEqual([])
+    expect(routed.edges[0].points).toEqual([
+      { x: 32, y: 64 },
+      { x: 160, y: 64 },
+    ])
+  })
+
+  it('keeps an exactly overlapping non-endpoint element as a hard obstacle', () => {
+    const source = powerElement('overlapped-source', 0, 0)
+    const blocker = powerElement('exact-overlap-blocker', 0, 0)
+    const target = powerElement('overlapped-target', 160, 32)
+    const network: ConnectionNetwork = {
+      id: 'exact-overlap-network', diagramId: 'diagram-power', type: 'electrical',
+      nodes: [
+        {
+          id: 'source-anchor', kind: 'element-anchor',
+          elementId: source.id, anchorId: 'bottom-electrical',
+        },
+        {
+          id: 'target-anchor', kind: 'element-anchor',
+          elementId: target.id, anchorId: 'left-electrical',
+        },
+      ],
+      edges: [{ id: 'exact-overlap-edge', sourceNodeId: 'source-anchor', targetNodeId: 'target-anchor' }],
+    }
+
+    const routed = routeConnectionNetworks(
+      [network],
+      [source, blocker, target],
+      [directionalElectricalAsset],
+      8,
+    )
+
+    expect(routed.edges).toEqual([])
+    expect(routed.invalidEdgeIds).toEqual(['exact-overlap-edge'])
   })
 
   it('removes busbar branches and cleans empty networks when the busbar is deleted', () => {

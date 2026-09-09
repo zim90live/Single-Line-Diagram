@@ -38,6 +38,80 @@ const emptySelectionProps = {
 }
 
 describe('PropertiesPanel color property', () => {
+  it('copies a selected busbar metric template to all selected busbars', async () => {
+    const user = userEvent.setup()
+    const onPatchBusbarMetrics = vi.fn()
+    const onPatchBusbars = vi.fn()
+    const metric = { id: 'power', name: '功率', valueType: 'number' as const, unit: 'kW', precision: 0 as const,
+      simulationMin: 0, simulationMax: 100, alarm: { mode: 'upper' as const, minor: 60, major: 75, critical: 90 } }
+    const bars: Busbar[] = ['one', 'two'].map((id, index) => ({ id, diagramId: 'd', type: 'electrical',
+      orientation: 'horizontal', x: 0, y: index * 80, length: 160, monitorMetrics: index ? [metric] : [] }))
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]} selectedBusbars={bars}
+      onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()}
+      onPatchBusbarMetrics={onPatchBusbarMetrics} onPatchBusbars={onPatchBusbars} />)
+    expect(screen.queryByRole('button', { name: '应用到 2 个对象' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: '指标模板' }), 'two')
+    await user.click(screen.getByRole('button', { name: '应用到 2 个对象' }))
+    expect(onPatchBusbarMetrics).toHaveBeenCalledWith(['one', 'two'], [metric])
+    await user.click(screen.getByRole('switch', { name: '显示运行数据' }))
+    expect(onPatchBusbars).toHaveBeenCalledWith(['one', 'two'], { monitorDataVisible: true })
+    await user.selectOptions(screen.getByRole('combobox', { name: '指标模板' }), '__blank__')
+    await user.click(screen.getByRole('button', { name: '应用到 2 个对象' }))
+    expect(onPatchBusbarMetrics).toHaveBeenLastCalledWith(['one', 'two'], [])
+  })
+  it('commits project-wide element label scale from the empty panel', () => {
+    const onElementLabelScaleChange = vi.fn()
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]} onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()} elementLabelScale={1} onElementLabelScaleChange={onElementLabelScaleChange} />)
+    const input = screen.getByRole('textbox', { name: '图元标签大小 (%)' })
+    fireEvent.change(input, { target: { value: '150' } })
+    fireEvent.blur(input)
+    expect(onElementLabelScaleChange).toHaveBeenCalledWith(1.5)
+  })
+  it('exposes independent busbar data and metric label visibility', () => {
+    const onPatchBusbar = vi.fn()
+    render(<PropertiesPanel {...emptySelectionProps} selectedBusbars={[{ id: 'bar', diagramId: 'd', type: 'electrical', orientation: 'horizontal', x: 0, y: 0, length: 160 }]} selectedElements={[]} onPatch={vi.fn()} onPatchBusbar={onPatchBusbar} onColorPreview={vi.fn()} onDelete={vi.fn()} />)
+    fireEvent.click(screen.getByRole('switch', { name: '显示运行数据' }))
+    expect(onPatchBusbar).toHaveBeenCalledWith('bar', { monitorDataVisible: true })
+    fireEvent.click(screen.getByRole('switch', { name: '显示指标名称与单位' }))
+    expect(onPatchBusbar).toHaveBeenCalledWith('bar', { monitorMetricLabelsVisible: false })
+  })
+  it('changes only the selected TMU port placement', () => {
+    const onPatch = vi.fn()
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[element('tmu')]} onPatch={onPatch} onColorPreview={vi.fn()} onDelete={vi.fn()} />)
+    fireEvent.click(screen.getByRole('switch', { name: '上下接口对调' }))
+    expect(onPatch).toHaveBeenCalledWith('tmu-element', { tmuPortsSwapped: true })
+  })
+  it('exposes project palette editing in the empty selection panel', () => {
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]} onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()}
+      onCircuitPaletteChange={vi.fn()} circuitPalette={{ a: '#112233' }} />)
+    expect(screen.getByText('A路颜色')).toBeInTheDocument()
+    expect(screen.getByText('B路颜色')).toBeInTheDocument()
+    expect(screen.getByText('三次回路冷颜色')).toBeInTheDocument()
+  })
+
+  it('edits a whole power network and locks it when an A interface is connected', () => {
+    const onChangePowerCircuit = vi.fn()
+    const network: ConnectionNetwork = { id: 'network', diagramId: 'diagram-1', type: 'electrical', powerSupplyChannel: 'a',
+      nodes: [{ id: 'source', kind: 'node', x: 0, y: 0 }, { id: 'target', kind: 'node', x: 8, y: 0 }],
+      edges: [{ id: 'edge', sourceNodeId: 'source', targetNodeId: 'target', color: '#123456' }],
+    }
+    const props = { ...emptySelectionProps, selectedElements: [], onPatch: vi.fn(), onColorPreview: vi.fn(), onDelete: vi.fn(),
+      selectedConnection: { id: 'edge', type: 'electrical' as const, edges: network.edges }, canvasConnections: [network], onChangePowerCircuit,
+    }
+    const { rerender } = render(<PropertiesPanel {...props} />)
+    expect(screen.getByLabelText('链路类型')).toHaveValue('a')
+    fireEvent.change(screen.getByLabelText('链路类型'), { target: { value: 'b' } })
+    expect(onChangePowerCircuit).toHaveBeenCalledWith(['edge'], 'b', [])
+    expect(screen.getByText('颜色跟随链路类型，请在空选状态修改项目级配色。')).toBeInTheDocument()
+    const device = element('ups')
+    const asset: AssetDefinition = { key: 'ups', name: 'UPS', category: '电力', source: 'ups.svg', intrinsicWidth: 32, intrinsicHeight: 32,
+      anchors: [{ id: 'in', name: 'A', x: 8, y: 0, direction: 'top', type: 'electrical', powerSupplyChannel: 'a' }],
+    }
+    rerender(<PropertiesPanel {...props} canvasElements={[device]} assetsByKey={new Map([['ups', asset]])}
+      canvasConnections={[{ ...network, nodes: [{ id: 'source', kind: 'element-anchor', elementId: device.id, anchorId: 'in' }, network.nodes[1]] }]} />)
+    expect(screen.getByLabelText('链路类型')).toBeDisabled()
+  })
+
   it('offers restoring selected manually routed child lines to automatic routing', async () => {
     const user = userEvent.setup()
     const onResetConnectionRouting = vi.fn()
@@ -1659,9 +1733,15 @@ describe('PropertiesPanel color property', () => {
     expect(conflictingEntry).toHaveAccessibleDescription(
       '当前通行方向阻断了所选入口，监控模式不会产生电流',
     )
+    const entryChannel = screen.getByRole('combobox', { name: '入口通道' })
+    await user.selectOptions(entryChannel, 'b')
+    expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
+      externalSupplyChannel: 'b',
+    })
     await user.selectOptions(conflictingEntry, 'none')
     expect(onPatchConnectionEdge).toHaveBeenLastCalledWith(edge.id, {
       externalSupplyEndpoint: undefined,
+      externalSupplyChannel: undefined,
     })
 
     rerender(
@@ -1761,6 +1841,30 @@ describe('PropertiesPanel color property', () => {
     )
     expect(screen.getByRole('combobox', { name: '水流源头' }))
       .toHaveAccessibleDescription('当前通行方向阻断了所选源头，监控模式不会产生水流')
+  })
+
+  it('links a device to a direct child diagram from the property panel', async () => {
+    const user = userEvent.setup()
+    const onPatch = vi.fn()
+    const parentElement = element('compute-pod', { tag: '算力 POD-01' })
+    render(
+      <PropertiesPanel
+        selectedElements={[parentElement]}
+        {...emptySelectionProps}
+        childDiagrams={[{
+          id: 'pod-child', lineSystemId: 'power-line', parentId: 'diagram-1',
+          level: 'pod', name: '算力 POD-01',
+          canvas: { gridSize: 8, viewport: { zoom: 1, tx: 0, ty: 0 } },
+        }]}
+        onPatch={onPatch}
+        onColorPreview={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    )
+    await user.selectOptions(screen.getByRole('combobox', { name: /下探图纸/ }), 'pod-child')
+    expect(onPatch).toHaveBeenCalledWith(parentElement.id, {
+      properties: { tag: '算力 POD-01', drillDownDiagramId: 'pod-child' },
+    })
   })
 
   it('sets contextual single and mixed batch busbar monitor flow directions', async () => {

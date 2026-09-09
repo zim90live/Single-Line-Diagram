@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
+import type { AssetDefinition, Busbar, ConnectionNetwork, DiagramElement } from '../domain/project'
 import { derivePowerFlowTopology } from './flowTopology'
 
 const elements: DiagramElement[] = [
@@ -26,6 +26,29 @@ const network: ConnectionNetwork = {
 }
 
 describe('monitor power flow topology', () => {
+  it.each(['a', 'b'] as const)('keeps ordinary equipment conductive on a %s network', (powerSupplyChannel) => {
+    const transformer = { ...elements[1], id: 'transformer', assetKey: 'transformer' }
+    const typedNetwork: ConnectionNetwork = {
+      ...network,
+      powerSupplyChannel,
+      nodes: [...network.nodes,
+        { id: 'transformer-in', kind: 'element-anchor', elementId: transformer.id, anchorId: 'in' },
+        { id: 'transformer-out', kind: 'element-anchor', elementId: transformer.id, anchorId: 'out' },
+      ],
+      edges: [network.edges[0],
+        { id: 'middle', sourceNodeId: 'switch-out', targetNodeId: 'transformer-in' },
+        { id: 'downstream', sourceNodeId: 'transformer-out', targetNodeId: 'pod-node' },
+      ],
+    }
+    const args = { elements: [...elements, transformer], busbars: [], networks: [typedNetwork] }
+    const flow = derivePowerFlowTopology({ ...args, switchStates: { switch: true } })
+    expect(flow.edges.map(({ edgeId }) => edgeId).sort()).toEqual(['downstream', 'middle', 'upstream'])
+    expect(flow.selectedSupplyChannels.pod).toBe(powerSupplyChannel)
+    expect(flow.selectedSupplyChannels.switch).toBeUndefined()
+    expect(flow.selectedSupplyChannels.transformer).toBeUndefined()
+    expect(derivePowerFlowTopology({ ...args, switchStates: { switch: false } }).edges).toEqual([])
+  })
+
   it('hides every line directly connected to an open Switch', () => {
     const flow = derivePowerFlowTopology({
       elements,
@@ -35,7 +58,7 @@ describe('monitor power flow topology', () => {
     })
 
     expect(flow.edges).toEqual([])
-    expect(flow.energizedElementIds).toEqual(new Set(['grid', 'switch']))
+    expect(flow.energizedElementIds).toEqual(new Set(['grid']))
   })
 
   it('hides the whole source-side chain when an open Switch leaves no reachable target', () => {
@@ -89,6 +112,69 @@ describe('monitor power flow topology', () => {
     expect(flow.edges).toEqual([])
   })
 
+  it('activates only the child entry matching the inherited supply channel', () => {
+    const childTarget: DiagramElement = {
+      id: 'child-target', diagramId: 'd', assetKey: 'fm', name: 'FM',
+      x: 80, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const childNetwork: ConnectionNetwork = {
+      id: 'child-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'entry-a', kind: 'node', x: 0, y: 0 },
+        { id: 'entry-b', kind: 'node', x: 0, y: 16 },
+        { id: 'junction', kind: 'node', x: 32, y: 8 },
+        { id: 'target', kind: 'element-anchor', elementId: childTarget.id, anchorId: 'in' },
+      ],
+      edges: [
+        { id: 'entry-a-edge', sourceNodeId: 'entry-a', targetNodeId: 'junction', externalSupplyEndpoint: 'source', externalSupplyChannel: 'a', flowDirection: 'forward' },
+        { id: 'entry-b-edge', sourceNodeId: 'entry-b', targetNodeId: 'junction', externalSupplyEndpoint: 'source', externalSupplyChannel: 'b', flowDirection: 'forward' },
+        { id: 'target-edge', sourceNodeId: 'junction', targetNodeId: 'target', flowDirection: 'forward' },
+      ],
+    }
+    const flow = derivePowerFlowTopology({
+      elements: [childTarget], busbars: [], networks: [childNetwork], switchStates: {},
+      externalSupply: true, externalSupplyChannel: 'b',
+    })
+    expect(flow.edges).toEqual([
+      { edgeId: 'entry-b-edge', direction: 'forward' },
+      { edgeId: 'target-edge', direction: 'forward' },
+    ])
+  })
+
+  it('uses Battery-group as a source only while UPS battery backup is active', () => {
+    const battery: DiagramElement = {
+      id: 'battery-group', diagramId: 'd', assetKey: 'battery-group', name: 'Battery-group',
+      x: 0, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const ups: DiagramElement = {
+      id: 'ups', diagramId: 'd', assetKey: 'ups', name: 'UPS',
+      x: 64, y: 0, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const backupNetwork: ConnectionNetwork = {
+      id: 'backup-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'battery-out', kind: 'element-anchor', elementId: battery.id, anchorId: 'out' },
+        { id: 'ups-in', kind: 'element-anchor', elementId: ups.id, anchorId: 'in' },
+        { id: 'ups-out', kind: 'element-anchor', elementId: ups.id, anchorId: 'out' },
+        { id: 'child-out', kind: 'node', x: 128, y: 0 },
+      ],
+      edges: [
+        { id: 'battery-to-ups', sourceNodeId: 'battery-out', targetNodeId: 'ups-in', flowDirection: 'forward' },
+        { id: 'ups-to-child', sourceNodeId: 'ups-out', targetNodeId: 'child-out', flowDirection: 'forward', externalSupplyEndpoint: 'target' },
+      ],
+    }
+    expect(derivePowerFlowTopology({
+      elements: [battery, ups], busbars: [], networks: [backupNetwork], switchStates: {},
+    }).edges).toEqual([])
+    expect(derivePowerFlowTopology({
+      elements: [battery, ups], busbars: [], networks: [backupNetwork], switchStates: {},
+      batteryBackup: true,
+    }).edges).toEqual([
+      { edgeId: 'battery-to-ups', direction: 'forward' },
+      { edgeId: 'ups-to-child', direction: 'forward' },
+    ])
+  })
+
   it('injects an energized parent feed at a detail busbar and terminates at Cabinet', () => {
     const detailElements: DiagramElement[] = [
       { id: 'tap', diagramId: 'd', assetKey: 'tap-off-unit', name: 'Tap-off Unit', x: 0, y: 0, width: 32, height: 32, rotation: 0, properties: {}, extensions: {} },
@@ -134,7 +220,7 @@ describe('monitor power flow topology', () => {
     expect(flow.energizedElementIds).toEqual(new Set(['tap', 'cabinet']))
   })
 
-  it('keeps both independent Cabinet incomers active instead of crossing through the load', () => {
+  it('uses only the A Cabinet incomer when both A and B are available', () => {
     const cabinet: DiagramElement = {
       id: 'dual-feed-cabinet',
       diagramId: 'd',
@@ -189,9 +275,22 @@ describe('monitor power flow topology', () => {
         },
       ],
     }
+    const cabinetAsset: AssetDefinition = {
+      key: 'cabinet-device',
+      name: 'Cabinet',
+      category: '电力',
+      source: 'Cabinet.svg',
+      intrinsicWidth: 48,
+      intrinsicHeight: 48,
+      anchors: [
+        { id: 'a', name: '电路 1', x: 24, y: 0, direction: 'top', type: 'electrical', powerSupplyChannel: 'a' },
+        { id: 'b', name: '电路 2', x: 24, y: 48, direction: 'bottom', type: 'electrical', powerSupplyChannel: 'b' },
+      ],
+    }
 
     const flow = derivePowerFlowTopology({
       elements: [cabinet],
+      assets: [cabinetAsset],
       busbars: [],
       networks: [network],
       switchStates: {},
@@ -200,11 +299,42 @@ describe('monitor power flow topology', () => {
 
     expect(flow.edges).toEqual([
       { edgeId: 'cabinet-feed-a', direction: 'forward' },
-      { edgeId: 'cabinet-feed-b-1', direction: 'forward' },
-      { edgeId: 'cabinet-feed-b-2', direction: 'forward' },
-      { edgeId: 'cabinet-feed-b-3', direction: 'forward' },
     ])
     expect(flow.energizedElementIds).toContain(cabinet.id)
+    expect(flow.selectedSupplyChannels[cabinet.id]).toBe('a')
+  })
+
+  it('falls back to the B Cabinet incomer when A is unavailable', () => {
+    const cabinet: DiagramElement = {
+      id: 'fallback-cabinet', diagramId: 'd', assetKey: 'cabinet-device', name: 'Cabinet',
+      x: 0, y: 80, width: 48, height: 48, rotation: 0, properties: {}, extensions: {},
+    }
+    const asset: AssetDefinition = {
+      key: 'cabinet-device', name: 'Cabinet', category: '电力', source: 'Cabinet.svg',
+      intrinsicWidth: 48, intrinsicHeight: 48,
+      anchors: [
+        { id: 'a', name: '电路 1', x: 24, y: 0, direction: 'top', type: 'electrical', powerSupplyChannel: 'a' },
+        { id: 'b', name: '电路 2', x: 24, y: 48, direction: 'bottom', type: 'electrical', powerSupplyChannel: 'b' },
+      ],
+    }
+    const fallbackNetwork: ConnectionNetwork = {
+      id: 'fallback-network', diagramId: 'd', type: 'electrical',
+      nodes: [
+        { id: 'b-source', kind: 'node', x: 0, y: 0 },
+        { id: 'cabinet-a', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'a' },
+        { id: 'cabinet-b', kind: 'element-anchor', elementId: cabinet.id, anchorId: 'b' },
+      ],
+      edges: [{
+        id: 'b-feed', sourceNodeId: 'b-source', targetNodeId: 'cabinet-b',
+        flowDirection: 'forward', externalSupplyEndpoint: 'source',
+      }],
+    }
+    const flow = derivePowerFlowTopology({
+      elements: [cabinet], assets: [asset], busbars: [], networks: [fallbackNetwork],
+      switchStates: {}, externalSupply: true,
+    })
+    expect(flow.edges).toEqual([{ edgeId: 'b-feed', direction: 'forward' }])
+    expect(flow.selectedSupplyChannels[cabinet.id]).toBe('b')
   })
 
   it('keeps an unavailable redundant Cabinet incomer inactive', () => {

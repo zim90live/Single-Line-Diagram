@@ -53,6 +53,7 @@ describe('RuntimeBundleViewer', () => {
       onOffStates: { 'runtime-host-link': true },
     })
     const onDiagramChange = vi.fn()
+    const onRuntimePresentationChange = vi.fn()
     const user = userEvent.setup()
 
     render(
@@ -62,14 +63,21 @@ describe('RuntimeBundleViewer', () => {
         stateOverrides={{
           onOffStates: { 'runtime-host-link': false },
           powerExternalSupplyActive: true,
+          powerExternalSupplyChannel: 'b',
+          powerBatteryBackupActive: true,
         }}
         onDiagramChange={onDiagramChange}
+        onRuntimePresentationChange={onRuntimePresentationChange}
       />,
     )
 
     expect(runtimeViewerProps.current?.view.diagram.id).toBe(parent.id)
     expect(runtimeViewerProps.current?.runtime.state.onOffStates['runtime-host-link']).toBe(false)
     expect(runtimeViewerProps.current?.runtime.state.powerExternalSupplyActive).toBe(true)
+    expect(runtimeViewerProps.current?.runtime.state.powerExternalSupplyChannel).toBe('b')
+    expect(runtimeViewerProps.current?.runtime.state.powerBatteryBackupActive).toBe(true)
+    expect(runtimeViewerProps.current?.onRuntimePresentationChange)
+      .toBe(onRuntimePresentationChange)
 
     await user.click(screen.getByRole('button', { name: '打开运行时子图' }))
 

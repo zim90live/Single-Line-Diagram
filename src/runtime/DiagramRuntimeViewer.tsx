@@ -5,6 +5,7 @@ import type { MonitorDrillDownTarget } from '../monitoring/diagramDrillDown'
 import {
   DiagramMonitorCanvas,
   type DiagramMonitorCanvasHandle,
+  type DiagramMonitorRuntimePresentation,
 } from './DiagramMonitorCanvas'
 import type { DiagramRuntimeView } from './diagramRuntime'
 import type { DiagramRuntimeContext } from './types'
@@ -18,6 +19,7 @@ export interface DiagramRuntimeViewerProps {
   onSelectionChange?: (elementIds: string[]) => void
   onNavigate?: (target: MonitorDrillDownTarget, elementId: string) => void
   onViewportChange?: (viewport: DiagramViewport) => void
+  onRuntimePresentationChange?: (presentation: DiagramMonitorRuntimePresentation) => void
 }
 
 const noopSelection = () => undefined
@@ -34,6 +36,7 @@ export const DiagramRuntimeViewer = memo(forwardRef<
   onSelectionChange = noopSelection,
   onNavigate,
   onViewportChange,
+  onRuntimePresentationChange,
 }, ref) {
   const handleElementDrillDown = useCallback((elementId: string) => {
     const target = runtime.navigation[elementId]
@@ -51,6 +54,7 @@ export const DiagramRuntimeViewer = memo(forwardRef<
       onSelectionChange={onSelectionChange}
       onElementDrillDown={handleElementDrillDown}
       onViewportChange={onViewportChange}
+      onRuntimePresentationChange={onRuntimePresentationChange}
     />
   )
 }))

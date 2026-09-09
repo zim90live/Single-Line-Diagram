@@ -1,3 +1,4 @@
+import { instanceAnchorPlacement } from './elementAnchors'
 import {
   resolveConnectionType,
   type AnchorDirection,
@@ -71,7 +72,27 @@ export interface IncrementalRouteResult {
   routed: RoutedConnections
   mode: 'full' | 'incremental' | 'reused'
   dirtyNetworkCount: number
+  dirtyEdgeCount: number
   reusedEdgeCount: number
+}
+
+export interface IncrementalRouteOptions {
+  skipDirtyEdgeIds?: ReadonlySet<string>
+}
+
+export function manualRouteConstrainedEdgeIds(networks: ConnectionNetwork[]) {
+  return new Set(networks.flatMap((network) => {
+    const constrainedNodeIds = new Set(network.nodes.flatMap((node) => (
+      node.kind === 'node' || node.kind === 'busbar-tap' ? [node.id] : []
+    )))
+    return network.edges.flatMap((edge) => (
+      edge.routeNodeIds?.length ||
+      constrainedNodeIds.has(edge.sourceNodeId) ||
+      constrainedNodeIds.has(edge.targetNodeId)
+        ? [edge.id]
+        : []
+    ))
+  }))
 }
 
 export type ConnectionTerminal =
@@ -122,6 +143,8 @@ interface RoutedEndpoint {
   arrivalDirection?: number
   departureDirections?: number[]
   arrivalDirections?: number[]
+  unblockedEdges?: Set<string>
+  obstacle?: Rect
 }
 
 function createId(prefix: string) {
@@ -159,8 +182,29 @@ function reverseDirection(direction: number) {
   return (direction + 2) % 4
 }
 
-function busbarConnectionDirections(busbar: Busbar) {
-  return busbar.orientation === 'horizontal' ? [1, 3] : [0, 2]
+function busbarConnectionDirections(busbar: Busbar, point?: Point) {
+  const directions = busbar.orientation === 'horizontal' ? [1, 3] : [0, 2]
+  if (point && pointsEqual(point, busbarPoint(busbar, 0))) {
+    directions.push(busbar.orientation === 'horizontal' ? 2 : 3)
+  }
+  if (point && pointsEqual(point, busbarEndPoint(busbar))) {
+    directions.push(busbar.orientation === 'horizontal' ? 0 : 1)
+  }
+  return directions
+}
+
+function anchorOutwardDirection(direction: AnchorDirection) {
+  if (direction === 'right') return 0
+  if (direction === 'bottom') return 1
+  if (direction === 'left') return 2
+  return 3
+}
+
+function anchorConnectionDirections(direction: AnchorDirection) {
+  const outward = anchorOutwardDirection(direction)
+  return direction === 'top' || direction === 'bottom'
+    ? [outward, 0, 2]
+    : [outward, 1, 3]
 }
 
 function pathLength(points: Point[]) {
@@ -230,6 +274,7 @@ export function resolveElementAnchor(
   asset: AssetDefinition,
   anchor: SymbolAnchor,
 ): ResolvedElementAnchor {
+  anchor = instanceAnchorPlacement(anchor, asset, element)
   const localPoint = {
     x: element.x + (anchor.x / asset.intrinsicWidth) * element.width,
     y: element.y + (anchor.y / asset.intrinsicHeight) * element.height,
@@ -265,44 +310,91 @@ function endpointForAnchor(
   gridSize: number,
 ) {
   const bounds = elementsBounds([element])!
-  const epsilon = gridSize / 1000
-  const gridPoint = { x: snap(resolved.point.x, gridSize), y: snap(resolved.point.y, gridSize) }
-  let outside: Point
-  if (resolved.direction === 'top') {
-    outside = {
-      x: resolved.point.x,
-      y: Math.floor((bounds.y - epsilon) / gridSize) * gridSize,
+  const boundary = resolved.direction === 'top'
+    ? bounds.y
+    : resolved.direction === 'right'
+      ? bounds.x + bounds.width
+      : resolved.direction === 'bottom'
+        ? bounds.y + bounds.height
+        : bounds.x
+  const snappedBoundary = snap(boundary, gridSize)
+  const boundaryIsOnGrid = Math.abs(boundary - snappedBoundary) < 0.0001
+  const routeBoundary = boundaryIsOnGrid
+    ? snappedBoundary
+    : resolved.direction === 'top' || resolved.direction === 'left'
+      ? Math.floor(boundary / gridSize) * gridSize
+      : Math.ceil(boundary / gridSize) * gridSize
+  const gridPoint = resolved.direction === 'top' || resolved.direction === 'bottom'
+    ? { x: snap(resolved.point.x, gridSize), y: routeBoundary }
+    : { x: routeBoundary, y: snap(resolved.point.y, gridSize) }
+  const tangentPoint = resolved.direction === 'top' || resolved.direction === 'bottom'
+    ? { x: gridPoint.x, y: resolved.point.y }
+    : { x: resolved.point.x, y: gridPoint.y }
+  const lead = compactOrthogonalPoints([resolved.point, tangentPoint, gridPoint])
+  const departureDirection = anchorOutwardDirection(resolved.direction)
+  const departureDirections = anchorConnectionDirections(resolved.direction)
+  const unblockedEdges = new Set<string>()
+  if (boundaryIsOnGrid) {
+    if (resolved.direction === 'top' || resolved.direction === 'bottom') {
+      const firstX = Math.ceil(bounds.x / gridSize) * gridSize
+      const lastX = Math.floor((bounds.x + bounds.width) / gridSize) * gridSize
+      const outwardY = routeBoundary + (resolved.direction === 'top' ? -gridSize : gridSize)
+      unblockedEdges.add(gridEdgeKey(
+        { x: firstX - gridSize, y: routeBoundary },
+        { x: firstX, y: routeBoundary },
+      ))
+      unblockedEdges.add(gridEdgeKey(
+        { x: lastX, y: routeBoundary },
+        { x: lastX + gridSize, y: routeBoundary },
+      ))
+      for (let x = firstX; x <= lastX; x += gridSize) {
+        unblockedEdges.add(gridEdgeKey(
+          { x, y: routeBoundary },
+          { x, y: outwardY },
+        ))
+        if (x < lastX) {
+          unblockedEdges.add(gridEdgeKey(
+            { x, y: routeBoundary },
+            { x: x + gridSize, y: routeBoundary },
+          ))
+        }
+      }
+    } else {
+      const firstY = Math.ceil(bounds.y / gridSize) * gridSize
+      const lastY = Math.floor((bounds.y + bounds.height) / gridSize) * gridSize
+      const outwardX = routeBoundary + (resolved.direction === 'left' ? -gridSize : gridSize)
+      unblockedEdges.add(gridEdgeKey(
+        { x: routeBoundary, y: firstY - gridSize },
+        { x: routeBoundary, y: firstY },
+      ))
+      unblockedEdges.add(gridEdgeKey(
+        { x: routeBoundary, y: lastY },
+        { x: routeBoundary, y: lastY + gridSize },
+      ))
+      for (let y = firstY; y <= lastY; y += gridSize) {
+        unblockedEdges.add(gridEdgeKey(
+          { x: routeBoundary, y },
+          { x: outwardX, y },
+        ))
+        if (y < lastY) {
+          unblockedEdges.add(gridEdgeKey(
+            { x: routeBoundary, y },
+            { x: routeBoundary, y: y + gridSize },
+          ))
+        }
+      }
     }
-    gridPoint.y = outside.y
-  } else if (resolved.direction === 'right') {
-    outside = {
-      x: Math.ceil((bounds.x + bounds.width + epsilon) / gridSize) * gridSize,
-      y: resolved.point.y,
-    }
-    gridPoint.x = outside.x
-  } else if (resolved.direction === 'bottom') {
-    outside = {
-      x: resolved.point.x,
-      y: Math.ceil((bounds.y + bounds.height + epsilon) / gridSize) * gridSize,
-    }
-    gridPoint.y = outside.y
-  } else {
-    outside = {
-      x: Math.floor((bounds.x - epsilon) / gridSize) * gridSize,
-      y: resolved.point.y,
-    }
-    gridPoint.x = outside.x
   }
-  const lead = compactOrthogonalPoints([resolved.point, outside, gridPoint])
-  const departureDirection = lastSegmentDirection(lead)
   return {
     actual: resolved.point,
     grid: gridPoint,
     lead,
     departureDirection,
-    arrivalDirection: departureDirection === undefined
-      ? undefined
-      : reverseDirection(departureDirection),
+    arrivalDirection: reverseDirection(departureDirection),
+    departureDirections,
+    arrivalDirections: departureDirections.map(reverseDirection),
+    ...(unblockedEdges.size ? { unblockedEdges } : {}),
+    obstacle: bounds,
   }
 }
 
@@ -340,6 +432,62 @@ function blockedGridEdges(obstacles: Rect[], gridSize: number) {
     }
   })
   return blocked
+}
+
+function rectsEqual(left: Rect, right: Rect) {
+  return Math.abs(left.x - right.x) < 0.0001 &&
+    Math.abs(left.y - right.y) < 0.0001 &&
+    Math.abs(left.width - right.width) < 0.0001 &&
+    Math.abs(left.height - right.height) < 0.0001
+}
+
+function obstacleBlocksGridEdge(edgeKey: string, obstacle: Rect, gridSize: number) {
+  const [leftKey, rightKey] = edgeKey.split('::')
+  const [leftX, leftY] = leftKey.split(',').map(Number)
+  const [rightX, rightY] = rightKey.split(',').map(Number)
+  if (leftY === rightY) {
+    const edgeX = Math.min(leftX, rightX)
+    return leftY >= Math.ceil(obstacle.y / gridSize) * gridSize &&
+      leftY <= Math.floor((obstacle.y + obstacle.height) / gridSize) * gridSize &&
+      edgeX >= Math.ceil((obstacle.x - gridSize) / gridSize) * gridSize &&
+      edgeX <= Math.floor((obstacle.x + obstacle.width) / gridSize) * gridSize
+  }
+  const edgeY = Math.min(leftY, rightY)
+  return leftX >= Math.ceil(obstacle.x / gridSize) * gridSize &&
+    leftX <= Math.floor((obstacle.x + obstacle.width) / gridSize) * gridSize &&
+    edgeY >= Math.ceil((obstacle.y - gridSize) / gridSize) * gridSize &&
+    edgeY <= Math.floor((obstacle.y + obstacle.height) / gridSize) * gridSize
+}
+
+function blockedEdgesForEndpoints(
+  source: RoutedEndpoint,
+  target: RoutedEndpoint | null,
+  obstacles: Rect[],
+  gridSize: number,
+  blockedEdges?: Set<string>,
+) {
+  const endpointBlockedEdges = blockedEdges ?? blockedGridEdges(obstacles, gridSize)
+  const unblockedEdges = [source.unblockedEdges, target?.unblockedEdges]
+    .filter((edges): edges is Set<string> => Boolean(edges))
+  if (!unblockedEdges.length) return endpointBlockedEdges
+  const endpointObstacles = [source.obstacle, target?.obstacle]
+    .filter((obstacle): obstacle is Rect => Boolean(obstacle))
+  const unmatchedEndpointObstacles = [...endpointObstacles]
+  const otherObstacles = obstacles.filter((obstacle) => {
+    const endpointIndex = unmatchedEndpointObstacles.findIndex((endpointObstacle) => (
+      rectsEqual(obstacle, endpointObstacle)
+    ))
+    if (endpointIndex < 0) return true
+    unmatchedEndpointObstacles.splice(endpointIndex, 1)
+    return false
+  })
+  const routeBlockedEdges = new Set(endpointBlockedEdges)
+  unblockedEdges.forEach((edges) => edges.forEach((edge) => {
+    if (!otherObstacles.some((obstacle) => obstacleBlocksGridEdge(edge, obstacle, gridSize))) {
+      routeBlockedEdges.delete(edge)
+    }
+  }))
+  return routeBlockedEdges
 }
 
 interface SearchState extends Point {
@@ -572,6 +720,7 @@ interface FlexibleBusbarCandidate {
   point: Point
   displacement: number
   blockedDirections?: number[]
+  departureDirections?: number[]
 }
 
 interface FlexibleBusbarRoute {
@@ -675,7 +824,7 @@ function routeFlexibleBusbarsWithinBounds(
         ? sourceByOffset.get(current.startOffset)
         : undefined
       if (current.steps === 0 && (
-        !sourceDirections.includes(directionIndex) ||
+        !(sourceCandidate?.departureDirections ?? sourceDirections).includes(directionIndex) ||
         sourceCandidate?.blockedDirections?.includes(directionIndex)
       )) return
       const next = {
@@ -691,7 +840,7 @@ function routeFlexibleBusbarsWithinBounds(
       if (occupiedEdges.has(edgeKey)) return
       const nextTarget = targetByPoint.get(pointKey(next))
       if (nextTarget && (
-        !targetDirections.includes(directionIndex) ||
+        !(nextTarget.departureDirections?.map(reverseDirection) ?? targetDirections).includes(directionIndex) ||
         nextTarget.blockedDirections?.includes(reverseDirection(directionIndex))
       )) return
 
@@ -797,13 +946,13 @@ function nodeEndpoint(
     if (!busbar || node.offset < 0 || node.offset > busbar.length) return null
     const offset = resolvedBusbarTapOffsets.get(node.id) ?? node.offset
     const point = busbarPoint(busbar, offset)
-    const directions = busbarConnectionDirections(busbar)
+    const directions = busbarConnectionDirections(busbar, point)
     return {
       actual: point,
       grid: point,
       lead: [point],
       departureDirections: directions,
-      arrivalDirections: directions,
+      arrivalDirections: directions.map(reverseDirection),
     }
   }
   const resolved = resolveAnchorByReference(
@@ -824,6 +973,13 @@ function routeEndpoints(
   gridSize: number,
   blockedEdges?: Set<string>,
 ) {
+  const routeBlockedEdges = blockedEdgesForEndpoints(
+    source,
+    target,
+    obstacles,
+    gridSize,
+    blockedEdges,
+  )
   const route = routeOrthogonalGrid(
     source.grid,
     target.grid,
@@ -835,7 +991,7 @@ function routeEndpoints(
       endDirection: target.arrivalDirection,
       startAllowedDirections: source.departureDirections,
       endAllowedDirections: target.arrivalDirections,
-      blockedEdges,
+      blockedEdges: routeBlockedEdges,
     },
   )
   return route
@@ -863,6 +1019,13 @@ function routeEndpointsThroughWaypoints(
   let start = source.grid
   let startDirection = source.departureDirection
   const points = [...source.lead]
+  const routeBlockedEdges = blockedEdgesForEndpoints(
+    source,
+    target,
+    obstacles,
+    gridSize,
+    blockedEdges,
+  )
   for (let index = 0; index < targets.length; index += 1) {
     const isLast = index === targets.length - 1
     const route = routeOrthogonalGrid(
@@ -876,7 +1039,7 @@ function routeEndpointsThroughWaypoints(
         endDirection: isLast ? target.arrivalDirection : undefined,
         startAllowedDirections: index === 0 ? source.departureDirections : undefined,
         endAllowedDirections: isLast ? target.arrivalDirections : undefined,
-        blockedEdges,
+        blockedEdges: routeBlockedEdges,
       },
     )
     if (!route) return null
@@ -1088,6 +1251,7 @@ function findBusbarCrossings(
 }
 
 interface PreviewEndpointMovement {
+  kind: 'element-anchor' | 'busbar-tap'
   from: Point
   to: Point
   direction: AnchorDirection
@@ -1113,7 +1277,12 @@ function previewEndpointMovement(
     assetsByKey,
   )
   if (!committed || !preview || pointsEqual(committed.point, preview.point)) return null
-  return { from: committed.point, to: preview.point, direction: preview.direction }
+  return {
+    kind: 'element-anchor',
+    from: committed.point,
+    to: preview.point,
+    direction: preview.direction,
+  }
 }
 
 function previewBusbarEndpointMovement(
@@ -1136,7 +1305,7 @@ function previewBusbarEndpointMovement(
   const direction: AnchorDirection = busbar.orientation === 'horizontal'
     ? (adjacentPoint?.y ?? originalPoint.y) < originalPoint.y ? 'top' : 'bottom'
     : (adjacentPoint?.x ?? originalPoint.x) < originalPoint.x ? 'left' : 'right'
-  return { from: originalPoint, to: point, direction }
+  return { kind: 'busbar-tap', from: originalPoint, to: point, direction }
 }
 
 function previewJunctionEndpoint(
@@ -1161,6 +1330,9 @@ function attachPreviewEndpoint(
   gridSize: number,
   atStart: boolean,
 ) {
+  if (movement.kind === 'element-anchor') {
+    return attachPreviewJunctionEndpoint(points, movement.to, atStart)
+  }
   const route = atStart ? points : [...points].reverse()
   const original = route[0]
   if (!original) return points
@@ -1400,7 +1572,7 @@ function routedBusbarUsage(
       if (attachedAtSource || attachedAtTarget) {
         const adjacent = attachedAtSource ? edge.points[1] : edge.points.at(-2)!
         const direction = segmentDirection(crossing, adjacent)
-        if (direction !== undefined && busbarConnectionDirections(busbar).includes(direction)) {
+        if (direction !== undefined && busbarConnectionDirections(busbar, crossing).includes(direction)) {
           const key = pointKey(crossing)
           const directions = occupiedDirections.get(key) ?? new Set<number>()
           directions.add(direction)
@@ -1434,6 +1606,7 @@ function flexibleCandidatesForTap(
       point,
       displacement: Math.abs(offset - fallback),
       blockedDirections: [...(usage.occupiedDirections.get(key) ?? [])],
+      departureDirections: busbarConnectionDirections(busbar, point),
     }]
   })
 }
@@ -1546,13 +1719,13 @@ function resolveBusbarTapOffset(
   for (const candidate of candidates) {
     if (best && candidate.lowerBound > best.length) break
     const occupiedDirections = usage.occupiedDirections.get(pointKey(candidate.point)) ?? new Set<number>()
-    const busbarDirections = busbarConnectionDirections(busbar)
+    const busbarDirections = busbarConnectionDirections(busbar, candidate.point)
     const tapEndpoint: RoutedEndpoint = {
       actual: candidate.point,
       grid: candidate.point,
       lead: [candidate.point],
       departureDirections: busbarDirections.filter((direction) => !occupiedDirections.has(direction)),
-      arrivalDirections: busbarDirections.filter((direction) => (
+      arrivalDirections: busbarDirections.map(reverseDirection).filter((direction) => (
         !occupiedDirections.has(reverseDirection(direction))
       )),
     }
@@ -1600,7 +1773,7 @@ function resolveBusbarTapOffset(
 }
 
 interface RouteSeed {
-  dirtyNetworkIds: Set<string>
+  dirtyEdgeIds: Set<string>
   previous: RoutedConnections
 }
 
@@ -1629,11 +1802,17 @@ function routeConnectionNetworksWithSeed(
   const currentRouteIdentities = new Set(networks.flatMap((network) => (
     network.edges.map((edge) => `${network.id}::${edge.id}`)
   )))
-  const dirtyNetworkIds = seed?.dirtyNetworkIds ?? new Set(networks.map((network) => network.id))
+  const dirtyEdgeIds = seed?.dirtyEdgeIds ?? currentEdgeIds
+  const dirtyNetworkIds = new Set(networks.flatMap((network) => (
+    network.edges.some((edge) => dirtyEdgeIds.has(edge.id)) ? [network.id] : []
+  )))
   const dirtyTapNodeIds = new Set(networks.flatMap((network) => (
-    dirtyNetworkIds.has(network.id)
-      ? network.nodes.flatMap((node) => node.kind === 'busbar-tap' ? [node.id] : [])
-      : []
+    !dirtyNetworkIds.has(network.id) ? [] : network.nodes.flatMap((node) => (
+      node.kind === 'busbar-tap' && network.edges.some((edge) => (
+        dirtyEdgeIds.has(edge.id) &&
+        (edge.sourceNodeId === node.id || edge.targetNodeId === node.id)
+      )) ? [node.id] : []
+    ))
   )))
   const tapBusbarIds = new Map(networks.flatMap((network) => network.nodes.flatMap((node) => (
     node.kind === 'busbar-tap' ? [[node.id, node.busbarId] as const] : []
@@ -1647,16 +1826,14 @@ function routeConnectionNetworksWithSeed(
   const routedEdges: RoutedConnectionEdge[] = (seed?.previous.edges ?? []).flatMap((edge) => {
     if (
       !currentRouteIdentities.has(`${edge.networkId}::${edge.edgeId}`) ||
-      dirtyNetworkIds.has(edge.networkId)
+      dirtyEdgeIds.has(edge.edgeId)
     ) return []
     const order = edgeOrder.get(edge.edgeId) ?? edge.order
     return [edge.order === order ? edge : { ...edge, order }]
   })
   routedEdges.forEach((edge) => addOccupiedSegments(edge.points, occupied, gridSize))
   const invalidEdgeIds: string[] = (seed?.previous.invalidEdgeIds ?? []).filter((edgeId) => (
-    currentEdgeIds.has(edgeId) && !dirtyNetworkIds.has(
-      networks.find((network) => network.edges.some((edge) => edge.id === edgeId))?.id ?? '',
-    )
+    currentEdgeIds.has(edgeId) && !dirtyEdgeIds.has(edgeId)
   ))
   const resolvedBusbarTapOffsets = new Map(Object.entries(
     seed?.previous.resolvedBusbarTapOffsets ?? {},
@@ -1669,7 +1846,22 @@ function routeConnectionNetworksWithSeed(
     if (!dirtyNetworkIds.has(network.id)) continue
     const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
     const networkSegments = new Set<string>()
+    const routingOccupied = seed
+      ? (() => {
+          const retained = new Set<string>()
+          busbars.forEach((busbar) => {
+            addOccupiedSegments([busbarPoint(busbar, 0), busbarEndPoint(busbar)], retained, gridSize)
+          })
+          routedEdges.forEach((routedEdge) => {
+            if (routedEdge.networkId !== network.id) {
+              addOccupiedSegments(routedEdge.points, retained, gridSize)
+            }
+          })
+          return retained
+        })()
+      : occupied
     for (const edge of network.edges) {
+      if (!dirtyEdgeIds.has(edge.id)) continue
       const source = nodesById.get(edge.sourceNodeId)
       const target = nodesById.get(edge.targetNodeId)
       if (
@@ -1682,7 +1874,7 @@ function routeConnectionNetworksWithSeed(
           target,
           busbarsById,
           resolvedBusbarTapOffsets,
-          occupied,
+          routingOccupied,
           blockedEdges,
           routedEdges,
           tapBusbarIds,
@@ -1700,7 +1892,7 @@ function routeConnectionNetworksWithSeed(
           busbarsById,
           resolvedBusbarTapOffsets,
           obstacles,
-          occupied,
+          routingOccupied,
           blockedEdges,
           routedEdges,
           tapBusbarIds,
@@ -1745,7 +1937,7 @@ function routeConnectionNetworksWithSeed(
         targetEndpoint,
         waypointPoints,
         obstacles,
-        occupied,
+        routingOccupied,
         gridSize,
         blockedEdges,
       )
@@ -1765,7 +1957,7 @@ function routeConnectionNetworksWithSeed(
       routedEdges.push(routed)
       addOccupiedSegments(points, networkSegments, gridSize)
     }
-    networkSegments.forEach((segment) => occupied.add(segment))
+    if (!seed) networkSegments.forEach((segment) => occupied.add(segment))
   }
   routedEdges.sort((left, right) => left.order - right.order)
   invalidEdgeIds.sort((left, right) => (
@@ -1806,6 +1998,9 @@ export function routeConnectionNetworksForDirtyNetworks(
   previous: RoutedConnections,
   dirtyNetworkIds: Set<string>,
 ) {
+  const dirtyEdgeIds = new Set(input.networks.flatMap((network) => (
+    dirtyNetworkIds.has(network.id) ? network.edges.map((edge) => edge.id) : []
+  )))
   return routeConnectionNetworksWithSeed(
     input.networks,
     input.elements,
@@ -1813,7 +2008,23 @@ export function routeConnectionNetworksForDirtyNetworks(
     input.gridSize,
     input.busbars,
     input.routeWaypoints ?? [],
-    { dirtyNetworkIds, previous },
+    { dirtyEdgeIds, previous },
+  )
+}
+
+export function routeConnectionNetworksForDirtyEdges(
+  input: ConnectionRouteInput,
+  previous: RoutedConnections,
+  dirtyEdgeIds: Set<string>,
+) {
+  return routeConnectionNetworksWithSeed(
+    input.networks,
+    input.elements,
+    input.assets,
+    input.gridSize,
+    input.busbars,
+    input.routeWaypoints ?? [],
+    { dirtyEdgeIds, previous },
   )
 }
 
@@ -1824,7 +2035,8 @@ function routingElementsEqual(left: DiagramElement, right: DiagramElement) {
     left.y === right.y &&
     left.width === right.width &&
     left.height === right.height &&
-    left.rotation === right.rotation
+    left.rotation === right.rotation &&
+    left.tmuPortsSwapped === right.tmuPortsSwapped
 }
 
 function routingBusbarsEqual(left: Busbar, right: Busbar) {
@@ -1981,27 +2193,82 @@ function routeIntersectsAnyRect(route: RoutedConnectionEdge, rects: Rect[]) {
   return false
 }
 
-function networkReferencesElements(network: ConnectionNetwork, elementIds: Set<string>) {
-  return network.nodes.some((node) => (
-    node.kind === 'element-anchor' && elementIds.has(node.elementId)
-  ))
+function rectsIntersect(left: Rect, right: Rect) {
+  return left.x <= right.x + right.width &&
+    left.x + left.width >= right.x &&
+    left.y <= right.y + right.height &&
+    left.y + left.height >= right.y
 }
 
-function networkReferencesBusbars(network: ConnectionNetwork, busbarIds: Set<string>) {
-  return network.nodes.some((node) => (
-    node.kind === 'busbar-tap' && busbarIds.has(node.busbarId)
+function invalidEdgeInfluenceRect(
+  network: ConnectionNetwork,
+  edge: ConnectionEdge,
+  input: ConnectionRouteInput,
+  margin: number,
+) {
+  const nodesById = new Map(network.nodes.map((node) => [node.id, node]))
+  const elementsById = new Map(input.elements.map((element) => [element.id, element]))
+  const assetsByKey = new Map(input.assets.map((asset) => [asset.key, asset]))
+  const busbarsById = new Map(input.busbars.map((busbar) => [busbar.id, busbar]))
+  const pointForNode = (nodeId: string): Point | null => {
+    const node = nodesById.get(nodeId)
+    if (!node) return null
+    if (node.kind === 'node') return { x: node.x, y: node.y }
+    if (node.kind === 'busbar-tap') {
+      const busbar = busbarsById.get(node.busbarId)
+      return busbar ? busbarPoint(busbar, node.offset) : null
+    }
+    return resolveAnchorByReference(
+      node.elementId,
+      node.anchorId,
+      elementsById,
+      assetsByKey,
+    )?.point ?? null
+  }
+  const points = [
+    edge.sourceNodeId,
+    ...(edge.routeNodeIds ?? []),
+    edge.targetNodeId,
+  ].flatMap((nodeId) => {
+    const point = pointForNode(nodeId)
+    return point ? [point] : []
+  })
+  if (points.length < 2) return null
+  const minX = Math.min(...points.map((point) => point.x))
+  const minY = Math.min(...points.map((point) => point.y))
+  const maxX = Math.max(...points.map((point) => point.x))
+  const maxY = Math.max(...points.map((point) => point.y))
+  return expandedRect({
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  }, margin)
+}
+
+function edgeReferencesChangedGeometry(
+  network: ConnectionNetwork,
+  edge: ConnectionEdge,
+  elementIds: Set<string>,
+  busbarIds: Set<string>,
+) {
+  const endpointIds = new Set([edge.sourceNodeId, edge.targetNodeId])
+  return network.nodes.some((node) => endpointIds.has(node.id) && (
+    (node.kind === 'element-anchor' && elementIds.has(node.elementId)) ||
+    (node.kind === 'busbar-tap' && busbarIds.has(node.busbarId))
   ))
 }
 
 /**
- * Reuses stable routed networks after a committed edit. Directly connected networks and routes
- * inside the changed geometry's local search corridor are recomputed against retained routes.
+ * Reuses stable routed edges after a committed edit. Directly connected edges and routes inside
+ * the changed geometry's local search corridor are recomputed against retained routes.
  * Display-only edits (labels, colors, visibility) reuse the entire routed snapshot.
  */
 export function routeConnectionNetworksIncrementally(
   previousInput: ConnectionRouteInput | null,
   previousRouted: RoutedConnections | null,
   nextInput: ConnectionRouteInput,
+  options: IncrementalRouteOptions = {},
 ): IncrementalRouteResult {
   if (
     !previousInput ||
@@ -2020,6 +2287,7 @@ export function routeConnectionNetworksIncrementally(
       ),
       mode: 'full',
       dirtyNetworkCount: nextInput.networks.length,
+      dirtyEdgeCount: nextInput.networks.reduce((count, network) => count + network.edges.length, 0),
       reusedEdgeCount: 0,
     }
   }
@@ -2038,6 +2306,7 @@ export function routeConnectionNetworksIncrementally(
   const changedBusbarIds = new Set<string>()
   const changedRouteWaypointIds = new Set<string>()
   const influenceRects: Rect[] = []
+  const changedGeometryRects: Rect[] = []
   const influenceMargin = nextInput.gridSize * 12
 
   const previousWaypointsById = new Map(
@@ -2051,8 +2320,16 @@ export function routeConnectionNetworksIncrementally(
     const next = nextWaypointsById.get(id)
     if (previous && next && previous.x === next.x && previous.y === next.y) return
     changedRouteWaypointIds.add(id)
-    if (previous) influenceRects.push(expandedRect({ ...previous, width: 0, height: 0 }, influenceMargin))
-    if (next) influenceRects.push(expandedRect({ ...next, width: 0, height: 0 }, influenceMargin))
+    if (previous) {
+      const rect = { ...previous, width: 0, height: 0 }
+      changedGeometryRects.push(rect)
+      influenceRects.push(expandedRect(rect, influenceMargin))
+    }
+    if (next) {
+      const rect = { ...next, width: 0, height: 0 }
+      changedGeometryRects.push(rect)
+      influenceRects.push(expandedRect(rect, influenceMargin))
+    }
   })
 
   new Set([...previousElementsById.keys(), ...nextElementsById.keys()]).forEach((id) => {
@@ -2062,8 +2339,14 @@ export function routeConnectionNetworksIncrementally(
     changedElementIds.add(id)
     const previousBounds = previous ? elementsBounds([previous]) : null
     const nextBounds = next ? elementsBounds([next]) : null
-    if (previousBounds) influenceRects.push(expandedRect(previousBounds, influenceMargin))
-    if (nextBounds) influenceRects.push(expandedRect(nextBounds, influenceMargin))
+    if (previousBounds) {
+      changedGeometryRects.push(previousBounds)
+      influenceRects.push(expandedRect(previousBounds, influenceMargin))
+    }
+    if (nextBounds) {
+      changedGeometryRects.push(nextBounds)
+      influenceRects.push(expandedRect(nextBounds, influenceMargin))
+    }
   })
 
   new Set([...previousBusbarsById.keys(), ...nextBusbarsById.keys()]).forEach((id) => {
@@ -2071,56 +2354,105 @@ export function routeConnectionNetworksIncrementally(
     const next = nextBusbarsById.get(id)
     if (previous && next && routingBusbarsEqual(previous, next)) return
     changedBusbarIds.add(id)
-    if (previous) influenceRects.push(expandedRect(busbarRect(previous), influenceMargin))
-    if (next) influenceRects.push(expandedRect(busbarRect(next), influenceMargin))
+    if (previous) {
+      const rect = busbarRect(previous)
+      changedGeometryRects.push(rect)
+      influenceRects.push(expandedRect(rect, influenceMargin))
+    }
+    if (next) {
+      const rect = busbarRect(next)
+      changedGeometryRects.push(rect)
+      influenceRects.push(expandedRect(rect, influenceMargin))
+    }
   })
 
-  const dirtyNetworkIds = new Set<string>()
+  const dirtyEdgeIds = new Set<string>()
   let routeStructureChanged = previousInput.networks.length !== nextInput.networks.length
   nextInput.networks.forEach((network, index) => {
     const previous = previousNetworksById.get(network.id)
-    if (!previous || !routingNetworksEqual(previous, network)) {
-      dirtyNetworkIds.add(network.id)
+    if (!previous || previous.type !== network.type) {
+      network.edges.forEach((edge) => dirtyEdgeIds.add(edge.id))
       routeStructureChanged = true
+    } else {
+      const previousEdgesById = new Map(previous.edges.map((edge) => [edge.id, edge]))
+      const previousNodesById = new Map(previous.nodes.map((node) => [node.id, node]))
+      const nextNodesById = new Map(network.nodes.map((node) => [node.id, node]))
+      network.edges.forEach((edge, edgeIndex) => {
+        const previousEdge = previousEdgesById.get(edge.id)
+        const referencedNodeIds = new Set([
+          edge.sourceNodeId,
+          edge.targetNodeId,
+          ...(edge.routeNodeIds ?? []),
+        ])
+        const edgeChanged = !previousEdge ||
+          previousEdge.sourceNodeId !== edge.sourceNodeId ||
+          previousEdge.targetNodeId !== edge.targetNodeId ||
+          JSON.stringify(previousEdge.routeNodeIds ?? []) !== JSON.stringify(edge.routeNodeIds ?? []) ||
+          [...referencedNodeIds].some((nodeId) => {
+            const previousNode = previousNodesById.get(nodeId)
+            const nextNode = nextNodesById.get(nodeId)
+            return !previousNode || !nextNode || !routingNodesEqual(previousNode, nextNode)
+          })
+        if (edgeChanged) dirtyEdgeIds.add(edge.id)
+        if (previous.edges[edgeIndex]?.id !== edge.id) routeStructureChanged = true
+      })
+      if (
+        previous.nodes.length !== network.nodes.length ||
+        previous.edges.length !== network.edges.length
+      ) routeStructureChanged = true
     }
-    if (previousInput.networks[index]?.id !== network.id) routeStructureChanged = true
+    if (previousInput.networks[index]?.id !== network.id) {
+      routeStructureChanged = true
+      network.edges.forEach((edge) => dirtyEdgeIds.add(edge.id))
+    }
     if (network.edges.some((edge) => (
       (edge.routeNodeIds ?? []).some((id) => changedRouteWaypointIds.has(id))
-    ))) dirtyNetworkIds.add(network.id)
+    ))) network.edges.forEach((edge) => {
+      if ((edge.routeNodeIds ?? []).some((id) => changedRouteWaypointIds.has(id))) {
+        dirtyEdgeIds.add(edge.id)
+      }
+    })
   })
   previousInput.networks.forEach((network) => {
     if (!nextNetworksById.has(network.id)) routeStructureChanged = true
   })
 
   // An invalid edge has no routed geometry, so the usual corridor intersection check cannot
-  // discover that moving an unrelated obstacle may make it routable again. Re-evaluate every
-  // previously invalid network after a geometry change; valid retained networks still use the
-  // normal local influence corridor below.
+  // discover that moving an unrelated obstacle may make it routable again. Retry only invalid
+  // edges whose endpoint/waypoint envelope intersects the geometry that actually changed.
   if (influenceRects.length && previousRouted.invalidEdgeIds.length) {
-    const previouslyInvalidEdgeIds = new Set(previousRouted.invalidEdgeIds)
-    nextInput.networks.forEach((network) => {
-      if (network.edges.some((edge) => previouslyInvalidEdgeIds.has(edge.id))) {
-        dirtyNetworkIds.add(network.id)
+    const invalidEdgeIds = new Set(previousRouted.invalidEdgeIds)
+    nextInput.networks.forEach((network) => network.edges.forEach((edge) => {
+      if (!invalidEdgeIds.has(edge.id) || dirtyEdgeIds.has(edge.id)) return
+      const retryRect = invalidEdgeInfluenceRect(
+        network,
+        edge,
+        nextInput,
+        nextInput.gridSize * 4,
+      )
+      if (retryRect && changedGeometryRects.some((rect) => rectsIntersect(rect, retryRect))) {
+        dirtyEdgeIds.add(edge.id)
       }
-    })
+    }))
   }
 
-  for (const network of [...previousInput.networks, ...nextInput.networks]) {
-    if (
-      networkReferencesElements(network, changedElementIds) ||
-      networkReferencesBusbars(network, changedBusbarIds)
-    ) dirtyNetworkIds.add(network.id)
-  }
+  nextInput.networks.forEach((network) => network.edges.forEach((edge) => {
+    if (edgeReferencesChangedGeometry(network, edge, changedElementIds, changedBusbarIds)) {
+      dirtyEdgeIds.add(edge.id)
+    }
+  }))
 
   previousRouted.edges.forEach((route) => {
     if (
       nextNetworksById.has(route.networkId) &&
-      !dirtyNetworkIds.has(route.networkId) &&
+      !dirtyEdgeIds.has(route.edgeId) &&
       routeIntersectsAnyRect(route, influenceRects)
-    ) dirtyNetworkIds.add(route.networkId)
+    ) dirtyEdgeIds.add(route.edgeId)
   })
 
-  if (!routeStructureChanged && !influenceRects.length && !dirtyNetworkIds.size) {
+  options.skipDirtyEdgeIds?.forEach((edgeId) => dirtyEdgeIds.delete(edgeId))
+
+  if (!routeStructureChanged && !influenceRects.length && !dirtyEdgeIds.size) {
     const routed = crossingPriorityChanged
       ? {
           ...previousRouted,
@@ -2138,12 +2470,16 @@ export function routeConnectionNetworksIncrementally(
       routed,
       mode: 'reused',
       dirtyNetworkCount: 0,
+      dirtyEdgeCount: 0,
       reusedEdgeCount: previousRouted.edges.length,
     }
   }
 
-  const existingDirtyNetworkIds = new Set(
-    [...dirtyNetworkIds].filter((id) => nextNetworksById.has(id)),
+  const nextEdgeIds = new Set(nextInput.networks.flatMap((network) => (
+    network.edges.map((edge) => edge.id)
+  )))
+  const existingDirtyEdgeIds = new Set(
+    [...dirtyEdgeIds].filter((id) => nextEdgeIds.has(id)),
   )
   const routed = routeConnectionNetworksWithSeed(
     nextInput.networks,
@@ -2152,16 +2488,17 @@ export function routeConnectionNetworksIncrementally(
     nextInput.gridSize,
     nextInput.busbars,
     nextInput.routeWaypoints ?? [],
-    { dirtyNetworkIds: existingDirtyNetworkIds, previous: previousRouted },
+    { dirtyEdgeIds: existingDirtyEdgeIds, previous: previousRouted },
   )
-  const dirtyEdgeIds = new Set(nextInput.networks.flatMap((network) => (
-    existingDirtyNetworkIds.has(network.id) ? network.edges.map((edge) => edge.id) : []
+  const existingDirtyNetworkIds = new Set(nextInput.networks.flatMap((network) => (
+    network.edges.some((edge) => existingDirtyEdgeIds.has(edge.id)) ? [network.id] : []
   )))
   return {
     routed,
     mode: 'incremental',
     dirtyNetworkCount: existingDirtyNetworkIds.size,
-    reusedEdgeCount: routed.edges.filter((edge) => !dirtyEdgeIds.has(edge.edgeId)).length,
+    dirtyEdgeCount: existingDirtyEdgeIds.size,
+    reusedEdgeCount: routed.edges.filter((edge) => !existingDirtyEdgeIds.has(edge.edgeId)).length,
   }
 }
 
@@ -2250,13 +2587,13 @@ export function prepareConnectionPreview(
   } else if (source.kind === 'busbar') {
     const busbar = busbars.find((candidate) => candidate.id === source.busbarId)
     if (busbar) {
-      const directions = busbarConnectionDirections(busbar)
+      const directions = busbarConnectionDirections(busbar, source.point)
       sourceEndpoint = {
         actual: source.point,
         grid: source.point,
         lead: [source.point],
         departureDirections: directions,
-        arrivalDirections: directions,
+        arrivalDirections: directions.map(reverseDirection),
       }
     }
   } else {
@@ -2345,13 +2682,13 @@ export function routeConnectionPreviewWithContext(
   } else if (targetTerminal?.kind === 'busbar') {
     const busbar = busbarsById.get(targetTerminal.busbarId)
     if (busbar) {
-      const directions = busbarConnectionDirections(busbar)
+      const directions = busbarConnectionDirections(busbar, targetTerminal.point)
       targetEndpoint = {
         actual: targetTerminal.point,
         grid: targetTerminal.point,
         lead: [targetTerminal.point],
         departureDirections: directions,
-        arrivalDirections: directions,
+        arrivalDirections: directions.map(reverseDirection),
       }
     }
   } else if (targetTerminal?.kind === 'node') {
@@ -2399,7 +2736,13 @@ export function routeConnectionPreviewWithContext(
       endAllowedDirections: targetEndpoint?.arrivalDirections,
       maxSearchStates: 24_000,
       marginSteps: [24],
-      blockedEdges,
+      blockedEdges: blockedEdgesForEndpoints(
+        sourceEndpoint,
+        targetEndpoint,
+        obstacles,
+        gridSize,
+        blockedEdges,
+      ),
       // A small weighted-A* bias avoids exploring the full rectangle of
       // equal-cost states on long pointer previews. Final Worker routing stays exact.
       heuristicWeight: 1.2,
@@ -2493,6 +2836,7 @@ function connectionEdgeWithoutDisplayData(edge: ConnectionEdge) {
     monitorMetricLabelsVisible: _monitorMetricLabelsVisible,
     monitorMetrics: _monitorMetrics,
     externalSupplyEndpoint: _externalSupplyEndpoint,
+    externalSupplyChannel: _externalSupplyChannel,
     ...rest
   } = edge
   return rest
@@ -2538,6 +2882,7 @@ export function segmentConnectionEdgesAtNodes(
         const {
           routeNodeIds: _routeNodeIds,
           externalSupplyEndpoint: _externalSupplyEndpoint,
+          externalSupplyChannel: _externalSupplyChannel,
           ...edgeWithoutRouteNodes
         } = edge
         const edgeWithoutDisplayData = connectionEdgeWithoutDisplayData(edgeWithoutRouteNodes)
@@ -2550,9 +2895,19 @@ export function segmentConnectionEdgesAtNodes(
           targetNodeId,
           logicalConnectionId,
           ...(edge.externalSupplyEndpoint === 'source' && segmentIndex === 0
-            ? { externalSupplyEndpoint: 'source' as const }
+            ? {
+                externalSupplyEndpoint: 'source' as const,
+                ...(edge.externalSupplyChannel
+                  ? { externalSupplyChannel: edge.externalSupplyChannel }
+                  : {}),
+              }
             : edge.externalSupplyEndpoint === 'target' && segmentIndex === chain.length - 2
-              ? { externalSupplyEndpoint: 'target' as const }
+              ? {
+                  externalSupplyEndpoint: 'target' as const,
+                  ...(edge.externalSupplyChannel
+                    ? { externalSupplyChannel: edge.externalSupplyChannel }
+                    : {}),
+                }
               : {}),
         }))
       }),
@@ -2683,10 +3038,12 @@ export function connectTerminals(
 
   const withSource = ensureTerminal(networks[sourceIndex], source)
   const withTarget = ensureTerminal(networks[targetIndex], target)
+  if (withSource.network.powerSupplyChannel && withTarget.network.powerSupplyChannel && withSource.network.powerSupplyChannel !== withTarget.network.powerSupplyChannel) return null
   const merged: ConnectionNetwork = {
     id: withSource.network.id,
     diagramId,
     type,
+    powerSupplyChannel: withSource.network.powerSupplyChannel ?? withTarget.network.powerSupplyChannel,
     nodes: [...withSource.network.nodes, ...withTarget.network.nodes],
     edges: [
       ...withSource.network.edges,
@@ -2808,12 +3165,13 @@ function normalizeNetwork(
       )
       return type ? [type] : []
     })
-    const type = resolveConnectionType(anchorTypes)
+    const type = resolveConnectionType(anchorTypes.every((type) => type === 'cooling-general') ? [network.type, ...anchorTypes] : anchorTypes)
     if (anchorTypes.length < 2 || !type || componentEdges.length === 0) continue
     normalized.push({
       ...network,
       id: normalized.length === 0 ? network.id : createId('connection-network'),
       type,
+      powerSupplyChannel: network.powerSupplyChannel ?? componentNodes.flatMap((node) => node.kind === 'busbar-tap' ? [busbarsById.get(node.busbarId)?.powerSupplyChannel] : []).find(Boolean),
       nodes: componentNodes,
       edges: componentEdges,
     })
@@ -3392,10 +3750,6 @@ function crossingsForEdge(
     : crossings.get(edgeId) ?? []
 }
 
-function arcPathCommand(arc: BridgeArc) {
-  return `A ${arc.radius} ${arc.radius} 0 0 ${arc.sweep} ${arc.end.x} ${arc.end.y}`
-}
-
 export function bridgedPathData(
   route: RoutedConnectionEdge,
   crossings: ConnectionCrossingSource,
@@ -3429,9 +3783,8 @@ export function bridgedPathData(
       bridgeRadius,
     )
     for (const arc of arcs) {
-      const command = arcPathCommand(arc)
-      linePath += ` L ${arc.start.x} ${arc.start.y} ${command}`
-      casingParts.push(`M ${arc.start.x} ${arc.start.y} ${command}`)
+      // Crossings remain straight; only the upper line owns a local opaque casing.
+      casingParts.push(`M ${arc.start.x} ${arc.start.y} L ${arc.end.x} ${arc.end.y}`)
     }
     linePath += ` L ${end.x} ${end.y}`
     if (corner) linePath += ` ${roundedCornerPathCommand(corner)}`
@@ -3480,7 +3833,7 @@ function appendSampledEndpointArc(
 export function bridgedPolylinePoints(
   route: RoutedConnectionEdge,
   crossings: ConnectionCrossingSource,
-  gridSize: number,
+  _gridSize: number,
   optionsOrArcSteps: BridgedPathOptions | number = {},
   arcSteps = 8,
 ) {
@@ -3509,33 +3862,8 @@ export function bridgedPolylinePoints(
     points.push({ ...route.points[0] })
   }
   for (let index = 1; index < route.points.length; index += 1) {
-    const start = corners.get(index - 1)?.exit ?? route.points[index - 1]
     const corner = corners.get(index)
     const end = corner?.entry ?? route.points[index]
-    const arcs = bridgeArcsOnSegment(
-      start,
-      end,
-      edgeCrossings,
-      gridSize,
-      options.bridgeRadius ?? gridSize * 0.5,
-    )
-    for (const arc of arcs) {
-      appendDistinctPoint(points, arc.start)
-      const center = {
-        x: (arc.start.x + arc.end.x) / 2,
-        y: (arc.start.y + arc.end.y) / 2,
-      }
-      const startAngle = Math.atan2(arc.start.y - center.y, arc.start.x - center.x)
-      const delta = arc.sweep ? Math.PI : -Math.PI
-      const steps = Math.max(2, Math.round(resolvedArcSteps))
-      for (let step = 1; step <= steps; step += 1) {
-        const angle = startAngle + delta * (step / steps)
-        appendDistinctPoint(points, {
-          x: center.x + Math.cos(angle) * arc.radius,
-          y: center.y + Math.sin(angle) * arc.radius,
-        })
-      }
-    }
     appendDistinctPoint(points, end)
     if (corner) {
       const startAngle = Math.atan2(

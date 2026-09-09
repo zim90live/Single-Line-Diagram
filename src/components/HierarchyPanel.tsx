@@ -24,7 +24,7 @@ import monitorTreePod from '../assets/monitor-tree/pod.svg'
 import monitorTreeSearch from '../assets/monitor-tree/search.svg'
 import type { DiagramDropPosition } from '../domain/diagramHierarchy'
 import type { Diagram, LineSystem, ProjectDocument } from '../domain/project'
-import { IconButton, Pressable, TextField } from './ui'
+import { IconButton, Pressable, TextField } from '@aidc/ui'
 
 interface HierarchyPanelProps {
   document: ProjectDocument

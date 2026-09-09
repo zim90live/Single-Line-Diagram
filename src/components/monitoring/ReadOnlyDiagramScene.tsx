@@ -87,10 +87,11 @@ export function ReadOnlyDiagramScene({
         id: `read-only-flow:${edge.edgeId}`,
         connectionEdgeId: edge.edgeId,
         points: edge.points,
-        baseColor: 'var(--monitor-flow-active)',
+        baseColor: edgesById.get(edge.edgeId)?.color ?? 'var(--electrical)',
+        phasePath: { id: edge.edgeId, networkId: edge.networkId, startNodeId: edge.sourceNodeId, endNodeId: edge.targetNodeId, points: edge.points },
       }] : []
     ))
-  ), [activeEdgeIdSet, routed.edges])
+  ), [activeEdgeIdSet, edgesById, routed.edges])
   const activeFlowGroups = useMemo(() => (
     buildMonitorStaticFlowLineGroups(activeFlowPaths, [])
   ), [activeFlowPaths])

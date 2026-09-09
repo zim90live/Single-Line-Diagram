@@ -16,6 +16,7 @@ import {
   type CoolingDeviceRole,
   type CoolingFlowRole,
   type LineSystemType,
+  type PowerSupplyChannel,
   type SymbolAnchor,
 } from '../domain/project'
 import {
@@ -28,11 +29,13 @@ import {
   type AnchorPoint,
 } from '../editor/anchors'
 import { GRID_DOT_SCREEN_RADIUS } from '../scene/gridScale'
+import { circuitPaletteStyle, type CircuitPalette } from '../scene/circuitPalette'
 import { symbolCatalog, symbolsByKey } from '../scene/symbolCatalog'
 import { SymbolBrowser } from './SymbolBrowser'
-import { IconButton, SelectField, TextField } from './ui'
+import { IconButton, SelectField, TextField } from '@aidc/ui'
 
 interface SymbolAnchorEditorDialogProps {
+  circuitPalette?: CircuitPalette
   initialAssetKey: string
   assets: AssetDefinition[]
   lineSystemType: LineSystemType
@@ -81,7 +84,8 @@ function anchorsEqual(left: SymbolAnchor[], right: SymbolAnchor[]) {
       anchor.y === candidate.y &&
       anchor.direction === candidate.direction &&
       anchor.type === candidate.type &&
-      anchor.flowRole === candidate.flowRole
+      anchor.flowRole === candidate.flowRole &&
+      anchor.powerSupplyChannel === candidate.powerSupplyChannel
   })
 }
 
@@ -120,6 +124,7 @@ function directionVector(direction: SymbolAnchor['direction']) {
 
 export function SymbolAnchorEditorDialog({
   initialAssetKey,
+  circuitPalette,
   assets,
   lineSystemType,
   onChangeAsset,
@@ -155,6 +160,7 @@ export function SymbolAnchorEditorDialog({
   }, [])
 
   const selectedSymbol = symbolsByKey.get(selectedAssetKey) ?? symbolCatalog[0]
+  const isMeasurementPoint = selectedSymbol?.anchorMode === 'measurement-point'
   const selectedAnchors = selectedSymbol
     ? anchorsByAsset[selectedSymbol.key] ?? []
     : []
@@ -271,11 +277,17 @@ export function SymbolAnchorEditorDialog({
     setSelectedAssetKey(assetKey)
     setSelectedAnchorId(null)
     setDragState(null)
-    setMessage('在图元边缘的网格点单击添加锚点')
+    setMessage(symbolsByKey.get(assetKey)?.anchorMode === 'measurement-point'
+      ? 'MP 使用固定测量点锚点；旋转图元可改变接线方向'
+      : '在图元边缘的网格点单击添加锚点')
   }
 
   const addAnchor = (point: Pick<AnchorPoint, 'x' | 'y'>) => {
     if (!selectedSymbol) return
+    if (isMeasurementPoint) {
+      setMessage('MP 只保留一个固定测量点锚点')
+      return
+    }
     try {
       const anchor = createSymbolAnchor(
         { ...selectedSymbol, anchors: selectedAnchors },
@@ -326,14 +338,25 @@ export function SymbolAnchorEditorDialog({
 
   const changeSelectedType = (type: AnchorType) => {
     if (!selectedAnchor) return
+    if (isMeasurementPoint) {
+      setMessage('MP 测量点固定使用通用冷却类型，可连接任意冷却管路')
+      return
+    }
     const peers = selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id)
     const shouldRename = isAutomaticAnchorName(selectedAnchor.name, selectedAnchor.type)
     updateSelectedAnchor((anchor) => {
-      const { flowRole: _flowRole, ...withoutFlowRole } = anchor
+      const {
+        flowRole: _flowRole,
+        powerSupplyChannel: _powerSupplyChannel,
+        ...withoutRoles
+      } = anchor
       return {
-        ...withoutFlowRole,
+        ...withoutRoles,
         type,
         ...(type !== 'electrical' && anchor.flowRole ? { flowRole: anchor.flowRole } : {}),
+        ...(type === 'electrical' && anchor.powerSupplyChannel
+          ? { powerSupplyChannel: anchor.powerSupplyChannel }
+          : {}),
         name: shouldRename ? getNextAnchorName(peers, type) : anchor.name,
       }
     })
@@ -342,6 +365,10 @@ export function SymbolAnchorEditorDialog({
 
   const changeCoolingDeviceRole = (role?: CoolingDeviceRole) => {
     if (!selectedSymbol) return
+    if (isMeasurementPoint) {
+      setMessage('MP 是只读测量传感器，不参与水泵或阀门控制')
+      return
+    }
     const nextAnchors = role === 'pump' || role === 'check-valve'
       ? selectedAnchors
       : selectedAnchors.map((anchor) => {
@@ -373,8 +400,25 @@ export function SymbolAnchorEditorDialog({
     setMessage(flowRole ? `已设为${flowRole === 'inlet' ? '入口' : '出口'}` : '已清除端口角色')
   }
 
+  const changeSelectedPowerSupplyChannel = (channel?: PowerSupplyChannel) => {
+    if (!selectedSymbol || !selectedAnchor || selectedAnchor.type !== 'electrical') return
+    const nextAnchors = selectedAnchors.map((anchor) => {
+      const { powerSupplyChannel: _previousChannel, ...withoutChannel } = anchor
+      if (anchor.id === selectedAnchor.id) {
+        return { ...withoutChannel, ...(channel ? { powerSupplyChannel: channel } : {}) }
+      }
+      return anchor.powerSupplyChannel === channel ? withoutChannel : anchor
+    })
+    commitAnchors(selectedSymbol.key, nextAnchors, selectedAnchor.id)
+    setMessage(channel ? `已设为 ${channel.toUpperCase()} 路输入` : '已清除供电输入角色')
+  }
+
   const deleteSelectedAnchor = () => {
     if (!selectedSymbol || !selectedAnchor) return
+    if (isMeasurementPoint) {
+      setMessage('MP 必须保留一个测量点锚点')
+      return
+    }
     commitAnchors(
       selectedSymbol.key,
       selectedAnchors.filter((anchor) => anchor.id !== selectedAnchor.id),
@@ -386,6 +430,11 @@ export function SymbolAnchorEditorDialog({
   const startAnchorDrag = (event: PointerEvent<SVGCircleElement>, anchor: SymbolAnchor) => {
     if (event.button !== 0) return
     event.stopPropagation()
+    if (isMeasurementPoint) {
+      setSelectedAnchorId(anchor.id)
+      setMessage('MP 测量点位置固定；旋转图元可改变接线方向')
+      return
+    }
     event.currentTarget.setPointerCapture(event.pointerId)
     setSelectedAnchorId(anchor.id)
     setDragState({
@@ -434,6 +483,10 @@ export function SymbolAnchorEditorDialog({
     if (event.target !== event.currentTarget && !target.classList?.contains('anchor-editor__canvas-background')) return
     const world = clientToWorld(event.clientX, event.clientY, event.currentTarget)
     if (!world || !selectedSymbol) return
+    if (isMeasurementPoint) {
+      setMessage('MP 只保留一个固定测量点锚点')
+      return
+    }
     const x = Math.round(world.x / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
     const y = Math.round(world.y / EDITOR_GRID_SIZE) * EDITOR_GRID_SIZE
     const isCorner =
@@ -474,15 +527,20 @@ export function SymbolAnchorEditorDialog({
   })
   const history = historyRef.current
   const coolingDeviceRole = coolingRolesByAsset[selectedSymbol.key]
-  const canConfigureCoolingRole = selectedSymbol.category === '冷却' && selectedSymbol.key !== 'cv'
+  const canConfigureCoolingRole = selectedSymbol.category === '冷却' &&
+    selectedSymbol.key !== 'cv' && !isMeasurementPoint
   const requiresDirectedPorts = coolingDeviceRole === 'pump' || coolingDeviceRole === 'check-valve'
   const inletCount = selectedAnchors.filter((anchor) => anchor.flowRole === 'inlet').length
   const outletCount = selectedAnchors.filter((anchor) => anchor.flowRole === 'outlet').length
+  const powerSupplyChannelCount = selectedAnchors.filter((anchor) => (
+    anchor.powerSupplyChannel
+  )).length
 
   return (
     <dialog
       ref={dialogRef}
       className="anchor-editor-dialog"
+      style={circuitPaletteStyle(circuitPalette)}
       aria-labelledby="anchor-editor-title"
       aria-modal="true"
       onCancel={(event) => {
@@ -541,7 +599,7 @@ export function SymbolAnchorEditorDialog({
                 hideLabel
                 containerClassName="anchor-editor__name-field"
                 value={selectedAnchor?.name ?? ''}
-                disabled={!selectedAnchor}
+                disabled={!selectedAnchor || isMeasurementPoint}
                 placeholder="选择锚点后编辑名称"
                 onChange={(event) => {
                   const value = event.target.value
@@ -583,6 +641,26 @@ export function SymbolAnchorEditorDialog({
                 <option value="inlet">入口</option>
                 <option value="outlet">出口</option>
               </SelectField>
+              <SelectField
+                label="供电输入角色"
+                hideLabel
+                containerClassName="anchor-editor__power-role-field"
+                value={selectedAnchor?.powerSupplyChannel ?? ''}
+                disabled={
+                  lineSystemType !== 'power' ||
+                  !selectedAnchor ||
+                  selectedAnchor.type !== 'electrical'
+                }
+                onChange={(event) => changeSelectedPowerSupplyChannel(
+                  event.target.value
+                    ? event.target.value as PowerSupplyChannel
+                    : undefined,
+                )}
+              >
+                <option value="">普通电力端口</option>
+                <option value="a">A 路输入</option>
+                <option value="b">B 路输入</option>
+              </SelectField>
             </div>
             <div className="anchor-editor__commands" aria-label="锚点编辑命令">
               <IconButton
@@ -602,18 +680,28 @@ export function SymbolAnchorEditorDialog({
                 label="删除所选锚点"
                 icon={<Trash2 />}
                 variant="danger-soft"
-                disabled={!selectedAnchor}
+                disabled={!selectedAnchor || isMeasurementPoint}
                 onClick={deleteSelectedAnchor}
               />
             </div>
           </div>
 
           <div className="anchor-editor__canvas-frame">
+            {isMeasurementPoint ? (
+              <div className="anchor-editor__role-diagnostic" role="status">
+                MP 是温度、压力与流量测量点，只保留一个通用冷却锚点；从该锚点接到既有管路即可，图元不会形成入口或出口。
+              </div>
+            ) : null}
             {requiresDirectedPorts && (inletCount !== 1 || outletCount !== 1) ? (
               <div className="anchor-editor__role-diagnostic" role="status">
                 {coolingDeviceRole === 'pump'
                   ? '水泵需要配置一个入口和一个出口；配置完成前不会驱动监控动画。'
                   : '止回阀需要配置一个入口和一个出口；配置完成前不会允许水流通过。'}
+              </div>
+            ) : null}
+            {powerSupplyChannelCount === 1 ? (
+              <div className="anchor-editor__role-diagnostic" role="status">
+                双路受电设备需要各配置一个 A 路输入和 B 路输入；A 路可用时自动优先。
               </div>
             ) : null}
             <svg
@@ -664,7 +752,7 @@ export function SymbolAnchorEditorDialog({
                 height={selectedSymbol.intrinsicHeight}
               />
 
-              {legalPoints.filter((point) => !occupiedCoordinates.has(`${point.x},${point.y}`)).map((point) => (
+              {!isMeasurementPoint && legalPoints.filter((point) => !occupiedCoordinates.has(`${point.x},${point.y}`)).map((point) => (
                 <circle
                   className="anchor-candidate"
                   key={`${point.x}-${point.y}`}
@@ -694,6 +782,7 @@ export function SymbolAnchorEditorDialog({
                     className="anchor-node"
                     data-anchor-type={anchor.type}
                     data-flow-role={anchor.flowRole}
+                    data-power-supply-channel={anchor.powerSupplyChannel}
                     data-selected={anchor.id === selectedAnchorId || undefined}
                     key={anchor.id}
                   >
@@ -725,11 +814,13 @@ export function SymbolAnchorEditorDialog({
                       }}
                       onPointerDown={(event) => startAnchorDrag(event, anchor)}
                     >
-                    {anchor.flowRole ? (
-                      <title>{anchor.flowRole === 'inlet' ? '入口' : '出口'}</title>
+                    {anchor.flowRole || anchor.powerSupplyChannel ? (
+                      <title>{anchor.flowRole
+                        ? anchor.flowRole === 'inlet' ? '入口' : '出口'
+                        : `${anchor.powerSupplyChannel!.toUpperCase()} 路输入`}</title>
                     ) : null}
                     </circle>
-                    {anchor.flowRole ? (
+                    {anchor.flowRole || anchor.powerSupplyChannel ? (
                       <text
                         className="anchor-node__flow-role"
                         x={anchor.x - vector.x * 12}
@@ -737,7 +828,9 @@ export function SymbolAnchorEditorDialog({
                         textAnchor="middle"
                         dominantBaseline="middle"
                       >
-                        {anchor.flowRole === 'inlet' ? '入口' : '出口'}
+                        {anchor.flowRole
+                          ? anchor.flowRole === 'inlet' ? '入口' : '出口'
+                          : anchor.powerSupplyChannel!.toUpperCase()}
                       </text>
                     ) : null}
                   </g>

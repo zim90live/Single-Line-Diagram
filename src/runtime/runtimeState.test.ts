@@ -89,6 +89,7 @@ describe('diagram runtime state', () => {
       coolingPumpOutputPowerStates: {},
       coolingValveOpenStates: { 'valve-a': true },
       powerExternalSupplyActive: false,
+      powerBatteryBackupActive: false,
     }
 
     const snapshot = createCoolingRuntimeSnapshot({
@@ -121,6 +122,7 @@ describe('diagram runtime state', () => {
       coolingPumpOutputPowerStates: {},
       coolingValveOpenStates: {},
       powerExternalSupplyActive: false,
+      powerBatteryBackupActive: false,
     }
     const offline = {
       'pump-a': {

@@ -1,7 +1,10 @@
 import { forwardRef, memo, useMemo, useState } from 'react'
 
 import { projectOnOffStates } from '../domain/project'
-import type { DiagramMonitorCanvasHandle } from './DiagramMonitorCanvas'
+import type {
+  DiagramMonitorCanvasHandle,
+  DiagramMonitorRuntimePresentation,
+} from './DiagramMonitorCanvas'
 import { DiagramRuntimeViewer } from './DiagramRuntimeViewer'
 import {
   createDemoSimulationManifest,
@@ -24,6 +27,7 @@ export interface RuntimeBundleViewerProps {
   providers?: DiagramRuntimeProviders
   onDiagramChange?: (diagramId: string) => void
   onSelectionChange?: (elementIds: string[]) => void
+  onRuntimePresentationChange?: (presentation: DiagramMonitorRuntimePresentation) => void
 }
 
 export const RuntimeBundleViewer = memo(forwardRef<
@@ -38,6 +42,7 @@ export const RuntimeBundleViewer = memo(forwardRef<
   providers,
   onDiagramChange,
   onSelectionChange,
+  onRuntimePresentationChange,
 }, ref) {
   const initialDiagramId = defaultDiagramId ?? bundle.entryDiagramIds[0]
   const [internalDiagramId, setInternalDiagramId] = useState(initialDiagramId)
@@ -78,12 +83,18 @@ export const RuntimeBundleViewer = memo(forwardRef<
       coolingPumpOutputPowerStates: stateOverrides?.coolingPumpOutputPowerStates,
       coolingValveOpenStates: stateOverrides?.coolingValveOpenStates,
     })
-    return stateOverrides?.powerExternalSupplyActive === undefined
-      ? derived
-      : {
-          ...derived,
-          powerExternalSupplyActive: stateOverrides.powerExternalSupplyActive,
-        }
+    return {
+      ...derived,
+      ...(stateOverrides?.powerExternalSupplyActive === undefined
+        ? {}
+        : { powerExternalSupplyActive: stateOverrides.powerExternalSupplyActive }),
+      ...(stateOverrides?.powerExternalSupplyChannel === undefined
+        ? {}
+        : { powerExternalSupplyChannel: stateOverrides.powerExternalSupplyChannel }),
+      ...(stateOverrides?.powerBatteryBackupActive === undefined
+        ? {}
+        : { powerBatteryBackupActive: stateOverrides.powerBatteryBackupActive }),
+    }
   }, [
     activeDiagramId,
     bundle.document,
@@ -105,6 +116,7 @@ export const RuntimeBundleViewer = memo(forwardRef<
       runtime={runtime}
       animationPlaying={animationPlaying}
       onSelectionChange={onSelectionChange}
+      onRuntimePresentationChange={onRuntimePresentationChange}
       onNavigate={(target) => {
         if (diagramId === undefined) setInternalDiagramId(target.diagramId)
         onDiagramChange?.(target.diagramId)

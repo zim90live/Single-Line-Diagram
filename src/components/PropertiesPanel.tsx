@@ -16,8 +16,10 @@ import {
   type Busbar,
   type ConnectionEdge,
   type ConnectionNetwork,
+  type Diagram,
   type DiagramElement,
   type MonitorMetric,
+  type PowerSupplyChannel,
 } from '../domain/project'
 import {
   collectCanvasColorGroups,
@@ -26,6 +28,9 @@ import {
 } from '../editor/canvasColors'
 import { DEFAULT_BUSBAR_LABEL_COLOR } from '../scene/busbarLabels'
 import { isCoolingConnectionType } from '../scene/connectionAppearance'
+import { coolingCircuitLocked } from '../scene/coolingCircuitEditing'
+import { ANCHOR_TYPE_OPTIONS } from '../editor/anchors'
+import { circuitBusbarKey, circuitColor, circuitKey, networkPowerChannels, DEFAULT_CIRCUIT_PALETTE, type CircuitKey, type CircuitPalette } from '../scene/circuitPalette'
 import {
   DEFAULT_BUSBAR_COLOR,
   defaultConnectionColor,
@@ -54,12 +59,17 @@ import {
   type SymbolColorSlot,
 } from '../scene/symbolCatalog'
 import { DEFAULT_COOLING_PUMP_OUTPUT_POWER_PERCENT } from '../monitoring/coolingRuntime'
-import { Button, NumericField, Pressable, SelectField, Switch, TextField } from './ui'
+import { Button, NumericField, Pressable, SelectField, Switch, TextField } from '@aidc/ui'
 import { MonitorMetricsEditor } from './MonitorMetricsEditor'
 import { InspectorHeading } from './InspectorHeading'
 import { CoolingPumpControls } from './CoolingPumpControls'
 
 interface PropertiesPanelProps {
+  circuitPalette?: CircuitPalette
+  elementLabelScale?: number
+  onElementLabelScaleChange?: (scale: number) => void
+  onCircuitPaletteChange?: (palette: CircuitPalette) => void
+  onChangePowerCircuit?: (edgeIds: string[], channel?: 'a' | 'b', busbarIds?: string[]) => void
   selectedElements: DiagramElement[]
   duplicateDeviceIdentifier?: boolean
   allowExternalSupplyEntry?: boolean
@@ -79,14 +89,17 @@ interface PropertiesPanelProps {
   canvasBusbars?: Busbar[]
   canvasConnections?: ConnectionNetwork[]
   assetsByKey?: ReadonlyMap<string, AssetDefinition>
+  childDiagrams?: Diagram[]
   onPatch: (elementId: string, patch: Partial<DiagramElement>) => void
   onPatchElements?: (elementIds: string[], patch: Partial<DiagramElement>) => void
   onPatchElementMetrics?: (elementIds: string[], metrics: MonitorMetric[]) => void
+  onPatchBusbarMetrics?: (busbarIds: string[], metrics: MonitorMetric[]) => void
   onPatchBusbar?: (busbarId: string, patch: Partial<Busbar>) => void
   onPatchBusbars?: (busbarIds: string[], patch: Partial<Busbar>) => void
   onBusbarLabelColorPreview?: (busbarId: string, color: string | null) => void
   onPatchConnectionEdge?: (edgeId: string, patch: Partial<ConnectionEdge>) => void
   onPatchConnectionEdges?: (edgeIds: string[], patch: Partial<ConnectionEdge>) => void
+  onChangeCoolingCircuit?: (edgeIds: string[], type: AnchorType) => void
   onPatchConnectionMetrics?: (edgeIds: string[], metrics: MonitorMetric[]) => void
   onResetConnectionRouting?: () => void
   onOffStates?: Record<string, boolean>
@@ -635,15 +648,23 @@ export function PropertiesPanel({
   canvasElements = [],
   canvasBusbars = [],
   canvasConnections = [],
+  circuitPalette,
+  elementLabelScale = 1,
+  onElementLabelScaleChange,
+  onCircuitPaletteChange,
+  onChangePowerCircuit,
   assetsByKey = new Map(),
+  childDiagrams = [],
   onPatch,
   onPatchElements = () => undefined,
   onPatchElementMetrics = () => undefined,
+  onPatchBusbarMetrics = () => undefined,
   onPatchBusbar = () => undefined,
   onPatchBusbars = () => undefined,
   onBusbarLabelColorPreview = () => undefined,
   onPatchConnectionEdge = () => undefined,
   onPatchConnectionEdges = () => undefined,
+  onChangeCoolingCircuit = () => undefined,
   onPatchConnectionMetrics = () => undefined,
   onResetConnectionRouting = () => undefined,
   onOffStates = {},
@@ -675,10 +696,20 @@ export function PropertiesPanel({
           tag="颜色概览"
           title="画布颜色"
         />
+        {onElementLabelScaleChange ? <NumericField label="图元标签大小 (%)" value={elementLabelScale * 100} min={50} max={300} step={10} onCommit={value => onElementLabelScaleChange(Math.max(50, Math.min(300, value)) / 100)} /> : null}
+        {onCircuitPaletteChange ? Object.keys(DEFAULT_CIRCUIT_PALETTE).map((value) => {
+          const key = value as CircuitKey
+          const label = key === 'a' ? 'A路' : key === 'b' ? 'B路' : ANCHOR_TYPE_OPTIONS.find((option) => option.value === key)?.label ?? key
+          return <CommittedColorField key={key} selectionKey={`palette:${key}`} label={`${label}颜色`}
+            value={circuitColor(key, circuitPalette)} fallback={DEFAULT_CIRCUIT_PALETTE[key]}
+            hasCustomColor={!!circuitPalette?.[key]} onPreview={() => undefined}
+            onCommit={(color) => onCircuitPaletteChange({ ...circuitPalette, [key]: color })}
+            onRestore={() => { const next = { ...circuitPalette }; delete next[key]; onCircuitPaletteChange(next) }} />
+        }) : null}
         <CanvasColorOverview
           elements={canvasElements}
-          busbars={canvasBusbars}
-          connections={canvasConnections}
+          busbars={canvasBusbars.filter((bar) => !circuitBusbarKey(bar, canvasConnections, canvasElements, assetsByKey))}
+          connections={canvasConnections.filter((network) => !circuitKey(network, canvasElements, assetsByKey))}
           onPreview={onCanvasColorPreview}
           onCommit={onCanvasColorCommit}
         />
@@ -777,6 +808,13 @@ export function PropertiesPanel({
     const mixedExternalSupplyEndpoint = connectionExternalSupplyEndpoints.some((endpoint) => (
       endpoint !== selectionExternalSupplyEndpoint
     ))
+    const connectionExternalSupplyChannels = selectedConnection?.edges.map((edge) => (
+      edge.externalSupplyChannel ?? 'none'
+    )) ?? []
+    const selectionExternalSupplyChannel = connectionExternalSupplyChannels[0] ?? 'none'
+    const mixedExternalSupplyChannel = connectionExternalSupplyChannels.some((channel) => (
+      channel !== selectionExternalSupplyChannel
+    ))
     const externalSupplyDirectionConflict = selectedConnection?.edges.some((edge) => (
       (edge.externalSupplyEndpoint === 'source' && edge.flowDirection === 'reverse') ||
       (edge.externalSupplyEndpoint === 'target' && edge.flowDirection === 'forward')
@@ -791,6 +829,14 @@ export function PropertiesPanel({
     const connectionCoolingLineRoles = selectedConnection?.edges.map((edge) => (
       edge.coolingLineRole ?? 'primary'
     )) ?? []
+    const circuitEdgeIds = selectedConnection?.edges.map((edge) => edge.id) ?? []
+    const circuitNetworks = canvasConnections.filter((network) => network.edges.some((edge) => circuitEdgeIds.includes(edge.id)) || network.nodes.some((node) => node.kind === 'busbar-tap' && selectedBusbars.some((bar) => bar.id === node.busbarId)))
+    const circuitTypes = new Set(selectedConnection?.edges.map((edge) => selectedConnection.edgeTypes?.[edge.id] ?? selectedConnection.type))
+    const circuitLocked = !circuitNetworks.length || circuitNetworks.some((network) => coolingCircuitLocked(network, canvasElements, assetsByKey))
+    const powerCircuits = (circuitNetworks.length > 0 || selectedBusbars.length > 0) && circuitNetworks.every((network) => network.type === 'electrical')
+    const powerKeys = new Set([...circuitNetworks.map((network) => circuitKey(network, canvasElements, assetsByKey) ?? 'unassigned'), ...selectedBusbars.filter((bar) => !circuitNetworks.some((network) => network.nodes.some((node) => node.kind === 'busbar-tap' && node.busbarId === bar.id))).map((bar) => bar.powerSupplyChannel ?? 'unassigned')])
+    const powerLocked = circuitNetworks.some((network) => networkPowerChannels(network, canvasElements, assetsByKey).size > 0)
+    const colorBound = circuitNetworks.some((network) => !!circuitKey(network, canvasElements, assetsByKey)) || selectedBusbars.some((bar) => !!bar.powerSupplyChannel)
     const selectionCoolingLineRole = connectionCoolingLineRoles[0] ?? 'primary'
     const mixedCoolingLineRole = connectionCoolingLineRoles.some((role) => (
       role !== selectionCoolingLineRole
@@ -897,6 +943,23 @@ export function PropertiesPanel({
               />
             </>
           ) : null}
+          {busbarCount === 1 && connectionCount === 0 ? <>
+            <PropertyToggle label="显示运行数据" description="仅控制当前母线" checked={selectedBusbars[0].monitorDataVisible === true} onChange={monitorDataVisible => onPatchBusbar(selectedBusbars[0].id, { monitorDataVisible })} />
+            <PropertyToggle label="显示指标名称与单位" description="统一控制当前母线的指标" checked={selectedBusbars[0].monitorMetricLabelsVisible !== false} onChange={monitorMetricLabelsVisible => onPatchBusbar(selectedBusbars[0].id, { monitorMetricLabelsVisible })} />
+            <MonitorMetricsEditor metrics={selectedBusbars[0].monitorMetrics ?? []} onChange={monitorMetrics => onPatchBusbar(selectedBusbars[0].id, { monitorMetrics })} />
+          </> : null}
+          {busbarCount > 1 && connectionCount === 0 ? <>
+            <PropertyToggle label="显示运行数据" description={`同时应用到 ${busbarCount} 条所选母线`}
+              checked={mixedBoolean(selectedBusbars.map(bar => bar.monitorDataVisible === true))}
+              onChange={monitorDataVisible => onPatchBusbars(selectedBusbars.map(bar => bar.id), { monitorDataVisible })} />
+            <PropertyToggle label="显示指标名称与单位" description="统一控制所选母线的指标"
+              checked={mixedBoolean(selectedBusbars.map(bar => bar.monitorMetricLabelsVisible !== false))}
+              onChange={monitorMetricLabelsVisible => onPatchBusbars(selectedBusbars.map(bar => bar.id), { monitorMetricLabelsVisible })} />
+            <BatchMonitorMetricsEditor
+              sources={selectedBusbars.map((bar, index) => ({ id: bar.id, label: bar.label?.trim() || `母线 ${index + 1}`, metrics: bar.monitorMetrics ?? [] }))}
+              onApply={metrics => onPatchBusbarMetrics(selectedBusbars.map(bar => bar.id), metrics)}
+            />
+          </> : null}
           {connectionCount === 1 && busbarCount === 0 ? (
             <>
               <CommittedTextField
@@ -996,6 +1059,23 @@ export function PropertiesPanel({
                 )}
               />
             </>
+          ) : null}
+          {powerCircuits ? <SelectField label="链路类型" aria-label="链路类型"
+            value={powerKeys.size > 1 ? 'mixed' : [...powerKeys][0]} disabled={powerLocked}
+            hint={powerLocked ? '已连接明确 A/B 接口，不能更改' : '应用于整片直接连通管网，不切换开关或制造供电'}
+            onChange={(event) => onChangePowerCircuit?.(circuitNetworks.flatMap((network) => network.edges.map((edge) => edge.id)), event.currentTarget.value === 'unassigned' ? undefined : event.currentTarget.value as 'a' | 'b', selectedBusbars.map((bar) => bar.id))}>
+            {powerKeys.size > 1 ? <option value="mixed" disabled>多种链路</option> : null}
+            <option value="unassigned">未分配</option><option value="a">A路</option><option value="b">B路</option>
+          </SelectField> : null}
+          {allSelectedConnectionsCooling && busbarCount === 0 ? (
+            <SelectField label="回路类型" aria-label="回路类型"
+              value={circuitTypes.size > 1 ? 'mixed' : [...circuitTypes][0] ?? 'cooling-general'}
+              disabled={circuitLocked}
+              hint={circuitLocked ? '已连接特定回路接口，不能更改；多选中任一管网锁定时整批禁用' : '作用于所选子线所属的整片管网，不跨越设备；自定义颜色保持'}
+              onChange={(event) => onChangeCoolingCircuit(circuitEdgeIds, event.currentTarget.value as AnchorType)}>
+              {circuitTypes.size > 1 ? <option value="mixed" disabled>多种回路</option> : null}
+              {ANCHOR_TYPE_OPTIONS.filter((option) => option.value !== 'electrical').map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectField>
           ) : null}
           {connectionCount > 0 && busbarCount === 0 ? (
             <SelectField
@@ -1101,6 +1181,7 @@ export function PropertiesPanel({
                   externalSupplyEndpoint: value === 'none'
                     ? undefined
                     : value as 'source' | 'target',
+                  ...(value === 'none' ? { externalSupplyChannel: undefined } : {}),
                 }
                 const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
                 if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
@@ -1117,6 +1198,38 @@ export function PropertiesPanel({
               </option>
               <option value="source">起点端</option>
               <option value="target">终点端</option>
+            </SelectField>
+          ) : null}
+          {allowExternalSupplyEntry && !colorBound &&
+          connectionCount > 0 &&
+          busbarCount === 0 &&
+          selectedConnection!.edges.every((edge) => edge.externalSupplyEndpoint) ? (
+            <SelectField
+              label="入口通道"
+              aria-label="入口通道"
+              hint={connectionCount > 1
+                ? `同时应用到 ${connectionCount} 条所选入口；父图实际使用哪一路，子图就只启用对应入口`
+                : 'A 路优先；A 路无电时才启用 B 路入口'}
+              value={mixedExternalSupplyChannel ? 'mixed' : selectionExternalSupplyChannel}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'mixed') return
+                const patch: Partial<ConnectionEdge> = {
+                  externalSupplyChannel: value === 'none'
+                    ? undefined
+                    : value as PowerSupplyChannel,
+                }
+                const edgeIds = selectedConnection!.edges.map((edge) => edge.id)
+                if (edgeIds.length === 1) onPatchConnectionEdge(edgeIds[0], patch)
+                else onPatchConnectionEdges(edgeIds, patch)
+              }}
+            >
+              {mixedExternalSupplyChannel
+                ? <option value="mixed" disabled>多种入口通道</option>
+                : null}
+              <option value="none">兼容入口（不区分）</option>
+              <option value="a">A 路入口</option>
+              <option value="b">B 路入口</option>
             </SelectField>
           ) : null}
           {busbarCount > 0 && connectionCount === 0 ? (
@@ -1162,7 +1275,7 @@ export function PropertiesPanel({
               </option>
             </SelectField>
           ) : null}
-          <CommittedColorField
+          {!colorBound ? <CommittedColorField
             selectionKey={selectionKey}
             label={colorLabel}
             value={selectionColor}
@@ -1172,7 +1285,7 @@ export function PropertiesPanel({
             onPreview={onSelectionColorPreview}
             onCommit={onSelectionColorCommit}
             onRestore={() => onSelectionColorCommit(null)}
-          />
+          /> : <p className="property-hint">颜色跟随链路类型，请在空选状态修改项目级配色。</p>}
           {busbarCount === 1 && connectionCount === 0 ? (
             <>
               <div className="property-meta"><span>方向</span><code>{selectedBusbars[0].orientation === 'horizontal' ? '水平' : '垂直'}</code></div>
@@ -1445,6 +1558,34 @@ export function PropertiesPanel({
             properties: { ...element.properties, tag: tag || element.name },
           })}
         />
+        {childDiagrams.length > 0 ? (
+          <SelectField
+            label="下探图纸"
+            value={typeof element.properties.drillDownDiagramId === 'string'
+              ? element.properties.drillDownDiagramId
+              : ''}
+            hint="监控模式点击该图元时打开所选子图纸，并继承当前 A/B 供电结果"
+            onChange={(event) => {
+              const properties = { ...element.properties }
+              if (event.target.value) properties.drillDownDiagramId = event.target.value
+              else delete properties.drillDownDiagramId
+              onPatch(element.id, { properties })
+            }}
+          >
+            <option value="">不下探</option>
+            {childDiagrams.map((diagram) => (
+              <option value={diagram.id} key={diagram.id}>{diagram.name}</option>
+            ))}
+          </SelectField>
+        ) : null}
+        {element.assetKey === 'tmu' ? (
+          <PropertyToggle
+            label="上下接口对调"
+            description="仅对调当前 TMU 的上下管路接口，不改变图元方向"
+            checked={element.tmuPortsSwapped === true}
+            onChange={(tmuPortsSwapped) => onPatch(element.id, { tmuPortsSwapped })}
+          />
+        ) : null}
         {!isGeneric ? (
           <PropertyToggle
             label="显示图元标签"

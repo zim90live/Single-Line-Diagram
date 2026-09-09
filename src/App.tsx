@@ -29,7 +29,7 @@ import { MonitorDevicePanel } from './components/MonitorDevicePanel'
 import { PropertiesPanel } from './components/PropertiesPanel'
 import { SymbolAnchorEditorDialog } from './components/SymbolAnchorEditorDialog'
 import { SymbolLibrary } from './components/SymbolLibrary'
-import { Button, IconButton, Pressable, StatusTag, Tab, TabList, TextField } from './components/ui'
+import { Button, IconButton, Pressable, StatusTag, Tab, TabList, TextField } from '@aidc/ui'
 import type { DiagramDropPosition } from './domain/diagramHierarchy'
 import {
   elementUsesOnOffState,
@@ -187,7 +187,7 @@ export default function App() {
   const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
-  const [animationPlaying, setAnimationPlaying] = useState(false)
+  const [animationPlaying, setAnimationPlaying] = useState(true)
   const [monitorZoom, setMonitorZoom] = useState(1)
   const [onOffStates, setOnOffStates] = useState<Record<string, boolean>>({})
   const [coolingPumpRunningStates, setCoolingPumpRunningStates] = useState<Record<string, boolean>>({})
@@ -214,6 +214,8 @@ export default function App() {
     deleteDiagram,
     moveDiagram,
     renameProject,
+    setCircuitPalette,
+    setElementLabelScale,
     markSaved,
   } = useAppStore()
 
@@ -444,7 +446,7 @@ export default function App() {
 
   const setMode = (mode: CanvasMode) => {
     setWorkspaceMode(mode)
-    setAnimationPlaying(false)
+    setAnimationPlaying(mode === 'monitor')
     setSelectedElementIds([])
     setAnchorEditorAssetKey(null)
   }
@@ -798,6 +800,8 @@ export default function App() {
                 gridSize={currentDiagram.canvas.gridSize}
                 viewport={currentDiagram.canvas.viewport}
                 assets={document.assets}
+                circuitPalette={document.circuitPalette}
+                elementLabelScale={document.elementLabelScale}
                 elements={currentElements}
                 busbars={currentBusbars}
                 connections={currentConnections}
@@ -960,6 +964,11 @@ export default function App() {
           selectedElements={selectedElements}
           selectedBusbars={selectedBusbars}
           selectedConnection={selectedConnection}
+          circuitPalette={document.circuitPalette}
+          onCircuitPaletteChange={setCircuitPalette}
+          elementLabelScale={document.elementLabelScale}
+          onElementLabelScaleChange={setElementLabelScale}
+          onChangePowerCircuit={(edgeIds, channel, busbarIds) => editorRef.current?.changePowerCircuit(edgeIds, channel, busbarIds)}
           selectedRouteWaypointCount={commandState.selectedRouteWaypointCount}
           selectedRouteWaypointMaxReferenceCount={
             commandState.selectedRouteWaypointMaxReferenceCount
@@ -969,6 +978,9 @@ export default function App() {
           canvasBusbars={currentBusbars}
           canvasConnections={currentConnections}
           assetsByKey={currentAssetsByKey}
+          childDiagrams={document.diagrams.filter((diagram) => (
+            diagram.parentId === currentDiagram.id
+          ))}
           onOffStates={onOffStates}
           onOnOffStateChange={handleOnOffStateChange}
           onOnOffStatesChange={handleOnOffStatesChange}
@@ -984,6 +996,7 @@ export default function App() {
             editorRef.current?.updateElementMetrics(elementIds, metrics)
           )}
           onPatchBusbar={(busbarId, patch) => editorRef.current?.updateBusbar(busbarId, patch)}
+          onPatchBusbarMetrics={(busbarIds, metrics) => editorRef.current?.updateBusbarMetrics(busbarIds, metrics)}
           onPatchBusbars={(busbarIds, patch) => editorRef.current?.updateBusbars(busbarIds, patch)}
           onBusbarLabelColorPreview={(busbarId, color) => (
             editorRef.current?.previewBusbarLabelColor(busbarId, color)
@@ -994,6 +1007,7 @@ export default function App() {
           onPatchConnectionEdges={(edgeIds, patch) => (
             editorRef.current?.updateConnectionEdges(edgeIds, patch)
           )}
+          onChangeCoolingCircuit={(edgeIds, type) => editorRef.current?.changeCoolingCircuit(edgeIds, type)}
           onPatchConnectionMetrics={(edgeIds, metrics) => (
             editorRef.current?.updateConnectionEdgeMetrics(edgeIds, metrics)
           )}
@@ -1089,6 +1103,7 @@ export default function App() {
       {anchorEditorAssetKey ? (
         <SymbolAnchorEditorDialog
           initialAssetKey={anchorEditorAssetKey}
+          circuitPalette={document.circuitPalette}
           assets={document.assets}
           lineSystemType={currentLine?.type ?? 'cooling'}
           onChangeAsset={replaceAssetDefinition}

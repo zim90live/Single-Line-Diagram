@@ -5,8 +5,8 @@ export const FLOW_DASH_OPACITY = 0.5
 export const FLOW_INACTIVE_BLACK_MIX = 0.5
 export const FLOW_CHILD_LINE_SCREEN_WIDTH = 2
 export const FLOW_BUSBAR_SCREEN_WIDTH = 4.5
-export const FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH = 1.5
-export const FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH = 4
+export const FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH = 2.25
+export const FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH = 6
 export type FlowAnimationStyle = 'power' | 'cooling'
 
 export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
@@ -17,18 +17,19 @@ export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
   baseSpeed: number
 }> = {
   power: {
-    color: FLOW_DASH_COLOR,
-    opacity: FLOW_DASH_OPACITY,
-    dashLength: 6,
-    gapLength: 6,
-    baseSpeed: 34,
+    color: '#FFFFFF',
+    opacity: 1,
+    dashLength: 48,
+    gapLength: 1,
+    baseSpeed: 168,
   },
+  // Both systems use diagram units for wave length and speed.
   cooling: {
-    color: FLOW_DASH_COLOR,
-    opacity: FLOW_DASH_OPACITY,
-    dashLength: 6,
-    gapLength: 6,
-    baseSpeed: 34,
+    color: '#FFFFFF',
+    opacity: 1,
+    dashLength: 192,
+    gapLength: 4,
+    baseSpeed: 84,
   },
 }
 
@@ -43,6 +44,14 @@ export interface MonitorFlowPath {
   animated?: boolean
   baseColor?: string
   renderPriority?: number
+  /** Uncut directed path and topology endpoints, retained across visual masks. */
+  phasePath?: {
+    id: string
+    networkId: string
+    startNodeId: string
+    endNodeId: string
+    points: Point[]
+  }
 }
 
 export interface MonitorStaticFlowLineGroup {
@@ -51,7 +60,7 @@ export interface MonitorStaticFlowLineGroup {
   color: string
   lineWidth: number
   widthSpace: 'screen' | 'world'
-  lineCap: 'round' | 'square'
+  lineCap: 'round' | 'square' | 'butt'
   lineJoin: 'round' | 'miter'
   renderPriority: number
   paths: Point[][]
@@ -62,7 +71,9 @@ export function darkenFlowColor(
   blackMix = FLOW_INACTIVE_BLACK_MIX,
 ) {
   const normalized = color.trim().match(/^#([0-9a-f]{6})$/i)?.[1]
-  if (!normalized) return '#000000'
+  if (!normalized) return /^var\(--[a-z0-9-]+\)$/i.test(color.trim())
+    ? `color-mix(in srgb, ${color} ${(1 - Math.max(0, Math.min(1, blackMix))) * 100}%, #000)`
+    : '#000000'
   const retained = 1 - Math.max(0, Math.min(1, blackMix))
   const channel = (offset: number) => Math.round(
     Number.parseInt(normalized.slice(offset, offset + 2), 16) * retained,
@@ -76,7 +87,7 @@ function resolvedStaticLineAppearance(path: MonitorFlowPath) {
       kind: 'connection' as const,
       lineWidth: path.worldWidth,
       widthSpace: 'world' as const,
-      lineCap: 'round' as const,
+      lineCap: path.style === 'cooling' ? 'butt' as const : 'round' as const,
       lineJoin: 'miter' as const,
     }
   }
@@ -104,9 +115,9 @@ export function buildMonitorStaticFlowLineGroups(
   const groups = new Map<string, MonitorStaticFlowLineGroup>()
   const append = (path: MonitorFlowPath, active: boolean) => {
     if (path.points.length < 2) return
-    const color = active
-      ? path.baseColor ?? '#000000'
-      : darkenFlowColor(path.baseColor ?? '#000000')
+    const base = path.baseColor ?? '#000000'
+    const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.5
+    const color = darkenFlowColor(base, active ? 0.75 : inactiveBlackMix)
     const appearance = resolvedStaticLineAppearance(path)
     const renderPriority = path.renderPriority ?? 1
     const key = [

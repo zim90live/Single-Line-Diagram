@@ -4,7 +4,8 @@ import type {
   BusbarLabelSide,
 } from '../domain/project'
 import { busbarEndPoint } from './connections'
-import { estimateLabelTextWidth } from './elementLabels'
+import { estimateLabelTextWidth, resolveMonitorMetricLabelLines, monitorMetricLabelWidth, positionMonitorMetricLabelRows, ELEMENT_LABEL_LINE_HEIGHT, type ElementMetricLabelRow } from './elementLabels'
+import type { MonitorMetricReadings } from '../monitoring/elementMetrics'
 import type { Point, Rect } from './geometry'
 
 export const BUSBAR_LABEL_ENDPOINT_GAP = 8
@@ -26,6 +27,7 @@ export interface BusbarLabelLayout extends BusbarLabelPlacement {
   textX: number
   textY: number
   textAnchor: 'start' | 'end'
+  metricRows: ElementMetricLabelRow[]
 }
 
 export function busbarLabelPlacementForPointer(
@@ -48,26 +50,27 @@ export function busbarLabelPlacementForPointer(
 }
 
 /** Derives presentation-only busbar labels without editor state. */
-export function layoutBusbarLabels(busbars: Busbar[]): BusbarLabelLayout[] {
+export function layoutBusbarLabels(busbars: Busbar[], readings: MonitorMetricReadings = {}): BusbarLabelLayout[] {
   return busbars.flatMap((busbar) => {
-    if (busbar.labelVisible === false) return []
-    const text = busbar.label?.trim()
-    if (!text) return []
+    const text = busbar.labelVisible === false ? '' : busbar.label?.trim() ?? ''
+    const rows = resolveMonitorMetricLabelLines(busbar.id, busbar.monitorMetrics, busbar.monitorDataVisible, busbar.monitorMetricLabelsVisible !== false, readings)
+    if (!text && !rows.length) return []
     const endpoint = busbar.labelEndpoint ?? 'end'
     const side = busbar.labelSide ?? 'negative'
     const end = busbarEndPoint(busbar)
     const point = endpoint === 'start' ? { x: busbar.x, y: busbar.y } : end
-    const labelWidth = estimateLabelTextWidth(text, BUSBAR_LABEL_FONT_SIZE)
+    const labelWidth = Math.max(text ? estimateLabelTextWidth(text, BUSBAR_LABEL_FONT_SIZE) : 0, monitorMetricLabelWidth(rows))
+    const labelHeight = (text ? BUSBAR_LABEL_LINE_HEIGHT : 0) + rows.length * ELEMENT_LABEL_LINE_HEIGHT
     const bounds = busbar.orientation === 'horizontal'
       ? {
           x: endpoint === 'start'
             ? point.x + BUSBAR_LABEL_ENDPOINT_PADDING
             : point.x - BUSBAR_LABEL_ENDPOINT_PADDING - labelWidth,
           y: side === 'negative'
-            ? point.y - BUSBAR_LABEL_ENDPOINT_GAP - BUSBAR_LABEL_LINE_HEIGHT
+            ? point.y - BUSBAR_LABEL_ENDPOINT_GAP - labelHeight
             : point.y + BUSBAR_LABEL_ENDPOINT_GAP,
           width: labelWidth,
-          height: BUSBAR_LABEL_LINE_HEIGHT,
+          height: labelHeight,
         }
       : {
           x: side === 'negative'
@@ -75,9 +78,9 @@ export function layoutBusbarLabels(busbars: Busbar[]): BusbarLabelLayout[] {
             : point.x + BUSBAR_LABEL_ENDPOINT_GAP,
           y: endpoint === 'start'
             ? point.y + BUSBAR_LABEL_ENDPOINT_PADDING
-            : point.y - BUSBAR_LABEL_ENDPOINT_PADDING - BUSBAR_LABEL_LINE_HEIGHT,
+            : point.y - BUSBAR_LABEL_ENDPOINT_PADDING - labelHeight,
           width: labelWidth,
-          height: BUSBAR_LABEL_LINE_HEIGHT,
+          height: labelHeight,
         }
     const textAnchor = busbar.orientation === 'horizontal'
       ? endpoint === 'start' ? 'start' : 'end'
@@ -92,6 +95,7 @@ export function layoutBusbarLabels(busbars: Busbar[]): BusbarLabelLayout[] {
       textX: textAnchor === 'start' ? bounds.x : bounds.x + bounds.width,
       textY: bounds.y + 15,
       textAnchor,
+      metricRows: positionMonitorMetricLabelRows(rows, { ...bounds, y: bounds.y + (text ? BUSBAR_LABEL_LINE_HEIGHT : 0) }, 0, textAnchor === 'end' ? 'end' : 'start'),
     }]
   })
 }

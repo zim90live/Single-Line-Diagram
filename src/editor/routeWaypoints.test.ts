@@ -8,7 +8,6 @@ import {
   clearRouteWaypointsForEdges,
   deleteRouteWaypoints,
   draggedRouteSegmentAlignsWithExistingRoute,
-  insetDraggedRouteSegmentFromElementAnchors,
   removeFoldbackRouteWaypoints,
   snapDraggedRouteSegmentDelta,
 } from './routeWaypoints'
@@ -80,47 +79,6 @@ describe('manual route waypoints', () => {
     expect(snapDraggedRouteSegmentDelta(segment, [foldedRoute], 2, 16)).toBe(0)
     expect(draggedRouteSegmentAlignsWithExistingRoute(segment, [foldedRoute], 8)).toBe(true)
     expect(draggedRouteSegmentAlignsWithExistingRoute(segment, [foldedRoute], 16)).toBe(false)
-  })
-
-  it('insets a dragged endpoint to the lead point of an element anchor', () => {
-    const anchoredNetwork: ConnectionNetwork = {
-      id: 'anchor-lead-network',
-      diagramId: 'diagram-a',
-      type: 'cooling-general',
-      nodes: [
-        { id: 'source', kind: 'element-anchor', elementId: 'source', anchorId: 'bottom' },
-        { id: 'target', kind: 'element-anchor', elementId: 'target', anchorId: 'left' },
-      ],
-      edges: [{ id: 'anchor-lead-edge', sourceNodeId: 'source', targetNodeId: 'target' }],
-    }
-    const anchoredRoute: RoutedConnectionEdge = {
-      networkId: anchoredNetwork.id,
-      edgeId: 'anchor-lead-edge',
-      type: anchoredNetwork.type,
-      sourceNodeId: 'source',
-      targetNodeId: 'target',
-      order: 0,
-      points: [
-        { x: 448, y: 656 },
-        { x: 448, y: 688 },
-        { x: 1008, y: 688 },
-      ],
-    }
-    const segment = atomicRouteSegments([anchoredRoute]).find((candidate) => (
-      candidate.orientation === 'horizontal' && candidate.end.x === 1008
-    ))!
-
-    expect(insetDraggedRouteSegmentFromElementAnchors(
-      [anchoredNetwork],
-      [anchoredRoute],
-      segment,
-      { x: 448, y: 712 },
-      { x: 1008, y: 712 },
-      8,
-    )).toEqual({
-      start: { x: 448, y: 712 },
-      end: { x: 1000, y: 712 },
-    })
   })
 
   it('removes an exclusive waypoint that makes the routed line reverse onto itself', () => {

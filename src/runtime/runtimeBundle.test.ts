@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createDefaultProject } from '../domain/project'
+import { createDefaultProject, SCHEMA_VERSION } from '../domain/project'
 import { symbolAssets } from '../scene/symbolCatalog'
 import {
   createDiagramRuntimeBundle,
@@ -142,7 +142,7 @@ describe('diagram runtime bundle', () => {
     schemaV33Bundle.source.projectSchemaVersion = 33
     schemaV33Bundle.document.schemaVersion = 33
     schemaV33Bundle.document.elements.forEach((element) => delete element.monitorInteraction)
-    expect(parseDiagramRuntimeBundle(schemaV33Bundle).document.schemaVersion).toBe(35)
+    expect(parseDiagramRuntimeBundle(schemaV33Bundle).document.schemaVersion).toBe(SCHEMA_VERSION)
     expect(() => createDiagramRuntimeBundle(document, ['missing-diagram'])).toThrow(
       '入口图纸不存在',
     )

@@ -121,23 +121,25 @@
   --monitor-chart-l3: #72d8d5;
   --monitor-flow-active: #57c785;
   --alarm-foreground: #000000;
-  --cooling-primary-cold: #ffc800;
-  --cooling-primary-hot: #ff6011;
-  --cooling-secondary-cold: #0084ff;
-  --cooling-secondary-hot: #00f074;
-  --connection-cooling-pipe-width: 2px;
-  --connection-cooling-pipe-shell-width: 10px;
-  --connection-cooling-pipe-shell-color: #262626;
+  --cooling-primary-cold: #fcbc00;
+  --cooling-primary-hot: #fb7800;
+  --cooling-secondary-cold: #1ba4ff;
+  --cooling-secondary-hot: #00b387;
+  --cooling-tertiary-cold: #a970ff;
+  --cooling-tertiary-hot: #ff4d6d;
+  --connection-cooling-pipe-width: 6px;
+  --connection-cooling-pipe-shell-width: 8px;
+  --connection-cooling-pipe-shell-color-weight: 100%;
   --connection-cooling-auxiliary-neutral: #70736f;
   --connection-cooling-auxiliary-color-weight: 20%;
-  --connection-cooling-auxiliary-pipe-width: 1px;
+  --connection-cooling-auxiliary-pipe-width: 2.4px;
   --connection-cooling-auxiliary-pipe-shell-width: 4px;
-  --connection-cooling-auxiliary-pipe-shell-color: #1d1f20;
+  --connection-cooling-auxiliary-pipe-shell-color-weight: 100%;
   --connection-cooling-auxiliary-pipe-inner-shadow-opacity: 20%;
-  --connection-cooling-auxiliary-pipe-bridge-mask-width: 12px;
+  --connection-cooling-auxiliary-pipe-bridge-mask-width: 8px;
   --connection-cooling-selection-width: 6px;
   --connection-cooling-selection-color: #b7b8b5;
-  --connection-cooling-pipe-bridge-mask-width: 18px;
+  --connection-cooling-pipe-bridge-mask-width: 12px;
   --connection-cooling-pipe-hit-width: 16px;
 
   /* component tokens. */

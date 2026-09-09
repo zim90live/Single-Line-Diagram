@@ -4,29 +4,18 @@ import type { Point } from './geometry'
 export const COOLING_DIRECTION_ARROW_INSET_SCREEN = 6
 export const COOLING_ROUTE_HIT_WIDTH_SCREEN = 20
 export const DEFAULT_ROUTE_HIT_WIDTH_SCREEN = 12
-export const COOLING_PIPE_SHELL_WIDTH = 10
-export const COOLING_PIPE_CORE_WIDTH = 2
+export const COOLING_PIPE_SHELL_WIDTH = 8
+export const COOLING_PIPE_CORE_WIDTH = 6
 export const COOLING_AUXILIARY_PIPE_SHELL_WIDTH = 4
-export const COOLING_AUXILIARY_PIPE_CORE_WIDTH = 1
+export const COOLING_AUXILIARY_PIPE_CORE_WIDTH = 2.4
 export const COOLING_PIPE_SHELL_ENDPOINT_INSET = 0
-export const COOLING_PIPE_BRIDGE_RADIUS = 8
+export const COOLING_PIPE_BRIDGE_RADIUS = 6
 export const COOLING_PIPE_CORNER_RADIUS = 8
 export const COOLING_PIPE_WORLD_HIT_WIDTH = 16
-export const COOLING_PIPE_INNER_SHADOW_DX = 0
-export const COOLING_PIPE_INNER_SHADOW_DY = 1
-export const COOLING_PIPE_INNER_SHADOW_BLUR = 3
-export const COOLING_PIPE_INNER_SHADOW_COLOR = '#FFFFFF'
-export const COOLING_PIPE_INNER_SHADOW_OPACITY = 0.5
-export const COOLING_AUXILIARY_PIPE_SHELL_COLOR = '#1D1F20'
-export const COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY = 0.2
 export const COOLING_AUXILIARY_COLOR_NEUTRAL = '#70736F'
 export const COOLING_AUXILIARY_COLOR_WEIGHT = 0.2
 
-const COOLING_PIPE_FILTER_MARGIN = (
-  COOLING_PIPE_SHELL_WIDTH / 2 +
-  COOLING_PIPE_INNER_SHADOW_BLUR * 3 +
-  Math.abs(COOLING_PIPE_INNER_SHADOW_DY)
-)
+const COOLING_PIPE_FILTER_MARGIN = COOLING_PIPE_SHELL_WIDTH / 2 + 2
 
 export interface CoolingPipeFilterRegion {
   x: number
@@ -154,12 +143,6 @@ export function coolingPipeCoreWidth(role: CoolingLineRole | undefined) {
   return role === 'auxiliary'
     ? COOLING_AUXILIARY_PIPE_CORE_WIDTH
     : COOLING_PIPE_CORE_WIDTH
-}
-
-export function coolingPipeInnerShadowOpacity(role: CoolingLineRole | undefined) {
-  return role === 'auxiliary'
-    ? COOLING_AUXILIARY_PIPE_INNER_SHADOW_OPACITY
-    : COOLING_PIPE_INNER_SHADOW_OPACITY
 }
 
 export function routeHitWidthForConnectionType(type: AnchorType) {

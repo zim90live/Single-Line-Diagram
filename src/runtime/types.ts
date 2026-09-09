@@ -1,5 +1,6 @@
 import type { CoolingRuntimeProvider } from '../monitoring/coolingRuntime'
 import type { MonitorDrillDownTarget } from '../monitoring/diagramDrillDown'
+import type { PowerSupplyChannel } from '../domain/project'
 import type { MonitorMetricDataProvider } from './metricDataProvider'
 
 export interface DiagramRuntimeState {
@@ -8,6 +9,8 @@ export interface DiagramRuntimeState {
   coolingPumpOutputPowerStates: Record<string, number>
   coolingValveOpenStates: Record<string, boolean>
   powerExternalSupplyActive: boolean
+  powerExternalSupplyChannel?: PowerSupplyChannel
+  powerBatteryBackupActive: boolean
 }
 
 export interface DiagramRuntimeProviders {

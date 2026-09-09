@@ -95,6 +95,7 @@ function mergeNetworksSharingBusbar(
   ))
   if (affectedIndexes.length < 2) return networks
   const affectedNetworks = affectedIndexes.map((index) => networks[index])
+  if (new Set(affectedNetworks.flatMap((network) => network.powerSupplyChannel ? [network.powerSupplyChannel] : [])).size > 1) return null
   if (resolveConnectionType(affectedNetworks.map((network) => network.type)) !== 'electrical') {
     return null
   }
@@ -103,6 +104,7 @@ function mergeNetworksSharingBusbar(
   )) ?? affectedIndexes[0]
   const merged: ConnectionNetwork = {
     ...networks[preferredIndex],
+    powerSupplyChannel: affectedNetworks.find((network) => network.powerSupplyChannel)?.powerSupplyChannel,
     type: 'electrical',
     nodes: uniqueNodes(affectedNetworks.flatMap((network) => network.nodes)),
     edges: affectedNetworks.flatMap((network) => network.edges),
@@ -264,8 +266,10 @@ export function connectTerminalToRouteJunction({
   if (insertFailed) return null
 
   const primary = transformed.find((network) => network.id === target.networkId)!
+  if (new Set(transformed.flatMap((network) => network.powerSupplyChannel ? [network.powerSupplyChannel] : [])).size > 1) return null
   const merged: ConnectionNetwork = {
     ...primary,
+    powerSupplyChannel: transformed.find((network) => network.powerSupplyChannel)?.powerSupplyChannel,
     type: resolvedType,
     nodes: uniqueNodes(transformed.flatMap((network) => network.nodes)),
     edges: transformed.flatMap((network) => network.edges),
@@ -381,8 +385,10 @@ function absorbNodesIntoElementAnchor({
   const targetNetwork = networks[targetIndex]
   const targetAnchor = targetNetwork.nodes.find((node) => node.id === targetAnchorId)
   if (targetAnchor?.kind !== 'element-anchor') return null
+  if (new Set(affectedNetworks.flatMap((network) => network.powerSupplyChannel ? [network.powerSupplyChannel] : [])).size > 1) return null
   const merged: ConnectionNetwork = {
     ...targetNetwork,
+    powerSupplyChannel: affectedNetworks.find((network) => network.powerSupplyChannel)?.powerSupplyChannel,
     type: resolvedType,
     nodes: uniqueNodes(affectedNetworks.flatMap((network) => network.nodes))
       .filter((node) => !absorbedNodeIds.has(node.id)),
@@ -461,8 +467,10 @@ function absorbNodesIntoBusbarTap({
   const targetNetwork = networks[targetIndex]
   const targetTap = targetNetwork.nodes.find((node) => node.id === targetTapId)
   if (targetTap?.kind !== 'busbar-tap') return null
+  if (new Set(affectedNetworks.flatMap((network) => network.powerSupplyChannel ? [network.powerSupplyChannel] : [])).size > 1) return null
   const merged: ConnectionNetwork = {
     ...targetNetwork,
+    powerSupplyChannel: affectedNetworks.find((network) => network.powerSupplyChannel)?.powerSupplyChannel,
     type: resolvedType,
     nodes: uniqueNodes(affectedNetworks.flatMap((network) => network.nodes))
       .filter((node) => !absorbedNodeIds.has(node.id)),
@@ -826,6 +834,14 @@ export function deleteConnectionJunctions(
       : configuredExternalSourceNodeIds.has(mergedChain.at(-1)!)
         ? 'target' as const
         : undefined
+    const mergedExternalSupplyChannel = endpointEdges.find((edge) => {
+      const endpointNodeId = edge.externalSupplyEndpoint === 'source'
+        ? edge.sourceNodeId
+        : edge.externalSupplyEndpoint === 'target'
+          ? edge.targetNodeId
+          : null
+      return endpointNodeId !== null && configuredExternalSourceNodeIds.has(endpointNodeId)
+    })?.externalSupplyChannel
     const allAuxiliary = endpointEdges.every((edge) => edge.coolingLineRole === 'auxiliary')
     const mergedCrossingLayer = endpointEdges.some((edge) => edge.crossingLayer === 'upper')
       ? 'upper' as const
@@ -837,6 +853,7 @@ export function deleteConnectionJunctions(
       coolingLineRole: _coolingLineRole,
       crossingLayer: _crossingLayer,
       externalSupplyEndpoint: _externalSupplyEndpoint,
+      externalSupplyChannel: _externalSupplyChannel,
       ...edgeWithoutRouteNodes
     } = orientedBase
     const mergedEdge: ConnectionEdge = {
@@ -846,7 +863,12 @@ export function deleteConnectionJunctions(
       ...(allAuxiliary ? { coolingLineRole: 'auxiliary' as const } : {}),
       ...(mergedCrossingLayer ? { crossingLayer: mergedCrossingLayer } : {}),
       ...(mergedExternalSupplyEndpoint
-        ? { externalSupplyEndpoint: mergedExternalSupplyEndpoint }
+        ? {
+            externalSupplyEndpoint: mergedExternalSupplyEndpoint,
+            ...(mergedExternalSupplyChannel
+              ? { externalSupplyChannel: mergedExternalSupplyChannel }
+              : {}),
+          }
         : {}),
       ...(mergedChain.length > 2 ? { routeNodeIds: mergedChain.slice(1, -1) } : {}),
     }

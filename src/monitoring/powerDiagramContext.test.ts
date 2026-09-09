@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ProjectDocument } from '../domain/project'
-import { isPowerDiagramExternallyEnergized } from './powerDiagramContext'
+import {
+  derivePowerDiagramExternalSupply,
+  isPowerDiagramExternallyEnergized,
+} from './powerDiagramContext'
 
 function documentWithParentFeed(sourceAssetKey = 'grid') {
   return {
@@ -60,6 +63,45 @@ function documentWithUpsGroupFeed() {
   return document
 }
 
+function documentWithDualUpsGroupFeed(aAvailable = true) {
+  const document = documentWithUpsGroupFeed()
+  document.assets = [{
+    key: 'ups-group', name: 'UPS-group', category: '电力', source: 'UPS-group.svg',
+    intrinsicWidth: 48, intrinsicHeight: 48,
+    anchors: [
+      { id: 'a', name: '电路 1', x: 0, y: 24, direction: 'left', type: 'electrical', powerSupplyChannel: 'a' },
+      { id: 'b', name: '电路 2', x: 48, y: 24, direction: 'right', type: 'electrical', powerSupplyChannel: 'b' },
+    ],
+  }]
+  document.elements = [
+    {
+      ...document.elements[0],
+      id: 'source-a',
+      assetKey: aAvailable ? 'grid' : 'transformer',
+    },
+    {
+      ...document.elements[0],
+      id: 'source-b',
+      assetKey: 'generator',
+    },
+    {
+      ...document.elements[1],
+      properties: { drillDownDiagramId: 'ups-left' },
+    },
+  ]
+  document.connections[0].nodes = [
+    { id: 'source-a-node', kind: 'element-anchor', elementId: 'source-a', anchorId: 'out' },
+    { id: 'source-b-node', kind: 'element-anchor', elementId: 'source-b', anchorId: 'out' },
+    { id: 'ups-a', kind: 'element-anchor', elementId: 'ups-group-left', anchorId: 'a' },
+    { id: 'ups-b', kind: 'element-anchor', elementId: 'ups-group-left', anchorId: 'b' },
+  ]
+  document.connections[0].edges = [
+    { id: 'feed-a', sourceNodeId: 'source-a-node', targetNodeId: 'ups-a' },
+    { id: 'feed-b', sourceNodeId: 'source-b-node', targetNodeId: 'ups-b' },
+  ]
+  return document
+}
+
 describe('power detail external supply context', () => {
   it('inherits supply when the linked parent equipment is energized', () => {
     expect(isPowerDiagramExternallyEnergized({
@@ -83,5 +125,28 @@ describe('power detail external supply context', () => {
       diagramId: 'ups-left',
       switchStates: {},
     })).toBe(true)
+  })
+
+  it('passes A to the child when both parent feeds are available and falls back to B', () => {
+    expect(derivePowerDiagramExternalSupply({
+      document: documentWithDualUpsGroupFeed(),
+      diagramId: 'ups-left',
+      switchStates: {},
+    })).toEqual({ active: true, channel: 'a', batteryBackupActive: false })
+    expect(derivePowerDiagramExternalSupply({
+      document: documentWithDualUpsGroupFeed(false),
+      diagramId: 'ups-left',
+      switchStates: {},
+    })).toEqual({ active: true, channel: 'b', batteryBackupActive: false })
+  })
+
+  it('enables UPS battery backup when neither parent feed is available', () => {
+    const document = documentWithDualUpsGroupFeed(false)
+    document.elements.find((element) => element.id === 'source-b')!.assetKey = 'transformer'
+    expect(derivePowerDiagramExternalSupply({
+      document,
+      diagramId: 'ups-left',
+      switchStates: {},
+    })).toEqual({ active: false, batteryBackupActive: true })
   })
 })

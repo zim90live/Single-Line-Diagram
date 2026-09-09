@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -14,6 +14,9 @@ import type { Point } from '../scene/geometry'
 import {
   FLOW_ANIMATION_STYLES,
   FLOW_CHILD_LINE_SCREEN_WIDTH,
+  FLOW_BUSBAR_SCREEN_WIDTH,
+  FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
+  FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH,
   type FlowAnimationStyle,
   type MonitorFlowPath,
 } from './flowPresentation'
@@ -35,6 +38,8 @@ export type {
   MonitorStaticFlowLineGroup,
 } from './flowPresentation'
 
+import { flowEndpointDirections, flowPhaseOffsets } from './flowPathGeometry'
+
 const SEGMENT_EPSILON = 0.001
 
 interface FlowSegment {
@@ -46,10 +51,14 @@ interface FlowSegment {
 }
 
 function resolvedLineWidth(path: MonitorFlowPath) {
+  const screenWidth = path.screenWidth ?? FLOW_CHILD_LINE_SCREEN_WIDTH
+  const staticWidth = screenWidth === FLOW_BUSBAR_SCREEN_WIDTH
+    ? FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH
+    : screenWidth === FLOW_CHILD_LINE_SCREEN_WIDTH ? FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH : screenWidth
   return path.worldWidth !== undefined
     ? { lineWidth: path.worldWidth, scalesWithZoom: true }
     : {
-        lineWidth: path.screenWidth ?? FLOW_CHILD_LINE_SCREEN_WIDTH,
+        lineWidth: staticWidth,
         scalesWithZoom: false,
       }
 }
@@ -193,6 +202,8 @@ export function deriveInactiveFlowPaths(
 }
 
 export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
+  const phaseOffsets = flowPhaseOffsets(paths)
+  const endpointDirections = flowEndpointDirections(paths)
   const positions: number[] = []
   const ends: number[] = []
   const sides: number[] = []
@@ -201,6 +212,8 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
   const speeds: number[] = []
   const distances: number[] = []
   const widthScales: number[] = []
+  const colors: number[] = []
+  const joins: number[] = []
   const seenSegments = new Set<string>()
   const quadVertices = [
     { along: 0, side: -1 },
@@ -220,7 +233,8 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
   for (const path of orderedPaths) {
     const { lineWidth, scalesWithZoom } = resolvedLineWidth(path)
     const speedMultiplier = path.speedMultiplier ?? 1
-    let accumulated = 0
+    const color = new Color(path.baseColor ?? '#FFFFFF')
+    let accumulated = phaseOffsets.get(path.id) ?? 0
     for (let index = 1; index < path.points.length; index += 1) {
       const start = path.points[index - 1]
       const end = path.points[index]
@@ -242,11 +256,31 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
         continue
       }
       seenSegments.add(segmentKey)
+      const normal = (a: Point, b: Point) => {
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+        return { x: -(b.y - a.y) / len, y: (b.x - a.x) / len }
+      }
+      const currentNormal = normal(start, end)
+      const join = (other: Point) => {
+        const dot = currentNormal.x * other.x + currentNormal.y * other.y
+        const divisor = Math.max(1 + dot, 0.5)
+        return { x: (currentNormal.x + other.x) / divisor, y: (currentNormal.y + other.y) / divisor }
+      }
+      const continuation = endpointDirections.get(path.id)
+      const startNormal = continuation?.start
+        ? { x: continuation.start.y, y: -continuation.start.x } : currentNormal
+      const endNormal = continuation?.end
+        ? { x: -continuation.end.y, y: continuation.end.x } : currentNormal
+      const startJoin = index > 1 ? join(normal(path.points[index - 2], start)) : join(startNormal)
+      const endJoin = index < path.points.length - 1 ? join(normal(end, path.points[index + 1])) : join(endNormal)
       for (const vertex of quadVertices) {
+        const offset = vertex.along === 0 ? startJoin : endJoin
+        joins.push(offset.x * vertex.side, offset.y * vertex.side)
         positions.push(start.x, start.y, 0)
         ends.push(end.x, end.y)
         sides.push(vertex.side)
         alongs.push(vertex.along)
+        colors.push(color.r, color.g, color.b)
         widths.push(lineWidth)
         speeds.push(speedMultiplier)
         distances.push(accumulated + length * vertex.along)
@@ -264,6 +298,8 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
     speeds: new Float32Array(speeds),
     distances: new Float32Array(distances),
     widthScales: new Float32Array(widthScales),
+    colors: new Float32Array(colors),
+    joins: new Float32Array(joins),
   }
 }
 
@@ -272,6 +308,9 @@ const vertexShader = `
   uniform vec2 uTranslation;
   uniform float uZoom;
   attribute vec2 aEnd;
+  attribute vec3 aFlowColor;
+  attribute vec2 aJoin;
+  uniform float uCooling;
   attribute float aSide;
   attribute float aAlong;
   attribute float aLineWidth;
@@ -280,6 +319,7 @@ const vertexShader = `
   attribute float aWidthScalesWithZoom;
   varying float vDistance;
   varying float vSpeed;
+  varying vec3 vColor;
 
   void main() {
     vec2 startScreen = position.xy * uZoom + uTranslation;
@@ -288,16 +328,16 @@ const vertexShader = `
     vec2 direction = delta / max(length(delta), 0.0001);
     vec2 normal = vec2(-direction.y, direction.x);
     float lineWidth = aLineWidth * mix(1.0, uZoom, aWidthScalesWithZoom);
-    float capExtension = lineWidth * 0.5;
-    vec2 screen = mix(startScreen, endScreen, aAlong)
-      + direction * mix(-capExtension, capExtension, aAlong)
-      + normal * aSide * lineWidth * 0.5;
+    // Inset only the animated strip; the static pipe interior keeps its width.
+    lineWidth *= 0.8;
+    vec2 screen = mix(startScreen, endScreen, aAlong) + aJoin * lineWidth * 0.5;
     vec2 clip = vec2(
       screen.x / uResolution.x * 2.0 - 1.0,
       1.0 - screen.y / uResolution.y * 2.0
     );
     vDistance = aDistance;
     vSpeed = aSpeed;
+    vColor = aFlowColor;
     gl_Position = vec4(clip, 0.0, 1.0);
   }
 `
@@ -311,15 +351,25 @@ const fragmentShader = `
   uniform float uDashLength;
   uniform float uDashPeriod;
   uniform float uBaseSpeed;
+  uniform float uCooling;
   varying float vDistance;
   varying float vSpeed;
+  varying vec3 vColor;
 
   void main() {
-    float screenDistance = vDistance * uZoom;
-    float movingPhase = uTime * uBaseSpeed * max(vSpeed, 0.0) * uMotion;
-    float phase = mod(screenDistance - movingPhase, uDashPeriod);
-    if (phase > uDashLength) discard;
-    gl_FragColor = vec4(uDashColor, uDashOpacity);
+    // Wave position belongs to the diagram for both systems.
+    float flowDistance = vDistance;
+    float speed = uCooling > 0.5 ? clamp(vSpeed, 0.25, 2.5) : max(vSpeed, 0.0);
+    if (vSpeed <= 0.0) discard;
+    float movingPhase = uTime * uBaseSpeed * speed * uMotion;
+    float phase = mod(flowDistance - movingPhase, uDashPeriod);
+    // Increasing distance is the actual flow direction. The bright leading
+    // edge is at dashLength; the long, monotonically fading tail is behind it.
+    float tail = clamp(phase / uDashLength, 0.0, 1.0);
+    // The former gap is a short head-to-tail transition, never an empty cut.
+    float reset = 1.0 - smoothstep(uDashLength, uDashPeriod, phase);
+    float alpha = 0.5 + 0.5 * tail * reset;
+    gl_FragColor = vec4(vColor, uDashOpacity * alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -329,20 +379,25 @@ function FlowLines({
   paths,
   viewportRef,
   reducedMotion,
+  playing,
   style,
 }: {
   paths: MonitorFlowPath[]
   viewportRef: RefObject<DiagramViewport>
   reducedMotion: boolean
+  playing: boolean
   style: FlowAnimationStyle
 }) {
   const { size } = useThree()
+  const elapsed = useRef(0)
   const initialViewport = viewportRef.current
   const styleConfig = FLOW_ANIMATION_STYLES[style]
   const geometry = useMemo(() => {
     const data = buildFlowLineGeometry(paths)
     const next = new BufferGeometry()
     next.setAttribute('position', new BufferAttribute(data.positions, 3))
+    next.setAttribute('aJoin', new BufferAttribute(data.joins, 2))
+    next.setAttribute('aFlowColor', new BufferAttribute(data.colors, 3))
     next.setAttribute('aEnd', new BufferAttribute(data.ends, 2))
     next.setAttribute('aSide', new BufferAttribute(data.sides, 1))
     next.setAttribute('aAlong', new BufferAttribute(data.alongs, 1))
@@ -364,6 +419,7 @@ function FlowLines({
       uDashLength: { value: styleConfig.dashLength },
       uDashPeriod: { value: styleConfig.dashLength + styleConfig.gapLength },
       uBaseSpeed: { value: styleConfig.baseSpeed },
+      uCooling: { value: style === 'cooling' ? 1 : 0 },
     },
     vertexShader,
     fragmentShader,
@@ -371,17 +427,18 @@ function FlowLines({
     side: DoubleSide,
     depthTest: false,
     depthWrite: false,
-  }), [styleConfig])
+  }), [styleConfig, style])
 
   useEffect(() => () => geometry.dispose(), [geometry])
   useEffect(() => () => material.dispose(), [material])
 
-  useFrame(({ clock }) => {
+  useFrame((_, delta) => {
+    if (playing && !reducedMotion) elapsed.current += Math.min(delta, 0.1)
     const viewport = viewportRef.current
     material.uniforms.uResolution.value.set(size.width, size.height)
     material.uniforms.uTranslation.value.set(viewport.tx, viewport.ty)
     material.uniforms.uZoom.value = viewport.zoom
-    material.uniforms.uTime.value = clock.getElapsedTime()
+    material.uniforms.uTime.value = elapsed.current
     material.uniforms.uMotion.value = reducedMotion ? 0 : 1
   })
 
@@ -397,24 +454,27 @@ export function FlowAnimationLayer({
   paths,
   viewportRef,
   invalidateRef,
+  playing = true,
 }: {
   paths: MonitorFlowPath[]
   viewportRef: RefObject<DiagramViewport>
   invalidateRef: RefObject<(() => void) | null>
+  playing?: boolean
 }) {
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-  const hasPaths = paths.length > 0
+  const hasPaths = paths.some((path) => playing || path.style === 'cooling')
   const pathsByStyle = useMemo(() => {
     const grouped = new Map<FlowAnimationStyle, MonitorFlowPath[]>()
     paths.forEach((path) => {
       const style = path.style ?? 'power'
+      if (!playing && style !== 'cooling') return
       const group = grouped.get(style) ?? []
       group.push(path)
       grouped.set(style, group)
     })
     return grouped
-  }, [paths])
+  }, [paths, playing])
   useEffect(() => {
     if (!hasPaths) invalidateRef.current = null
     return () => {
@@ -426,7 +486,7 @@ export function FlowAnimationLayer({
     <div className="monitor-flow-layer" data-testid="monitor-flow-layer" aria-hidden="true">
       <Canvas
         orthographic
-        frameloop={reducedMotion ? 'demand' : 'always'}
+        frameloop={reducedMotion || !playing ? 'demand' : 'always'}
         dpr={[1, 1.75]}
         camera={{ position: [0, 0, 1] }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
@@ -441,6 +501,7 @@ export function FlowAnimationLayer({
             paths={stylePaths}
             viewportRef={viewportRef}
             reducedMotion={reducedMotion}
+            playing={playing}
             style={style}
           />
         ))}

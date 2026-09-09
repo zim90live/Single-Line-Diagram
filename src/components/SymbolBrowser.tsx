@@ -2,7 +2,7 @@ import { PencilLine, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { symbolCatalog } from '../scene/symbolCatalog'
-import { IconButton, Pressable, TextField } from './ui'
+import { IconButton, Pressable, TextField } from '@aidc/ui'
 
 interface SymbolBrowserProps {
   idPrefix: string

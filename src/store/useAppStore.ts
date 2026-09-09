@@ -60,6 +60,8 @@ interface AppState {
     position: DiagramDropPosition,
   ) => DiagramHierarchyMutationResult
   renameProject: (name: string) => void
+  setCircuitPalette: (palette: ProjectDocument['circuitPalette']) => void
+  setElementLabelScale: (scale: number) => void
   markSaved: () => void
 }
 
@@ -408,6 +410,13 @@ export const useAppStore = create<AppState>((set) => ({
       })),
       dirty: true,
     })),
+
+  setCircuitPalette: (circuitPalette) => set((state) => ({
+    document: updateDocument(state.document, (document) => ({ ...document, circuitPalette })), dirty: true,
+  })),
+  setElementLabelScale: (elementLabelScale) => set((state) => ({
+    document: updateDocument(state.document, document => ({ ...document, elementLabelScale })), dirty: true,
+  })),
 
   markSaved: () => set({ dirty: false }),
 }))

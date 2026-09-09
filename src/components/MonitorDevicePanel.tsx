@@ -13,7 +13,7 @@ import {
 } from '../monitoring/monitorPanelData'
 import { elementDeviceIdentifier } from '../scene/elementLabels'
 import type { DemoDeviceRuntimeState } from '../runtime/demoSimulationProfiles'
-import { SegmentedControl } from './ui'
+import { SegmentedControl } from '@aidc/ui'
 import { MonitorTrendChart, type MonitorTrendSeries } from './monitoring/MonitorTrendChart'
 import { UpsLineDiagram } from './monitoring/UpsLineDiagram'
 

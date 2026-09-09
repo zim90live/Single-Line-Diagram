@@ -80,11 +80,15 @@ export function useMonitorMetricRuntimeSnapshot(
     return () => window.clearInterval(intervalId)
   }, [configurationKey, enabled, playing, provider])
 
-  return enabled ? snapshot : {
+  return useMemo(() => enabled ? {
+    ...snapshot,
+    // New diagrams need label geometry before the first provider snapshot.
+    readings: { ...previewReadings, ...snapshot.readings },
+  } : {
     timestamp: 0,
     readings: previewReadings,
     deviceStates: {},
-  }
+  }, [enabled, snapshot, previewReadings])
 }
 
 export function useMonitorMetricReadings(

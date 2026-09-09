@@ -64,6 +64,7 @@ describe('DiagramRuntimeViewer', () => {
         coolingPumpOutputPowerStates: {},
         coolingValveOpenStates: {},
         powerExternalSupplyActive: false,
+        powerBatteryBackupActive: false,
       },
       navigation: view.navigation,
     }
