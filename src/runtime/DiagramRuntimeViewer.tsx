@@ -32,7 +32,7 @@ export const DiagramRuntimeViewer = memo(forwardRef<
 >(function DiagramRuntimeViewer({
   view,
   runtime,
-  animationMode = 'wave',
+  animationMode,
   animationPlaying,
   documentEpoch = 0,
   viewport = view.diagram.canvas.viewport,

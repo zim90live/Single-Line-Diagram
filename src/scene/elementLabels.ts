@@ -299,6 +299,7 @@ export function layoutElementLabels(
     return bounds ? [[element.id, bounds] as const] : []
   }))
   return elements.flatMap((element) => {
+    if (element.assetKey === 'text') return []
     const nameText = element.labelVisible === false || isGenericSymbolKey(element.assetKey)
       ? null
       : elementDeviceIdentifier(element)

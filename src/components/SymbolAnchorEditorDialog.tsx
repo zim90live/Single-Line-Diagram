@@ -615,8 +615,8 @@ export function SymbolAnchorEditorDialog({
                 label="锚点类型"
                 hideLabel
                 containerClassName="anchor-editor__type-field"
-                value={selectedAnchor?.type ?? 'electrical'}
-                disabled={!selectedAnchor}
+                value={isMeasurementPoint && lineSystemType === 'power' ? 'electrical' : selectedAnchor?.type ?? 'electrical'}
+                disabled={!selectedAnchor || isMeasurementPoint}
                 onChange={(event) => changeSelectedType(event.target.value as AnchorType)}
               >
                 {ANCHOR_TYPE_OPTIONS.map((option) => (

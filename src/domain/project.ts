@@ -838,7 +838,14 @@ export const projectDocumentSchema = z
             message: '图元锚点必须至少连接一条线路边',
           })
         }
-        anchorTypes.push(anchor.type)
+        // MP is a shared sensor template: its port domain belongs to the
+        // containing diagram, just as in editor/runtime asset resolution.
+        const sensorSystem = asset?.key === 'mp'
+          ? document.lineSystems.find((line) => line.id === diagram?.lineSystemId)?.type
+          : undefined
+        anchorTypes.push(sensorSystem === 'power' ? 'electrical'
+          : sensorSystem === 'cooling' && anchor.type === 'electrical'
+            ? 'cooling-general' : anchor.type)
       }
 
       for (const [busbarId, tapIds] of busbarTapIds) {

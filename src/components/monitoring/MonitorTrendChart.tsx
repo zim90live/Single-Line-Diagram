@@ -25,10 +25,10 @@ const STANDARD_GEOMETRY: ChartGeometry = {
 
 const COMPACT_GEOMETRY: ChartGeometry = {
   width: 336,
-  height: 184,
-  left: 30,
-  top: 14,
-  bottom: 167,
+  height: 177,
+  left: 16,
+  top: 21,
+  bottom: 160,
 }
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
@@ -117,8 +117,8 @@ export function MonitorTrendChart({
   const plotWidth = geometry.width - geometry.left
   const chart = useMemo(() => {
     const maximum = Math.max(0, ...series.flatMap((item) => item.values))
-    const step = niceStep(Math.max(maximum, 1) / 5)
-    const intervalCount = Math.max(4, Math.min(6, Math.ceil(maximum / step)))
+    const step = niceStep(Math.max(maximum, 1) / (compact ? 4 : 5))
+    const intervalCount = compact ? 4 : Math.max(4, Math.min(6, Math.ceil(maximum / step)))
     const scaleMaximum = Math.max(step * intervalCount, 1)
     return {
       ticks: Array.from({ length: intervalCount + 1 }, (_, index) => (
@@ -130,11 +130,12 @@ export function MonitorTrendChart({
       })),
       scaleMaximum,
     }
-  }, [geometry, series])
-  const timeTicks = Array.from({ length: 6 }, (_, index) => ({
-    x: geometry.left + index / 5 * plotWidth,
+  }, [geometry, series, compact])
+  const timeTickCount = compact ? 7 : 6
+  const timeTicks = Array.from({ length: timeTickCount }, (_, index) => ({
+    x: compact ? (index + 0.5) / timeTickCount * geometry.width : geometry.left + index / 5 * plotWidth,
     label: formatTimeTick(
-      endTimestamp - (5 - index) / 5 * durationMinutes * 60_000,
+      endTimestamp - (timeTickCount - 1 - index) / (timeTickCount - 1) * durationMinutes * 60_000,
       durationMinutes,
     ),
   }))
@@ -167,17 +168,17 @@ export function MonitorTrendChart({
             </linearGradient>
           ))}
         </defs>
-        <text className="monitor-trend__unit" x={geometry.left - 6} y="9" textAnchor="end">
+        <text className="monitor-trend__unit" x={compact ? 0 : geometry.left - 6} y="9" textAnchor={compact ? 'start' : 'end'}>
           {unit}
         </text>
         {chart.ticks.map((tick) => {
           const y = geometry.bottom - tick / chart.scaleMaximum * plotHeight
           return (
             <g key={tick}>
-              <text className="monitor-trend__tick" x={geometry.left - 6} y={y + 3} textAnchor="end">
-                {tick.toFixed(Math.abs(tick) >= 10 ? 0 : 1)}
+              <text className="monitor-trend__tick" x={compact ? 0 : geometry.left - 6} y={y + 3} textAnchor={compact ? 'start' : 'end'}>
+                {Number.isInteger(tick) ? String(tick) : tick.toFixed(1)}
               </text>
-              <line className="monitor-trend__grid" x1={geometry.left} x2={geometry.width} y1={y} y2={y} />
+              <line className="monitor-trend__grid" data-baseline={tick === 0 || undefined} x1={geometry.left} x2={geometry.width} y1={y} y2={y} />
             </g>
           )
         })}

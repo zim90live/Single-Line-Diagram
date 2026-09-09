@@ -8,6 +8,7 @@ import {
   DEFAULT_DEMO_SIMULATION_SEED,
   createDemoAnomalyAssignments,
   createDemoDeviceRuntimeState,
+  createDemoMonitorMetric,
   defaultDemoMetricsForElement,
   demoDeviceProfileForAsset,
   demoMetricProfileFor,
@@ -245,6 +246,23 @@ export class DemoMonitorMetricDataProvider implements MonitorMetricDataProvider 
       const configuredForRuntime = configured.length > 0 && compatible.length === 0 && owner.assetKey
         ? defaultDemoMetricsForElement({ assetKey: owner.assetKey })
         : compatible
+      if (assignment?.secondarySeverity && owner.assetKey && deviceProfile) {
+        const metrics = [...configuredForRuntime]
+        const eligible = (metric: MonitorMetric) => metric.valueType === 'number' &&
+          !(owner.assetKey === 'battery-group' && inferDemoMetricSemantic(metric) === 'soc')
+        for (const profile of deviceProfile.metrics) {
+          if (metrics.filter(eligible).length >= 2) break
+          const metric = createDemoMonitorMetric(owner.assetKey, profile)
+          if (eligible(metric) && !metrics.some((item) => item.id === metric.id)) metrics.push(metric)
+        }
+        // Status-only devices still need two visible numeric demo readings.
+        for (const profile of demoDeviceProfileForAsset('transformer')!.metrics) {
+          if (metrics.filter(eligible).length >= 2) break
+          const metric = createDemoMonitorMetric(owner.assetKey, profile)
+          if (eligible(metric) && !metrics.some((item) => item.id === metric.id)) metrics.push(metric)
+        }
+        return { ...owner, monitorDataVisible: true, monitorMetrics: metrics }
+      }
       if (configuredForRuntime.length || !assignment || !owner.assetKey || owner.monitorDataVisible === false) {
         return {
           ...owner,
@@ -286,7 +304,10 @@ export class DemoMonitorMetricDataProvider implements MonitorMetricDataProvider 
       )
       if (owner.assetKey) deviceStates[owner.id] = deviceState
       const metrics = owner.monitorMetrics ?? []
-      const primaryIndex = primaryMetricIndex(owner, metrics, this.seed)
+      const numericIndexes = metrics.flatMap((metric, index) => metric.valueType === 'number' &&
+        !(owner.assetKey === 'battery-group' && inferDemoMetricSemantic(metric) === 'soc') ? [index] : [])
+      const primaryIndex = assignment?.secondarySeverity
+        ? numericIndexes[0] ?? -1 : primaryMetricIndex(owner, metrics, this.seed)
       const linkedSocValue = lithiumBatteryGroupSocValue(
         owner,
         metrics,
@@ -296,6 +317,7 @@ export class DemoMonitorMetricDataProvider implements MonitorMetricDataProvider 
       metrics.forEach((metric, index) => {
         const targetHealth: DemoHealthState = assignment && index === primaryIndex
           ? assignment.severity
+          : assignment?.secondarySeverity && index === numericIndexes[1] ? assignment.secondarySeverity
           : 'normal'
         const readingKey = monitorMetricReadingKey(owner.id, metric.id)
         if (targetHealth === 'offline') {

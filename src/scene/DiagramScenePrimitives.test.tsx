@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DiagramElement } from '../domain/project'
+import { FLOW_ANIMATION_STYLES, FLOW_DOT_ANIMATION_STYLES } from '../monitoring/flowPresentation'
 import type { ElementLabelLayout } from './elementLabels'
 import { symbolsByKey } from './symbolCatalog'
 import {
@@ -200,27 +201,28 @@ it('renders embedded power waves in the line color with a continuous half-opacit
   }]} /></svg>)
   const gradient = container.querySelector('linearGradient')!
   expect(gradient).toHaveAttribute('spreadMethod', 'repeat')
-  expect(Number(gradient.getAttribute('x2')) - Number(gradient.getAttribute('x1'))).toBe(49)
+  expect(Number(gradient.getAttribute('x2')) - Number(gradient.getAttribute('x1'))).toBe(FLOW_ANIMATION_STYLES.power.dashLength + FLOW_ANIMATION_STYLES.power.gapLength)
   expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-color'))).toEqual(['#1BA4FF', '#1BA4FF', '#1BA4FF'])
   expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-opacity'))).toEqual(['0.5', '1', '0.5'])
   expect(container.querySelector('[stroke-dasharray]')).toBeNull()
 })
 
-it('moves a filled arrow pattern forward and pauses the owning SVG timeline', () => {
+it('moves a filled dot pattern forward and pauses the owning SVG timeline', () => {
   const paths = [{ id: 'power', style: 'power' as const, baseColor: '#1BA4FF',
     points: [{ x: 0, y: 0 }, { x: 120, y: 0 }] }]
-  const { container, rerender } = render(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing /></svg>)
+  const { container, rerender } = render(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="dots" playing /></svg>)
   const pattern = container.querySelector('pattern')!
-  expect(pattern).toHaveAttribute('width', '20')
-  expect(pattern).toHaveAttribute('height', '4')
-  expect(pattern.querySelector('path')).toHaveAttribute('d', 'M 7.5 -2 L 12.5 0 L 7.5 2 Z')
-  expect(pattern.querySelector('animateTransform')).toHaveAttribute('to', '20 0')
+  const config = FLOW_DOT_ANIMATION_STYLES.power
+  expect(pattern).toHaveAttribute('width', String(config.dotSpacing))
+  expect(pattern).toHaveAttribute('height', String(config.dotSize))
+  expect(pattern.querySelector('circle')).toHaveAttribute('r', String(config.dotSize / 2))
+  expect(pattern.querySelector('animateTransform')).toHaveAttribute('to', `${config.dotSpacing} 0`)
   const svg = container.querySelector('svg')!
   svg.pauseAnimations = vi.fn()
   svg.unpauseAnimations = vi.fn()
-  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing={false} /></svg>)
+  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="dots" playing={false} /></svg>)
   expect(svg.pauseAnimations).toHaveBeenCalled()
-  expect(container.querySelector('[data-arrow-playing]')).toHaveAttribute('data-arrow-playing', 'false')
-  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing /></svg>)
+  expect(container.querySelector('[data-dot-playing]')).toHaveAttribute('data-dot-playing', 'false')
+  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="dots" playing /></svg>)
   expect(svg.unpauseAnimations).toHaveBeenCalled()
 })

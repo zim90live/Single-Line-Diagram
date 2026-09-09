@@ -12,6 +12,15 @@ import {
 } from './FlowAnimationLayer'
 
 describe('monitor flow appearance tokens', () => {
+  it.each(['power', 'cooling'] as const)('uses the inactive background for active %s dots', (style) => {
+    const path = { id: 'line', style, baseColor: '#28A8E0', points: [{ x: 0, y: 0 }, { x: 80, y: 0 }] }
+    const inactive = buildMonitorStaticFlowLineGroups([], [path])[0]
+    const dots = buildMonitorStaticFlowLineGroups([path], [], 'dots')[0]
+    const wave = buildMonitorStaticFlowLineGroups([path], [], 'wave')[0]
+    expect(dots.color).toBe(inactive.color)
+    expect(dots.lineWidth).toBe(inactive.lineWidth)
+    expect(wave.color).not.toBe(inactive.color)
+  })
   it('configures power and cooling wave widths independently', () => {
     expect(FLOW_ANIMATION_STYLES.power.waveWidthRatio).toBe(1)
     expect(FLOW_ANIMATION_STYLES.cooling.waveWidthRatio).toBe(0.6)
@@ -28,6 +37,15 @@ describe('monitor flow appearance tokens', () => {
 })
 
 describe('monitor flow geometry', () => {
+  it('uses configured cooling speed regardless of positive flow, while retaining zero-flow gating', () => {
+    for (const multiplier of [0, 0.15, 0.5, 1, 2]) {
+      const geometry = buildFlowLineGeometry([{
+        id: 'cooling', style: 'cooling', speedMultiplier: multiplier,
+        points: [{ x: 0, y: 0 }, { x: 80, y: 0 }],
+      }])
+      expect([...geometry.speeds]).toEqual(Array(6).fill(multiplier > 0 ? 1 : 0))
+    }
+  })
   it('keeps cumulative distance through orthogonal and sampled bridge segments', () => {
     const geometry = buildFlowLineGeometry([{
       id: 'path',
@@ -130,7 +148,7 @@ describe('monitor flow geometry', () => {
 
     expect([...geometry.widths]).toEqual(new Array(6).fill(2))
     expect([...geometry.widthScales]).toEqual(new Array(6).fill(1))
-    expect([...geometry.speeds]).toEqual(new Array(6).fill(1.5))
+    expect([...geometry.speeds]).toEqual(new Array(6).fill(1))
   })
 
   it('keeps opposite directed flow strips distinct for animation phase', () => {

@@ -13,6 +13,7 @@ import type { Point } from '../scene/geometry'
 export const POWER_SOURCE_ASSET_KEYS = new Set(['grid', 'generator', 'battery'])
 export const POWER_TARGET_ASSET_KEYS = new Set(['compute-pod', 'power-pod', 'fm'])
 export const POWER_DETAIL_TARGET_ASSET_KEYS = new Set(['cabinet-device'])
+const POWER_DISTRIBUTION_ASSET_KEYS = new Set(['cabinet', 'cabinet-b'])
 
 export interface DirectedFlowEdge {
   edgeId: string
@@ -246,6 +247,28 @@ export function derivePowerFlowTopology({
 
   for (const [elementId, nodeIds] of elementNodeGroups) {
     const element = elementsById.get(elementId)
+    if (element && POWER_DISTRIBUTION_ASSET_KEYS.has(element.assetKey) && dualSupplyElementIds.has(element.id)) {
+      const anchors = assetsByKey.get(element.assetKey)?.anchors ?? []
+      const outputs = anchors.filter((anchor) => anchor.type === 'electrical' && !anchor.powerSupplyChannel)
+        .sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id))
+      for (const channel of ['a', 'b'] as const) {
+        const channelNodes = nodeIds.filter((nodeId) => {
+          const node = nodesById.get(nodeId)
+          if (node?.kind !== 'element-anchor') return false
+          const anchor = anchors.find((item) => item.id === node.anchorId)
+          if (!anchor) return false
+          if (anchor.powerSupplyChannel) return anchor.powerSupplyChannel === channel
+          // Prefer explicit network/downstream channel labels. The standard group
+          // has two outputs ordered A/B in template coordinates (rotation independent).
+          const outputChannel = channelsByNodeId.get(nodeId) ?? (outputs.length === 2
+            ? outputs[0].id === anchor.id ? 'a' : 'b'
+            : undefined)
+          return outputChannel === channel
+        })
+        connectNodeGroup(graph, channelNodes, 'internal')
+      }
+      continue
+    }
     if (
       !element ||
       dualSupplyElementIds.has(element.id) ||
@@ -368,6 +391,7 @@ export function derivePowerFlowTopology({
         POWER_DETAIL_TARGET_ASSET_KEYS.has(element.assetKey) ||
         dualSupplyElementIds.has(element.id)
       )
+      if (element && POWER_DISTRIBUTION_ASSET_KEYS.has(element.assetKey) && dualSupplyElementIds.has(element.id)) return []
       if (!isTarget) return []
       const selectedChannel = selectedSupplyChannels[node.elementId]
       const nodeChannel = powerSupplyChannelByNodeId.get(node.id)

@@ -38,6 +38,32 @@ const emptySelectionProps = {
 }
 
 describe('PropertiesPanel color property', () => {
+  it('edits standalone text content and typography without device controls', () => {
+    const onPatch = vi.fn()
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[element('text')]}
+      onPatch={onPatch} onColorPreview={vi.fn()} onDelete={vi.fn()} />)
+    expect(screen.queryByLabelText('设备标识')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: '显示运行数据' })).not.toBeInTheDocument()
+    const content = screen.getByLabelText('文字内容')
+    expect(content).toHaveValue('文字')
+    fireEvent.change(content, { target: { value: 'POD A' } })
+    fireEvent.blur(content)
+    expect(onPatch).toHaveBeenLastCalledWith('text-element', expect.objectContaining({ properties: { text: 'POD A' } }))
+    const size = screen.getByRole('textbox', { name: '字体大小' })
+    expect(size).toHaveValue('24')
+    fireEvent.change(size, { target: { value: '32' } })
+    fireEvent.blur(size)
+    expect(onPatch).toHaveBeenLastCalledWith('text-element', expect.objectContaining({ properties: { fontSize: 32 } }))
+    const weight = screen.getByRole('combobox', { name: '字重' })
+    expect(weight).toHaveValue('700')
+    fireEvent.change(weight, { target: { value: '400' } })
+    expect(onPatch).toHaveBeenLastCalledWith('text-element', expect.objectContaining({ properties: { fontWeight: 400 } }))
+    const color = screen.getByLabelText('文字颜色 HEX')
+    expect(color).toHaveValue('#888888')
+    fireEvent.change(color, { target: { value: '#123456' } })
+    fireEvent.blur(color)
+    expect(onPatch).toHaveBeenLastCalledWith('text-element', expect.objectContaining({ properties: { textColor: '#123456' } }))
+  })
   it('copies a selected busbar metric template to all selected busbars', async () => {
     const user = userEvent.setup()
     const onPatchBusbarMetrics = vi.fn()

@@ -21,6 +21,7 @@
 ## 当前专业分类
 
 - 冷却：包括 CPD、TMU。
+- MP 作为通用传感器，冷却与电力图纸均可使用；单测量端口按图纸适配，不作为设备进出口或电源/负载。稳定键与尺寸保持。
 - 2026-09-09：九份 `Fault.svg` 为监控故障辅助素材，不进入独立素材栏；Battery-group、Tap-off Unit-group（旧 A/B）、Cabinet、UPS-group、UPS、FM、TMU、CDU、CT 在三级异常时使用，保持实例几何并不改变流动资格。
 - 电力：包括 FM、Battery、Battery-group、UPS、UPS-group、Cabinet、Tap-off Unit A、Tap-off Unit B、Tap-off Unit、算力 POD、动力 POD。
 - `Battery-group.svg` 显示为 Battery-group，使用稳定键 `battery-group`，是 48×48 的独立普通电力图元；首版无预置锚点、改色或运行状态，不继承现有 Battery 的监控 Source 角色。

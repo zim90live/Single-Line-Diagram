@@ -166,6 +166,8 @@ interface MonitorMetricPanelSelection {
   ownerId: string
   metricId: string
   anchor: MonitorMetricPanelAnchor
+  viewport: DiagramViewport
+  stageOrigin: Point
 }
 
 function useElementSize(elementRef: RefObject<HTMLElement | null>) {
@@ -410,7 +412,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
 >(function DiagramMonitorCanvas({
   view,
   runtime,
-  animationMode = 'wave',
+  animationMode = view.lineSystem.type === 'power' ? 'dots' : 'wave',
   animationPlaying,
   documentEpoch = 0,
   viewport = view.diagram.canvas.viewport,
@@ -1091,16 +1093,17 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     [activeFlowPaths, displayedFlowPaths],
   )
   const staticFlowGroups = useMemo(
-    () => buildMonitorStaticFlowLineGroups(activeFlowPaths, inactiveFlowPaths),
-    [activeFlowPaths, inactiveFlowPaths],
+    () => buildMonitorStaticFlowLineGroups(activeFlowPaths, inactiveFlowPaths, animationMode),
+    [activeFlowPaths, inactiveFlowPaths, animationMode],
   )
   const staticConnectionsByRenderKey = useMemo(
     () => createStaticConnectionGroupsByRenderKey(
       routeGroups,
       activeFlowPaths,
       inactiveFlowPaths,
+      animationMode,
     ),
-    [activeFlowPaths, inactiveFlowPaths, routeGroups],
+    [activeFlowPaths, inactiveFlowPaths, routeGroups, animationMode],
   )
   // One stable network represents the suspected area, not an exact leak location.
   const leakRegion = useMemo(() => demoLeakRegion(diagram.name, connections, elements), [diagram.name, connections, elements])
@@ -1164,9 +1167,12 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     event.preventDefault()
     event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
+    const stageRect = canvasStageRef.current?.getBoundingClientRect()
     setMetricPanelSelection({
       ownerId,
       metricId,
+      viewport: { ...viewportRef.current },
+      stageOrigin: { x: stageRect?.left ?? 0, y: stageRect?.top ?? 0 },
       anchor: {
         left: rect.left,
         top: rect.top,
@@ -1177,6 +1183,18 @@ export const DiagramMonitorCanvas = memo(forwardRef<
       },
     })
   }
+  const metricPanelAnchor = metricPanelSelection ? (() => {
+    const { anchor, viewport: initial, stageOrigin } = metricPanelSelection
+    const stage = canvasStageRef.current?.getBoundingClientRect()
+    const scale = viewportValue.zoom / initial.zoom
+    const left = (stage?.left ?? stageOrigin.x) + viewportValue.tx +
+      (anchor.left - stageOrigin.x - initial.tx) * scale
+    const top = (stage?.top ?? stageOrigin.y) + viewportValue.ty +
+      (anchor.top - stageOrigin.y - initial.ty) * scale
+    const width = anchor.width * scale
+    const height = anchor.height * scale
+    return { left, top, width, height, right: left + width, bottom: top + height }
+  })() : null
   const metricPanelOwner = metricPanelSelection
     ? metricElements.find((element) => element.id === metricPanelSelection.ownerId) ??
       busbars.find(busbar => busbar.id === metricPanelSelection.ownerId) ??
@@ -1460,14 +1478,14 @@ export const DiagramMonitorCanvas = memo(forwardRef<
             </g>
             </g>
           </svg>
-        {metricPanelSelection && metricPanelMetric ? (
+        {metricPanelSelection && metricPanelMetric && metricPanelAnchor ? (
           <MonitorMetricDataPanel
             ownerName={metricPanelOwnerName}
             metric={metricPanelMetric}
             reading={metricReadings[
               `${metricPanelSelection.ownerId}::${metricPanelSelection.metricId}`
             ]}
-            anchor={metricPanelSelection.anchor}
+            anchor={metricPanelAnchor}
           />
         ) : null}
       </div>

@@ -31,6 +31,7 @@ const runtimeNavigationTargetSchema = z.object({
 })
 
 const demoFaultAssignmentSchema = z.object({
+  secondarySeverity: z.literal('minor').optional(),
   severity: z.enum(['minor', 'major', 'critical', 'offline']),
   faultCode: z.string().min(1),
 })
@@ -176,6 +177,7 @@ function ensureBundleSeverityCoverage(
   document: ProjectDocument,
 ) {
   const elementsById = new Map(document.elements.map((element) => [element.id, element]))
+  if (Object.values(assignments).some((assignment) => assignment.secondarySeverity)) return assignments
   const ids = Object.keys(assignments).sort((left, right) => (
     stableDemoHash(`${seed}:${left}:coverage`) - stableDemoHash(`${seed}:${right}:coverage`)
       || left.localeCompare(right)

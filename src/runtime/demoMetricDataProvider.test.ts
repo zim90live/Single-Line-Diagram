@@ -34,6 +34,23 @@ function element(
 }
 
 describe('demo metric data provider', () => {
+  it('shows red and yellow numeric readings on every device-profile page, including hidden and empty metrics', () => {
+    const owners = symbolAssets.filter((asset) => asset.key !== 'text').map((asset) => ({
+      ...element(asset.key, asset.key), diagramId: asset.key, monitorDataVisible: false,
+    }))
+    const provider = new DemoMonitorMetricDataProvider()
+    const prepared = provider.prepareOwners(owners)
+    for (let tick = 0; tick < 5; tick++) {
+      const snapshot = provider.getRuntimeSnapshot(prepared)
+      for (const owner of prepared) {
+        expect(owner.monitorDataVisible).toBe(true)
+        const readings = Object.values(snapshot.readings).filter((reading) => reading.elementId === owner.id)
+        expect(readings.some((reading) => reading.severity === 'critical'), owner.assetKey).toBe(true)
+        expect(readings.some((reading) => reading.severity === 'minor'), owner.assetKey).toBe(true)
+      }
+      provider.advance()
+    }
+  })
   it('shows main supply as normal and bypass as abnormal, including legacy option severities', () => {
     const metric: MonitorMetric = {
       id: 'supply-mode', name: '供电方式', valueType: 'text',
@@ -58,7 +75,7 @@ describe('demo metric data provider', () => {
   it('covers every registered symbol asset with a device profile', () => {
     const missing = symbolAssets
       .map((asset) => asset.key)
-      .filter((assetKey) => !demoDeviceProfileForAsset(assetKey))
+      .filter((assetKey) => assetKey !== 'text' && !demoDeviceProfileForAsset(assetKey))
 
     expect(missing).toEqual([])
   })

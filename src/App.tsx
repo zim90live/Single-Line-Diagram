@@ -1,4 +1,4 @@
-import type { FlowAnimationMode } from './monitoring/flowPresentation'
+import { DEFAULT_FLOW_ANIMATION_MODES, type FlowAnimationMode } from './monitoring/flowPresentation'
 import { SegmentedControl } from './components/ui/SegmentedControl'
 import {
   ChevronLeft,
@@ -189,7 +189,7 @@ export default function App() {
   const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
-  const [animationMode, setAnimationMode] = useState<FlowAnimationMode>('wave')
+  const [animationModes, setAnimationModes] = useState({ ...DEFAULT_FLOW_ANIMATION_MODES })
   const [animationPlaying, setAnimationPlaying] = useState(true)
   const [monitorZoom, setMonitorZoom] = useState(1)
   const [onOffStates, setOnOffStates] = useState<Record<string, boolean>>({})
@@ -236,6 +236,11 @@ export default function App() {
   )
   const currentDiagram = runtimeView?.diagram
   const currentLine = runtimeView?.lineSystem
+  const animationSystem = currentLine?.type ?? 'cooling'
+  const animationMode = animationModes[animationSystem]
+  const setAnimationMode = (mode: FlowAnimationMode) => {
+    setAnimationModes(previous => ({ ...previous, [animationSystem]: mode }))
+  }
   const diagramPath = runtimeView?.path ?? []
   const currentElements = runtimeView?.elements ?? []
   const currentConnections = runtimeView?.connections ?? []
@@ -892,7 +897,7 @@ export default function App() {
                 <SegmentedControl<FlowAnimationMode>
                   label="动画样式"
                   value={animationMode}
-                  options={[{ value: 'wave', label: '光波' }, { value: 'arrows', label: '箭头' }]}
+                  options={[{ value: 'wave', label: '光波' }, { value: 'dots', label: '圆点' }, { value: 'dashes', label: '虚线' }]}
                   onValueChange={setAnimationMode}
                 />
                 </>

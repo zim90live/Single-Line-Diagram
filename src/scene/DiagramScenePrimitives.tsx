@@ -1,4 +1,5 @@
-import { buildFlowArrows, FLOW_ARROW_PERIOD, FLOW_ARROW_SPEED } from '../monitoring/flowArrows'
+import { textSymbolStyle } from './textSymbol'
+import { FLOW_DOT_ANIMATION_STYLES, flowAnimationSpeedMultiplier } from '../monitoring/flowPresentation'
 import { memo, useId, useEffect, useRef, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 
 import type {
@@ -99,25 +100,25 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
   animationMode?: FlowAnimationMode
   playing?: boolean
 }) {
-  const arrowGroupRef = useRef<SVGGElement>(null)
+  const dotGroupRef = useRef<SVGGElement>(null)
   const scope = useId().replace(/[^a-z0-9_-]/gi, '')
   const offsets = flowPhaseOffsets(paths)
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
   useEffect(() => {
-    const svg = arrowGroupRef.current?.ownerSVGElement
+    const svg = dotGroupRef.current?.ownerSVGElement
     if (!svg) return
     if (playing && !reducedMotion) svg.unpauseAnimations?.()
     else svg.pauseAnimations?.()
     return () => { svg.unpauseAnimations?.() }
   }, [playing, reducedMotion, animationMode])
-  if (animationMode === 'arrows') {
-    if (reducedMotion) return buildFlowArrows(paths).map(arrow => <path key={arrow.id}
-      d={`${pathData(arrow.points)} Z`} fill={arrow.baseColor ?? '#FFFFFF'}
-      pointerEvents="none" />)
-    return <g ref={arrowGroupRef} data-arrow-playing={playing && !reducedMotion}>
+  if (animationMode === 'dots') {
+    return <g ref={dotGroupRef} data-dot-playing={playing && !reducedMotion}>
       {paths.flatMap((path, pathIndex) => {
-        const speed = FLOW_ARROW_SPEED * Math.max(0.25, Math.min(2.5, path.speedMultiplier ?? 1))
+        const config = FLOW_DOT_ANIMATION_STYLES[path.style ?? 'power']
+        const diameter = Math.max(0.001, config.dotSize)
+        const period = Math.max(diameter, config.dotSpacing)
+        const speed = config.baseSpeed * flowAnimationSpeedMultiplier(path)
         if ((path.speedMultiplier ?? 1) <= 0) return []
         let distance = offsets.get(path.id) ?? 0
         return path.points.slice(1).flatMap((end, index) => {
@@ -126,21 +127,21 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
           if (!length) return []
           const dx = (end.x - start.x) / length
           const dy = (end.y - start.y) / length
-          const id = `${scope}-moving-arrow-${pathIndex}-${index}`
-          const origin = ((distance % FLOW_ARROW_PERIOD) + FLOW_ARROW_PERIOD) % FLOW_ARROW_PERIOD
+          const id = `${scope}-moving-dot-${pathIndex}-${index}`
+          const origin = ((distance % period) + period) % period
           distance += length
           return <g key={id}>
             <defs>
-              <pattern id={id} patternUnits="userSpaceOnUse" width={FLOW_ARROW_PERIOD} height={4} y={-2}
+              <pattern id={id} patternUnits="userSpaceOnUse" width={period} height={diameter} y={-diameter / 2}
                 patternTransform={`matrix(${dx} ${dy} ${-dy} ${dx} ${start.x - dx * origin} ${start.y - dy * origin})`}>
-                <path d="M 7.5 -2 L 12.5 0 L 7.5 2 Z"
+                <circle cx={period / 2} cy={0} r={diameter / 2}
                   fill={path.baseColor ?? '#FFFFFF'} />
-                <animateTransform attributeName="patternTransform" type="translate" additive="sum"
-                  from="0 0" to={`${FLOW_ARROW_PERIOD} 0`} dur={`${FLOW_ARROW_PERIOD / speed}s`} repeatCount="indefinite" />
+                {!reducedMotion && speed > 0 ? <animateTransform attributeName="patternTransform" type="translate" additive="sum"
+                  from="0 0" to={`${period} 0`} dur={`${period / speed}s`} repeatCount="indefinite" /> : null}
               </pattern>
             </defs>
-            <path className="monitor-moving-arrow-flow" d={pathData([start, end])}
-              fill="none" pointerEvents="none" stroke={`url(#${id})`} strokeWidth={4} strokeLinecap="butt" />
+            <path className="monitor-moving-dot-flow" d={pathData([start, end])}
+              fill="none" pointerEvents="none" stroke={`url(#${id})`} strokeWidth={diameter} strokeLinecap="butt" />
           </g>
         })
       })}
@@ -148,7 +149,7 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
   }
   return paths.flatMap((path, pathIndex) => {
     const style = FLOW_ANIMATION_STYLES[path.style ?? 'power']
-    const speed = style.baseSpeed * Math.max(0, path.speedMultiplier ?? 1)
+    const speed = style.baseSpeed * flowAnimationSpeedMultiplier(path)
     if (!speed) return []
     const period = style.dashLength + style.gapLength
     let distance = offsets.get(path.id) ?? 0
@@ -807,6 +808,20 @@ export const DiagramElementVisual = memo(function DiagramElementVisual({
   if (!symbol) return null
   const centerX = element.x + element.width / 2
   const centerY = element.y + element.height / 2
+  if (symbol.renderMode === 'text') {
+    const style = textSymbolStyle(element.properties)
+    return (
+      <g>
+        <rect className="diagram-element__text-hit"
+          x={element.x} y={element.y} width={element.width} height={element.height}
+          fill="transparent" pointerEvents="all" onPointerDown={onPointerDown} />
+        <text x={centerX} y={centerY} textAnchor="middle" dominantBaseline="central"
+          fill={style.color} fontSize={style.fontSize} fontWeight={style.fontWeight}
+          style={{ whiteSpace: 'pre' }} pointerEvents="none">{style.text}</text>
+        {children}
+      </g>
+    )
+  }
   if (symbol.renderMode === 'generic-frame') {
     const fullTag = elementDeviceIdentifier(element)
     const fittedTag = fitGenericSymbolTag(fullTag, genericSymbolDisplayedWidth(element))

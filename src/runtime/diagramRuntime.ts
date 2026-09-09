@@ -13,6 +13,7 @@ import {
   resolveMonitorDrillDownTarget,
   type MonitorDrillDownTarget,
 } from '../monitoring/diagramDrillDown'
+import { sensorAssetsForSystem } from '../scene/sensorAssets'
 
 export interface DiagramRuntimeView {
   circuitPalette?: ProjectDocument['circuitPalette']
@@ -64,7 +65,7 @@ export function createDiagramRuntimeView(
     elementLabelScale: document.elementLabelScale,
     lineSystem,
     path: getDiagramPath(document, diagramId),
-    assets: document.assets,
+    assets: sensorAssetsForSystem(document.assets, lineSystem.type),
     elements,
     busbars: document.busbars.filter((busbar) => busbar.diagramId === diagramId),
     connections,

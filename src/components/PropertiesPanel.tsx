@@ -1,3 +1,4 @@
+import { DEFAULT_TEXT_COLOR, TEXT_SYMBOL_KEY, textSymbolSize, textSymbolStyle } from '../scene/textSymbol'
 import { RotateCcw, Trash2 } from 'lucide-react'
 import {
   useEffect,
@@ -1504,6 +1505,46 @@ export function PropertiesPanel({
 
   const element = selectedElements[0]
   const symbol = symbolsByKey.get(element.assetKey)
+  if (element.assetKey === TEXT_SYMBOL_KEY) {
+    const style = textSymbolStyle(element.properties)
+    const patchText = (patch: DiagramElement['properties']) => {
+      const properties = { ...element.properties, ...patch }
+      onPatch(element.id, { properties, ...textSymbolSize(properties) })
+    }
+    return (
+      <aside className="properties-panel" aria-labelledby="properties-title">
+        <InspectorHeading id="properties-title" eyebrow="图元属性" tag="通用" title="文字" />
+        <div className="property-form" key={element.id}>
+          <CommittedTextField label="文字内容" value={style.text}
+            onCommit={(text) => patchText({ text })} />
+          <NumericField label="字体大小" value={style.fontSize} min={8} max={256} step={1} unit="px"
+            onCommit={(fontSize) => patchText({ fontSize })} />
+          <SelectField label="字重" value={style.fontWeight}
+            onChange={(event) => patchText({ fontWeight: Number(event.target.value) })}>
+            <option value={400}>Regular · 400</option>
+            <option value={500}>Medium · 500</option>
+            <option value={600}>Semibold · 600</option>
+            <option value={700}>Bold · 700</option>
+            <option value={800}>Extra Bold · 800</option>
+            <option value={900}>Black · 900</option>
+          </SelectField>
+          <CommittedColorField selectionKey={`${element.id}:text`} label="文字颜色"
+            value={style.color} fallback={DEFAULT_TEXT_COLOR}
+            hasCustomColor={typeof element.properties.textColor === 'string'}
+            onPreview={() => { /* The picker previews its draft; persist only on commit. */ }}
+            onCommit={(textColor) => patchText({ textColor })}
+            onRestore={() => patchText({ textColor: DEFAULT_TEXT_COLOR })} />
+          <div className="property-grid">
+            <NumericField label="X" value={element.x} step={EDITOR_GRID_SIZE} onCommit={(x) => onPatch(element.id, { x })} />
+            <NumericField label="Y" value={element.y} step={EDITOR_GRID_SIZE} onCommit={(y) => onPatch(element.id, { y })} />
+            <NumericField label="角度" value={element.rotation} step={90} unit="°"
+              onCommit={(rotation) => onPatch(element.id, { rotation })} />
+          </div>
+          <Button variant="danger-soft" leadingIcon={<Trash2 />} onClick={onDelete}>删除图元</Button>
+        </div>
+      </aside>
+    )
+  }
   const asset = assetsByKey.get(element.assetKey)
   const isCoolingPump = asset?.coolingDeviceRole === 'pump'
   const isGeneric = isGenericSymbolKey(element.assetKey)

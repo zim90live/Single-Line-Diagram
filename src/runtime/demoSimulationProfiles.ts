@@ -4,7 +4,7 @@ import type {
   MonitorMetric,
 } from '../domain/project'
 
-export const DEMO_SIMULATION_ALGORITHM_VERSION = 'demo-runtime-2'
+export const DEMO_SIMULATION_ALGORITHM_VERSION = 'demo-runtime-3'
 export const DEMO_DEVICE_PROFILE_VERSION = 'aidc-demo-profile-2026-09-r4'
 export const DEFAULT_DEMO_SIMULATION_SEED = 'aidc-leadership-demo'
 
@@ -71,6 +71,7 @@ export interface DemoDeviceProfile {
 }
 
 export interface DemoFaultAssignment {
+  secondarySeverity?: 'minor'
   severity: Exclude<DemoHealthState, 'normal'>
   faultCode: string
 }
@@ -462,14 +463,6 @@ export function canDemoDeviceGoOffline(assetKey: string) {
   return DEMO_OFFLINE_SAFE_ASSET_KEYS.has(assetKey)
 }
 
-function derivedSeverity(seedKey: string): DemoFaultAssignment['severity'] {
-  const sample = stableDemoHash(`${seedKey}:severity`) % 100
-  if (sample < 58) return 'minor'
-  if (sample < 88) return 'major'
-  if (sample < 97) return 'critical'
-  return 'offline'
-}
-
 export function createDemoAnomalyAssignments(
   elements: readonly Pick<DiagramElement, 'id' | 'diagramId' | 'assetKey' | 'monitorDataVisible'>[],
   seed = DEFAULT_DEMO_SIMULATION_SEED,
@@ -499,12 +492,9 @@ export function createDemoAnomalyAssignments(
       ))
       .slice(0, count)
       .forEach(({ element }) => {
-        const derived = derivedSeverity(`${seed}:${diagramId}:${element.id}`)
-        const severity = derived === 'offline'
-          ? 'critical'
-          : derived
         result[element.id] = {
-          severity,
+          severity: 'critical',
+          secondarySeverity: 'minor',
           faultCode: 'profile-anomaly',
         }
       })

@@ -96,8 +96,8 @@ export function ReadOnlyDiagramScene({
     ))
   ), [activeEdgeIdSet, edgesById, routed.edges])
   const activeFlowGroups = useMemo(() => (
-    buildMonitorStaticFlowLineGroups(activeFlowPaths, [])
-  ), [activeFlowPaths])
+    buildMonitorStaticFlowLineGroups(activeFlowPaths, [], animationMode)
+  ), [activeFlowPaths, animationMode])
 
   return (
     <div
@@ -154,7 +154,7 @@ export function ReadOnlyDiagramScene({
           </g>
           <g className="read-only-diagram-scene__active-lines" aria-hidden="true">
             <MonitorStaticFlowLines groups={activeFlowGroups} />
-            {animationPlaying || animationMode === 'arrows' ? <MonitorAnimatedFlowLines paths={activeFlowPaths} animationMode={animationMode} playing={animationPlaying} /> : null}
+            {animationPlaying || animationMode === 'dots' ? <MonitorAnimatedFlowLines paths={activeFlowPaths} animationMode={animationMode} playing={animationPlaying} /> : null}
           </g>
           <g className="read-only-diagram-scene__elements">
             {elementPresentations.map(({ element, symbol, visualState, symbolColor }) => (

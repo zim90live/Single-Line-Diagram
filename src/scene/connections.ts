@@ -3075,6 +3075,9 @@ function terminalTypeForNode(
   }
   if (node.kind !== 'element-anchor') return null
   const element = elementsById.get(node.elementId)
+  if (element?.assetKey === 'mp' && assetsByKey.get('mp')?.anchors.some((anchor) => anchor.id === node.anchorId)) {
+    return junctionType
+  }
   return element
     ? assetsByKey.get(element.assetKey)?.anchors.find((anchor) => anchor.id === node.anchorId)?.type ?? null
     : null

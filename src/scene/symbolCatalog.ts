@@ -48,7 +48,7 @@ export interface SymbolDefinition extends AssetDefinition {
   stateUrls?: Partial<Record<SymbolVisualState, string>>
   anchorMode?: SymbolAnchorMode
   defaultMonitorMetrics?: SymbolMonitorMetricTemplate[]
-  renderMode: 'image' | 'generic-frame'
+  renderMode: 'image' | 'generic-frame' | 'text'
 }
 
 export type SymbolVisualState = 'off' | 'on'
@@ -133,7 +133,7 @@ const metadata: SymbolMetadata[] = [
   {
     file: 'MP.svg',
     name: 'MP',
-    category: '冷却',
+    category: '通用',
     width: 32,
     height: 32,
     configurableColor: true,
@@ -250,6 +250,10 @@ const metadata: SymbolMetadata[] = [
     height: GENERIC_SYMBOL_DEFAULT_HEIGHT,
     configurableColor: true,
     renderMode: 'generic-frame',
+  },
+  {
+    file: 'Text.svg', key: 'text', name: '文字', category: '通用',
+    width: 64, height: 40, renderMode: 'text',
   },
 ]
 

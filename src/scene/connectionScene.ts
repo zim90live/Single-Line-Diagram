@@ -7,6 +7,7 @@ import type {
 } from '../domain/project'
 import {
   buildMonitorStaticFlowLineGroups,
+  type FlowAnimationMode,
   type MonitorFlowPath,
   type MonitorStaticFlowLineGroup,
 } from '../monitoring/flowPresentation'
@@ -342,6 +343,7 @@ export function createStaticConnectionGroupsByRenderKey(
   routeGroups: ConnectionRouteRenderGroup[],
   activeFlowPaths: MonitorFlowPath[],
   inactiveFlowPaths: MonitorFlowPath[],
+  animationMode: FlowAnimationMode = 'wave',
 ) {
   const activeByEdge = groupFlowPathsByConnectionEdge(activeFlowPaths)
   const inactiveByEdge = groupFlowPathsByConnectionEdge(inactiveFlowPaths)
@@ -350,6 +352,7 @@ export function createStaticConnectionGroupsByRenderKey(
     buildMonitorStaticFlowLineGroups(
       group.routes.flatMap((route) => activeByEdge.get(route.edgeId) ?? []),
       group.routes.flatMap((route) => inactiveByEdge.get(route.edgeId) ?? []),
+      animationMode,
     ).filter((staticGroup) => staticGroup.kind === 'connection'),
   ]))
 }

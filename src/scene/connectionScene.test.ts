@@ -139,6 +139,10 @@ describe('connection scene model', () => {
       [secondary],
     )
     expect([...staticGroups.values()].flat()).toHaveLength(2)
+    const dots = createStaticConnectionGroupsByRenderKey(groups, [primary, secondary], [], 'dots')
+    const inactive = createStaticConnectionGroupsByRenderKey(groups, [], [primary, secondary])
+    expect(dots).toEqual(inactive)
+    expect(createStaticConnectionGroupsByRenderKey(groups, [primary, secondary], [], 'wave')).not.toEqual(dots)
     expect([...staticGroups.values()].flat().every((group) => (
       group.kind === 'connection'
     ))).toBe(true)

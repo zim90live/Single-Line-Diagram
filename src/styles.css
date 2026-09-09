@@ -1239,6 +1239,14 @@ button:focus-visible,
   pointer-events: all;
 }
 
+.diagram-element__text-hit {
+  cursor: move;
+}
+
+.canvas-stage[data-mode='monitor'] .diagram-element__text-hit {
+  cursor: default;
+}
+
 .canvas-stage[data-mode='monitor'] .diagram-element[data-health='offline']
   :is(.diagram-element__image, .diagram-element__generic-body, .diagram-element__generic-tag) {
   opacity: 0.42;
@@ -2331,7 +2339,7 @@ button:focus-visible,
   border-radius: var(--radius-panel);
   color: var(--panel-muted);
   background: var(--panel);
-  box-shadow: var(--shadow-panel);
+  box-shadow: none;
   backdrop-filter: blur(var(--backdrop-monitor-blur));
   pointer-events: auto;
 }
@@ -2361,19 +2369,19 @@ button:focus-visible,
 
 .monitor-data-panel__period {
   --recipe-select-field-height: 24px;
-  --recipe-select-field-padding-x: 8px;
+  --recipe-select-field-padding-x: 12px;
   --recipe-select-field-caret-space: 20px;
-  --recipe-select-field-caret-size: 8px;
+  --recipe-select-field-caret-size: 12px;
   --recipe-select-field-caret: var(--panel-dim);
   --recipe-select-field-radius: 4px;
-  --recipe-select-field-value: var(--panel-muted);
-  --recipe-select-field-bg: var(--monitor-tree-hover-bg);
-  --recipe-select-field-border: var(--divider);
-  --recipe-select-field-value-type: 400 10px / 22px var(--font-interface);
+  --recipe-select-field-value: var(--panel-ink);
+  --recipe-select-field-bg: color-mix(in srgb, var(--panel-ink) 18%, transparent);
+  --recipe-select-field-border: transparent;
+  --recipe-select-field-value-type: 500 12px / 22px var(--font-interface);
 
-  width: 76px;
-  min-width: 76px;
-  flex: 0 0 76px;
+  width: 68px;
+  min-width: 68px;
+  flex: 0 0 68px;
   gap: 0;
 }
 
@@ -2390,16 +2398,34 @@ button:focus-visible,
 
 .monitor-data-panel__body {
   min-height: 0;
-  padding: 3px 12px 0;
+  padding: 8px 12px;
   flex: 1 1 auto;
 }
 
 .monitor-data-panel .monitor-trend {
-  min-height: 184px;
+  min-height: 177px;
 }
 
 .monitor-data-panel .monitor-trend svg {
-  height: 184px;
+  height: 177px;
+}
+
+.monitor-data-panel .monitor-trend__tick,
+.monitor-data-panel .monitor-trend__unit {
+  fill: color-mix(in srgb, var(--panel-ink) 40%, transparent);
+  font-size: 10px;
+}
+
+.monitor-data-panel .monitor-trend__line {
+  stroke-width: 1.5;
+}
+
+.monitor-data-panel .monitor-trend__grid {
+  stroke-dasharray: 2 3;
+}
+
+.monitor-data-panel .monitor-trend__grid[data-baseline='true'] {
+  stroke-dasharray: none;
 }
 
 .monitor-data-panel__state {

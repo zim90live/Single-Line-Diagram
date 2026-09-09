@@ -7,8 +7,42 @@ export const FLOW_CHILD_LINE_SCREEN_WIDTH = 2
 export const FLOW_BUSBAR_SCREEN_WIDTH = 4.5
 export const FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH = 2.25
 export const FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH = 6
-export type FlowAnimationMode = 'wave' | 'arrows'
+export type FlowAnimationMode = 'wave' | 'dots' | 'dashes'
 export type FlowAnimationStyle = 'power' | 'cooling'
+
+/** 流量只决定冷却路径是否流动；动画速度由各模式 baseSpeed 独立控制。 */
+export function flowAnimationSpeedMultiplier(path: { style?: FlowAnimationStyle; speedMultiplier?: number }) {
+  const multiplier = path.speedMultiplier ?? 1
+  if (multiplier <= 0) return 0
+  return path.style === 'cooling' ? 1 : multiplier
+}
+
+export const DEFAULT_FLOW_ANIMATION_MODES: Record<FlowAnimationStyle, FlowAnimationMode> = {
+  power: 'dots',
+  cooling: 'wave',
+}
+
+/** 圆点直径与圆心间距为图纸单位，速度为图纸单位/秒。 */
+export const FLOW_DOT_ANIMATION_STYLES = {
+  power: { dotSize: 6, dotSpacing: 24, baseSpeed: 48 },
+  cooling: { dotSize: 6, dotSpacing: 24, baseSpeed: 48 },
+} satisfies Record<FlowAnimationStyle, { dotSize: number; dotSpacing: number; baseSpeed: number }>
+
+/** 虚线专用参数：速度为图纸单位/秒；长度、间隔为图纸单位；gapOpacity 为间隔相对不透明度（0–1）。 */
+export const FLOW_DASH_ANIMATION_STYLES = {
+  power: {
+    baseSpeed: 60,
+    dashLength: 24,
+    gapLength: 16,
+    gapOpacity: 0.3,
+  },
+  cooling: {
+    baseSpeed: 60,
+    dashLength: 24,
+    gapLength: 16,
+    gapOpacity: 0.4,
+  },
+} satisfies Record<FlowAnimationStyle, { baseSpeed: number; dashLength: number; gapLength: number; gapOpacity: number }>
 
 export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
   color: string
@@ -116,13 +150,14 @@ function resolvedStaticLineAppearance(path: MonitorFlowPath) {
 export function buildMonitorStaticFlowLineGroups(
   activePaths: MonitorFlowPath[],
   inactivePaths: MonitorFlowPath[],
+  animationMode: FlowAnimationMode = 'wave',
 ): MonitorStaticFlowLineGroup[] {
   const groups = new Map<string, MonitorStaticFlowLineGroup>()
   const append = (path: MonitorFlowPath, active: boolean) => {
     if (path.points.length < 2) return
     const base = path.baseColor ?? '#000000'
     const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.6
-    const color = darkenFlowColor(base, active ? 0.75 : inactiveBlackMix)
+    const color = darkenFlowColor(base, active && animationMode !== 'dots' ? 0.75 : inactiveBlackMix)
     const appearance = resolvedStaticLineAppearance(path)
     const renderPriority = path.renderPriority ?? 1
     const key = [

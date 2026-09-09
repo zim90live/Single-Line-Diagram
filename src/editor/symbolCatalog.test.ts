@@ -19,7 +19,7 @@ const rawSymbols = import.meta.glob<string>('../assets/symbols/*.svg', {
 
 describe('symbol catalog', () => {
   it('registers every active symbol from the formal symbol directory', () => {
-    expect(symbolCatalog).toHaveLength(32)
+    expect(symbolCatalog).toHaveLength(33)
     expect(symbolCatalog.every((symbol) => symbol.source.startsWith('src/assets/symbols/'))).toBe(true)
   })
 
@@ -109,11 +109,11 @@ describe('symbol catalog', () => {
     expect(getScaledSymbolSize(cdu!, 1, 8)).toEqual({ scale: 1, width: 48, height: 48 })
   })
 
-  it('registers MP as a single-anchor cooling measurement point', () => {
+  it('registers MP as a single-anchor general sensor', () => {
     expect(symbolsByKey.get('mp')).toMatchObject({
       name: 'MP',
       source: 'src/assets/symbols/MP.svg',
-      category: '冷却',
+      category: '通用',
       intrinsicWidth: 32,
       intrinsicHeight: 32,
       configurableColor: true,

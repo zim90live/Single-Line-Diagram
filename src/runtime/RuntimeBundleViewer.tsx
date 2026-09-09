@@ -37,7 +37,7 @@ export const RuntimeBundleViewer = memo(forwardRef<
   RuntimeBundleViewerProps
 >(function RuntimeBundleViewer({
   bundle,
-  animationMode = 'wave',
+  animationMode,
   animationPlaying,
   diagramId,
   defaultDiagramId,

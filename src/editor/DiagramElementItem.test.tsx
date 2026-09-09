@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
 import { DiagramElementItem } from './DiagramCanvas'
@@ -34,4 +34,21 @@ describe.each(['tmu', 'fm'] as const)('%s canvas anchor placement', (assetKey) =
     rerender(<svg><DiagramElementItem {...props} /></svg>)
     expect(port()).toHaveAttribute('cy', '0')
   })
+})
+
+it('routes text hit-area presses to the existing selection and move handler', () => {
+  const startMove = vi.fn()
+  const symbol = symbolsByKey.get('text')!
+  const { container } = render(<svg><DiagramElementItem
+    mode="edit" element={{ id: 'text-1', assetKey: 'text', diagramId: 'd', name: '文字',
+      x: 0, y: 0, width: 64, height: 40, rotation: 0, properties: {}, extensions: {} }}
+    symbol={symbol} asset={symbol} selected={false} anchorsVisible={false}
+    wiringType={null} lineSystemType="power" occupiedAnchors={new Set()} zoom={1}
+    visualState="off" elementNodes={{ current: new Map() }} startMove={{ current: startMove }}
+    enterAnchor={{ current: vi.fn() }} leaveAnchor={{ current: vi.fn() }} pressAnchor={{ current: vi.fn() }}
+    hoverElement={{ current: vi.fn() }} drillDownElement={{ current: vi.fn() }}
+    coolingPumpRunning={true} coolingValveOpen={true}
+  /></svg>)
+  fireEvent.pointerDown(container.querySelector('.diagram-element__text-hit')!, { button: 0 })
+  expect(startMove).toHaveBeenCalledWith(expect.anything(), 'text-1')
 })

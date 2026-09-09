@@ -1,4 +1,5 @@
 import type { FlowAnimationMode } from '../monitoring/flowPresentation'
+import { sensorAssetsForSystem } from '../scene/sensorAssets'
 import { Canvas } from '@react-three/fiber'
 import { changeCoolingCircuit } from '../scene/coolingCircuitEditing'
 import { circuitBusbarColor, circuitBusbarKey, circuitColor, circuitDisplayEdges, circuitKey, circuitPaletteStyle, networkPowerChannels, type CircuitPalette } from '../scene/circuitPalette'
@@ -1067,6 +1068,8 @@ function createElement(
       : {}),
     properties: {
       tag: nextDeviceIdentifier(symbol.name, diagramId, elements),
+      ...(symbol.renderMode === 'text'
+        ? { text: '文字', textColor: '#888888', fontSize: 24, fontWeight: 700 } : {}),
     },
     extensions: {},
   }
@@ -1303,7 +1306,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
       documentEpoch,
       gridSize,
       viewport,
-      assets,
+      assets: sourceAssets,
       circuitPalette,
       elementLabelScale,
       elements,
@@ -1318,6 +1321,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
     },
     ref,
   ) {
+    const assets = useMemo(() => sensorAssetsForSystem(sourceAssets, lineSystemType), [sourceAssets, lineSystemType])
     const {
       onOffStates,
       coolingPumpRunningStates,
@@ -4168,7 +4172,9 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         viewportValueRef.current,
       )
       const element = createElement(
-        symbol,
+        symbol.key === 'mp' && lineSystemType === 'power'
+          ? { ...symbol, defaultMonitorMetrics: symbol.defaultMonitorMetrics?.filter((metric) => metric.name === '温度') }
+          : symbol,
         diagramId,
         worldCenter,
         gridSize,

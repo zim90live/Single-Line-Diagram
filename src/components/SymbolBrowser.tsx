@@ -33,11 +33,12 @@ export function SymbolBrowser({
         )
       : symbolCatalog
     return symbols.reduce<Record<string, typeof symbols>>((groups, symbol) => {
+      if (mode === 'select' && symbol.renderMode === 'text') return groups
       groups[symbol.category] ??= []
       groups[symbol.category].push(symbol)
       return groups
     }, {})
-  }, [query])
+  }, [query, mode])
 
   const headingId = `${idPrefix}-symbol-title`
   const helpText = mode === 'insert'
@@ -101,7 +102,7 @@ export function SymbolBrowser({
                       <img src={symbol.url} alt="" draggable={false} />
                       <span>{symbol.name}</span>
                     </Pressable>
-                    {mode === 'insert' && onEdit ? (
+                    {mode === 'insert' && onEdit && symbol.renderMode !== 'text' ? (
                       <IconButton
                         className="symbol-tile__edit"
                         label={`编辑 ${symbol.name} 锚点`}

@@ -75,7 +75,7 @@ describe('diagram runtime bundle', () => {
 
     expect(bundle.formatVersion).toBe(2)
     expect(bundle.simulation).toMatchObject({
-      algorithmVersion: 'demo-runtime-2',
+      algorithmVersion: 'demo-runtime-3',
       profileVersion: 'aidc-demo-profile-2026-09-r4',
       clockMode: 'relative',
     })
@@ -196,7 +196,7 @@ describe('diagram runtime bundle', () => {
       .toEqual(bundle)
   })
 
-  it('freezes broad severity coverage when enough safe page anomalies exist', () => {
+  it('freezes red and yellow per-page coverage without introducing offline devices', () => {
     const document = createDefaultProject('完整演示异常覆盖', symbolAssets)
     const diagrams = document.diagrams.slice(0, 4)
     diagrams.forEach((diagram, index) => document.elements.push({
@@ -220,6 +220,7 @@ describe('diagram runtime bundle', () => {
       bundle.simulation!.anomalyAssignments,
     ).map((assignment) => assignment.severity))
 
-    expect(severities).toEqual(new Set(['minor', 'major', 'critical', 'offline']))
+    expect(severities).toEqual(new Set(['critical']))
+    expect(Object.values(bundle.simulation!.anomalyAssignments).every((assignment) => assignment.secondarySeverity === 'minor')).toBe(true)
   })
 })

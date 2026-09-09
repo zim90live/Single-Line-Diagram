@@ -1,4 +1,4 @@
-import { FLOW_ARROW_PERIOD, FLOW_ARROW_SPEED } from './flowArrows'
+import { FLOW_DOT_ANIMATION_STYLES, flowAnimationSpeedMultiplier } from './flowPresentation'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import {
@@ -14,6 +14,7 @@ import type { DiagramViewport } from '../domain/project'
 import type { Point } from '../scene/geometry'
 import {
   FLOW_ANIMATION_STYLES,
+  FLOW_DASH_ANIMATION_STYLES,
   FLOW_CHILD_LINE_SCREEN_WIDTH,
   FLOW_BUSBAR_SCREEN_WIDTH,
   FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
@@ -234,7 +235,7 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
     .map(({ path }) => path)
   for (const path of orderedPaths) {
     const { lineWidth, scalesWithZoom } = resolvedLineWidth(path)
-    const speedMultiplier = path.speedMultiplier ?? 1
+    const speedMultiplier = flowAnimationSpeedMultiplier(path)
     const color = new Color(path.baseColor ?? '#FFFFFF')
     let accumulated = phaseOffsets.get(path.id) ?? 0
     for (let index = 1; index < path.points.length; index += 1) {
@@ -307,6 +308,7 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
 
 const vertexShader = `
   uniform float uWaveWidthRatio;
+  uniform float uDotSize;
   uniform vec2 uResolution;
   uniform vec2 uTranslation;
   uniform float uZoom;
@@ -314,7 +316,7 @@ const vertexShader = `
   attribute vec3 aFlowColor;
   attribute vec2 aJoin;
   uniform float uCooling;
-  uniform float uArrows;
+  uniform float uDots;
   attribute float aSide;
   attribute float aAlong;
   attribute float aLineWidth;
@@ -324,6 +326,8 @@ const vertexShader = `
   varying float vDistance;
   varying float vSpeed;
   varying float vAcross;
+  varying float vSegmentAlong;
+  varying float vSegmentLength;
   varying vec3 vColor;
 
   void main() {
@@ -334,13 +338,21 @@ const vertexShader = `
     vec2 normal = vec2(-direction.y, direction.x);
     float lineWidth = aLineWidth * mix(1.0, uZoom, aWidthScalesWithZoom);
     // Power fills the line; cooling keeps its independently configured inset.
-    lineWidth = uArrows > 0.5 ? 4.0 * uZoom : lineWidth * uWaveWidthRatio;
-    vec2 screen = mix(startScreen, endScreen, aAlong) + aJoin * lineWidth * 0.5;
+    lineWidth = uDots > 0.5 ? uDotSize * uZoom : lineWidth * uWaveWidthRatio;
+    // Dots use an expanded rectangular segment, never the sheared miter mesh.
+    // End padding lets a circle remain whole while its center crosses a joint.
+    vec2 offset = uDots > 0.5
+      ? (normal * aSide + direction * (2.0 * aAlong - 1.0)) * lineWidth * 0.5
+      : aJoin * lineWidth * 0.5;
+    vec2 screen = mix(startScreen, endScreen, aAlong) + offset;
     vec2 clip = vec2(
       screen.x / uResolution.x * 2.0 - 1.0,
       1.0 - screen.y / uResolution.y * 2.0
     );
-    vDistance = aDistance;
+    float alongOffset = uDots > 0.5 ? dot(offset, direction) / uZoom : 0.0;
+    vDistance = aDistance + alongOffset;
+    vSegmentLength = length(aEnd - position.xy);
+    vSegmentAlong = aAlong * vSegmentLength + alongOffset;
     vSpeed = aSpeed;
     vAcross = aSide;
     vColor = aFlowColor;
@@ -354,7 +366,10 @@ const fragmentShader = `
   uniform float uMotion;
   uniform vec3 uDashColor;
   uniform float uDashOpacity;
-  uniform float uArrows;
+  uniform float uDotSize;
+  uniform float uDots;
+  uniform float uDashes;
+  uniform float uGapOpacity;
   uniform float uDashLength;
   uniform float uDashPeriod;
   uniform float uBaseSpeed;
@@ -362,12 +377,14 @@ const fragmentShader = `
   varying float vDistance;
   varying float vSpeed;
   varying float vAcross;
+  varying float vSegmentAlong;
+  varying float vSegmentLength;
   varying vec3 vColor;
 
   void main() {
     // Wave position belongs to the diagram for both systems.
     float flowDistance = vDistance;
-    float speed = uCooling > 0.5 ? clamp(vSpeed, 0.25, 2.5) : max(vSpeed, 0.0);
+    float speed = max(vSpeed, 0.0);
     if (vSpeed <= 0.0) discard;
     float movingPhase = uTime * uBaseSpeed * speed * uMotion;
     float phase = mod(flowDistance - movingPhase, uDashPeriod);
@@ -376,14 +393,20 @@ const fragmentShader = `
     float tail = clamp(phase / uDashLength, 0.0, 1.0);
     // The former gap is a short head-to-tail transition, never an empty cut.
     float reset = 1.0 - smoothstep(uDashLength, uDashPeriod, phase);
-    float alpha = 0.5 + 0.5 * tail * reset;
+    float alpha = 0.2 + 0.8 * tail * reset;
     vec3 displayColor = vColor;
-    if (uArrows > 0.5) {
+    if (uDashes > 0.5) {
+      alpha = phase < uDashLength ? 1.0 : uGapOpacity;
+    }
+    if (uDots > 0.5) {
       float along = phase - uDashPeriod * 0.5;
-      if (along < -2.5 || along > 2.5) discard;
-      float halfWidth = (2.5 - along) / 5.0;
-      float edge = max(fwidth(vAcross), 0.001);
-      alpha = 1.0 - smoothstep(halfWidth - edge, halfWidth, abs(vAcross));
+      // Each center belongs to exactly one segment; adjacent segments do not
+      // clip the circle or draw a second, differently oriented half-circle.
+      float centerAlong = vSegmentAlong - along;
+      if (centerAlong < 0.0 || centerAlong >= vSegmentLength) discard;
+      float radius = length(vec2(along / (uDotSize * 0.5), vAcross));
+      float edge = max(fwidth(radius), 0.001);
+      alpha = 1.0 - smoothstep(1.0 - edge, 1.0, radius);
       displayColor = vColor;
     }
     gl_FragColor = vec4(displayColor, uDashOpacity * alpha);
@@ -411,6 +434,8 @@ function FlowLines({
   const elapsed = useRef(0)
   const initialViewport = viewportRef.current
   const styleConfig = FLOW_ANIMATION_STYLES[style]
+  const dotConfig = FLOW_DOT_ANIMATION_STYLES[style]
+  const motionConfig = animationMode === 'dashes' ? FLOW_DASH_ANIMATION_STYLES[style] : styleConfig
   const geometry = useMemo(() => {
     const data = buildFlowLineGeometry(paths)
     const next = new BufferGeometry()
@@ -435,10 +460,13 @@ function FlowLines({
       uMotion: { value: reducedMotion ? 0 : 1 },
       uDashColor: { value: new Color(styleConfig.color) },
       uDashOpacity: { value: styleConfig.opacity },
-      uDashLength: { value: styleConfig.dashLength },
-      uDashPeriod: { value: animationMode === 'arrows' ? FLOW_ARROW_PERIOD : styleConfig.dashLength + styleConfig.gapLength },
-      uBaseSpeed: { value: animationMode === 'arrows' ? FLOW_ARROW_SPEED : styleConfig.baseSpeed },
-      uArrows: { value: animationMode === 'arrows' ? 1 : 0 },
+      uDashLength: { value: Math.max(0.001, motionConfig.dashLength) },
+      uDashPeriod: { value: animationMode === 'dots' ? Math.max(0.001, dotConfig.dotSpacing, dotConfig.dotSize) : Math.max(0.001, motionConfig.dashLength) + Math.max(0, motionConfig.gapLength) },
+      uBaseSpeed: { value: Math.max(0, animationMode === 'dots' ? dotConfig.baseSpeed : motionConfig.baseSpeed) },
+      uDotSize: { value: Math.max(0.001, dotConfig.dotSize) },
+      uDots: { value: animationMode === 'dots' ? 1 : 0 },
+      uDashes: { value: animationMode === 'dashes' ? 1 : 0 },
+      uGapOpacity: { value: Math.min(1, Math.max(0, FLOW_DASH_ANIMATION_STYLES[style].gapOpacity)) },
       uCooling: { value: style === 'cooling' ? 1 : 0 },
       uWaveWidthRatio: { value: styleConfig.waveWidthRatio },
     },
@@ -448,7 +476,7 @@ function FlowLines({
     side: DoubleSide,
     depthTest: false,
     depthWrite: false,
-  }), [styleConfig, style, animationMode])
+  }), [styleConfig, motionConfig, dotConfig, style, animationMode])
 
   useEffect(() => () => geometry.dispose(), [geometry])
   useEffect(() => () => material.dispose(), [material])
@@ -486,12 +514,12 @@ export function FlowAnimationLayer({
 }) {
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-  const hasPaths = paths.some((path) => playing || animationMode === 'arrows' || path.style === 'cooling')
+  const hasPaths = paths.some((path) => playing || animationMode !== 'wave' || path.style === 'cooling')
   const pathsByStyle = useMemo(() => {
     const grouped = new Map<FlowAnimationStyle, MonitorFlowPath[]>()
     paths.forEach((path) => {
       const style = path.style ?? 'power'
-      if (!playing && animationMode !== 'arrows' && style !== 'cooling') return
+      if (!playing && animationMode === 'wave' && style !== 'cooling') return
       const group = grouped.get(style) ?? []
       group.push(path)
       grouped.set(style, group)
