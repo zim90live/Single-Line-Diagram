@@ -9,3 +9,5 @@ export type { DiagramRuntimeViewerProps } from './DiagramRuntimeViewer'
 export { RuntimeBundleViewer } from './RuntimeBundleViewer'
 export type { RuntimeBundleViewerProps } from './RuntimeBundleViewer'
 export { useMonitorMetricReadings } from './useMonitorMetricReadings'
+
+export type { FlowAnimationMode } from '../monitoring/flowPresentation'

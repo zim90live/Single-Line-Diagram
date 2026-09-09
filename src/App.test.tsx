@@ -109,6 +109,7 @@ vi.mock('./runtime/DiagramMonitorCanvas', () => ({
     return (
       <div
         data-testid="diagram-monitor-canvas"
+        data-animation-mode={props.animationMode as string}
         data-mode="monitor"
         data-animation-playing={String(props.animationPlaying)}
       >
@@ -494,6 +495,16 @@ describe('AIDC editor workspace', () => {
     await user.click(screen.getByRole('tab', { name: '监控模式' }))
 
     expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-mode', 'monitor')
+    const dirtyBeforeStyle = useAppStore.getState().dirty
+    const documentBeforeStyle = useAppStore.getState().document
+    expect(screen.getByRole('button', { name: '光波' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: '箭头' }))
+    expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-animation-mode', 'arrows')
+    expect(useAppStore.getState().dirty).toBe(dirtyBeforeStyle)
+    expect(useAppStore.getState().document).toBe(documentBeforeStyle)
+    await user.click(screen.getByRole('button', { name: '光波' }))
+    expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-animation-mode', 'wave')
+
     expect(screen.getByLabelText('项目名称')).toBeDisabled()
     expect(screen.queryByText('CHWP')).not.toBeInTheDocument()
     expect(document.querySelector('.properties-panel')).not.toBeInTheDocument()

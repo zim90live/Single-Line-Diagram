@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { forwardRef, memo, useMemo, useState } from 'react'
 
 import { projectOnOffStates } from '../domain/project'
@@ -20,6 +21,7 @@ import type {
 
 export interface RuntimeBundleViewerProps {
   bundle: DiagramRuntimeBundle
+  animationMode?: FlowAnimationMode
   animationPlaying: boolean
   diagramId?: string
   defaultDiagramId?: string
@@ -35,6 +37,7 @@ export const RuntimeBundleViewer = memo(forwardRef<
   RuntimeBundleViewerProps
 >(function RuntimeBundleViewer({
   bundle,
+  animationMode = 'wave',
   animationPlaying,
   diagramId,
   defaultDiagramId,
@@ -114,6 +117,7 @@ export const RuntimeBundleViewer = memo(forwardRef<
       ref={ref}
       view={view}
       runtime={runtime}
+      animationMode={animationMode}
       animationPlaying={animationPlaying}
       onSelectionChange={onSelectionChange}
       onRuntimePresentationChange={onRuntimePresentationChange}

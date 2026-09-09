@@ -4,7 +4,7 @@ import type { ComponentProps } from 'react'
 import { DiagramElementItem } from './DiagramCanvas'
 import { symbolsByKey } from '../scene/symbolCatalog'
 
-describe('TMU canvas anchor placement', () => {
+describe.each(['tmu', 'fm'] as const)('%s canvas anchor placement', (assetKey) => {
   it.each([0, 90])('moves visible ports and hit targets together at rotation %s', (rotation) => {
     const props: ComponentProps<typeof DiagramElementItem> = {
       mode: 'edit', element: { id: 'tmu', assetKey: 'tmu', diagramId: 'd', name: 'TMU', x: 0, y: 0, width: 48, height: 48, rotation, properties: {}, extensions: {} },
@@ -18,10 +18,13 @@ describe('TMU canvas anchor placement', () => {
       startMove: { current: vi.fn() }, enterAnchor: { current: vi.fn() }, leaveAnchor: { current: vi.fn() }, pressAnchor: { current: vi.fn() },
       hoverElement: { current: vi.fn() }, drillDownElement: { current: vi.fn() }, coolingPumpRunning: true, coolingValveOpen: true,
     }
+    props.element = { ...props.element, assetKey }
+    props.asset = { ...props.asset!, key: assetKey }
+    props.symbol = symbolsByKey.get(assetKey)
     const { container, rerender } = render(<svg><DiagramElementItem {...props} /></svg>)
     const port = () => container.querySelector('[data-anchor-id="cold"]')!
     expect(port()).toHaveAttribute('cy', '0')
-    rerender(<svg><DiagramElementItem {...props} element={{ ...props.element, tmuPortsSwapped: true }} /></svg>)
+    rerender(<svg><DiagramElementItem {...props} element={{ ...props.element, [assetKey === 'tmu' ? 'tmuPortsSwapped' : 'fmPortsSwapped']: true }} /></svg>)
     expect(port()).toHaveAttribute('cx', '16')
     expect(port()).toHaveAttribute('cy', '48')
     expect(container.querySelector('[data-anchor-id="hot"]')).toHaveAttribute('cy', '0')

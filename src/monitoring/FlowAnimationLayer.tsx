@@ -1,3 +1,4 @@
+import { FLOW_ARROW_PERIOD, FLOW_ARROW_SPEED } from './flowArrows'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import {
@@ -17,6 +18,7 @@ import {
   FLOW_BUSBAR_SCREEN_WIDTH,
   FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
   FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH,
+  type FlowAnimationMode,
   type FlowAnimationStyle,
   type MonitorFlowPath,
 } from './flowPresentation'
@@ -283,7 +285,7 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
         colors.push(color.r, color.g, color.b)
         widths.push(lineWidth)
         speeds.push(speedMultiplier)
-        distances.push(accumulated + length * vertex.along)
+        distances.push(path.animationPhaseDistance ?? accumulated + length * vertex.along)
         widthScales.push(scalesWithZoom ? 1 : 0)
       }
       accumulated += length
@@ -304,6 +306,7 @@ export function buildFlowLineGeometry(paths: MonitorFlowPath[]) {
 }
 
 const vertexShader = `
+  uniform float uWaveWidthRatio;
   uniform vec2 uResolution;
   uniform vec2 uTranslation;
   uniform float uZoom;
@@ -311,6 +314,7 @@ const vertexShader = `
   attribute vec3 aFlowColor;
   attribute vec2 aJoin;
   uniform float uCooling;
+  uniform float uArrows;
   attribute float aSide;
   attribute float aAlong;
   attribute float aLineWidth;
@@ -319,6 +323,7 @@ const vertexShader = `
   attribute float aWidthScalesWithZoom;
   varying float vDistance;
   varying float vSpeed;
+  varying float vAcross;
   varying vec3 vColor;
 
   void main() {
@@ -328,8 +333,8 @@ const vertexShader = `
     vec2 direction = delta / max(length(delta), 0.0001);
     vec2 normal = vec2(-direction.y, direction.x);
     float lineWidth = aLineWidth * mix(1.0, uZoom, aWidthScalesWithZoom);
-    // Inset only the animated strip; the static pipe interior keeps its width.
-    lineWidth *= 0.8;
+    // Power fills the line; cooling keeps its independently configured inset.
+    lineWidth = uArrows > 0.5 ? 4.0 * uZoom : lineWidth * uWaveWidthRatio;
     vec2 screen = mix(startScreen, endScreen, aAlong) + aJoin * lineWidth * 0.5;
     vec2 clip = vec2(
       screen.x / uResolution.x * 2.0 - 1.0,
@@ -337,6 +342,7 @@ const vertexShader = `
     );
     vDistance = aDistance;
     vSpeed = aSpeed;
+    vAcross = aSide;
     vColor = aFlowColor;
     gl_Position = vec4(clip, 0.0, 1.0);
   }
@@ -348,12 +354,14 @@ const fragmentShader = `
   uniform float uMotion;
   uniform vec3 uDashColor;
   uniform float uDashOpacity;
+  uniform float uArrows;
   uniform float uDashLength;
   uniform float uDashPeriod;
   uniform float uBaseSpeed;
   uniform float uCooling;
   varying float vDistance;
   varying float vSpeed;
+  varying float vAcross;
   varying vec3 vColor;
 
   void main() {
@@ -369,7 +377,16 @@ const fragmentShader = `
     // The former gap is a short head-to-tail transition, never an empty cut.
     float reset = 1.0 - smoothstep(uDashLength, uDashPeriod, phase);
     float alpha = 0.5 + 0.5 * tail * reset;
-    gl_FragColor = vec4(vColor, uDashOpacity * alpha);
+    vec3 displayColor = vColor;
+    if (uArrows > 0.5) {
+      float along = phase - uDashPeriod * 0.5;
+      if (along < -2.5 || along > 2.5) discard;
+      float halfWidth = (2.5 - along) / 5.0;
+      float edge = max(fwidth(vAcross), 0.001);
+      alpha = 1.0 - smoothstep(halfWidth - edge, halfWidth, abs(vAcross));
+      displayColor = vColor;
+    }
+    gl_FragColor = vec4(displayColor, uDashOpacity * alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -380,12 +397,14 @@ function FlowLines({
   viewportRef,
   reducedMotion,
   playing,
+  animationMode,
   style,
 }: {
   paths: MonitorFlowPath[]
   viewportRef: RefObject<DiagramViewport>
   reducedMotion: boolean
   playing: boolean
+  animationMode: FlowAnimationMode
   style: FlowAnimationStyle
 }) {
   const { size } = useThree()
@@ -406,7 +425,7 @@ function FlowLines({
     next.setAttribute('aDistance', new BufferAttribute(data.distances, 1))
     next.setAttribute('aWidthScalesWithZoom', new BufferAttribute(data.widthScales, 1))
     return next
-  }, [paths])
+  }, [paths, animationMode])
   const material = useMemo(() => new ShaderMaterial({
     uniforms: {
       uResolution: { value: new Vector2(size.width, size.height) },
@@ -417,9 +436,11 @@ function FlowLines({
       uDashColor: { value: new Color(styleConfig.color) },
       uDashOpacity: { value: styleConfig.opacity },
       uDashLength: { value: styleConfig.dashLength },
-      uDashPeriod: { value: styleConfig.dashLength + styleConfig.gapLength },
-      uBaseSpeed: { value: styleConfig.baseSpeed },
+      uDashPeriod: { value: animationMode === 'arrows' ? FLOW_ARROW_PERIOD : styleConfig.dashLength + styleConfig.gapLength },
+      uBaseSpeed: { value: animationMode === 'arrows' ? FLOW_ARROW_SPEED : styleConfig.baseSpeed },
+      uArrows: { value: animationMode === 'arrows' ? 1 : 0 },
       uCooling: { value: style === 'cooling' ? 1 : 0 },
+      uWaveWidthRatio: { value: styleConfig.waveWidthRatio },
     },
     vertexShader,
     fragmentShader,
@@ -427,7 +448,7 @@ function FlowLines({
     side: DoubleSide,
     depthTest: false,
     depthWrite: false,
-  }), [styleConfig, style])
+  }), [styleConfig, style, animationMode])
 
   useEffect(() => () => geometry.dispose(), [geometry])
   useEffect(() => () => material.dispose(), [material])
@@ -455,26 +476,28 @@ export function FlowAnimationLayer({
   viewportRef,
   invalidateRef,
   playing = true,
+  animationMode = 'wave',
 }: {
   paths: MonitorFlowPath[]
   viewportRef: RefObject<DiagramViewport>
   invalidateRef: RefObject<(() => void) | null>
   playing?: boolean
+  animationMode?: FlowAnimationMode
 }) {
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
-  const hasPaths = paths.some((path) => playing || path.style === 'cooling')
+  const hasPaths = paths.some((path) => playing || animationMode === 'arrows' || path.style === 'cooling')
   const pathsByStyle = useMemo(() => {
     const grouped = new Map<FlowAnimationStyle, MonitorFlowPath[]>()
     paths.forEach((path) => {
       const style = path.style ?? 'power'
-      if (!playing && style !== 'cooling') return
+      if (!playing && animationMode !== 'arrows' && style !== 'cooling') return
       const group = grouped.get(style) ?? []
       group.push(path)
       grouped.set(style, group)
     })
     return grouped
-  }, [paths, playing])
+  }, [paths, playing, animationMode])
   useEffect(() => {
     if (!hasPaths) invalidateRef.current = null
     return () => {
@@ -502,6 +525,7 @@ export function FlowAnimationLayer({
             viewportRef={viewportRef}
             reducedMotion={reducedMotion}
             playing={playing}
+            animationMode={animationMode}
             style={style}
           />
         ))}

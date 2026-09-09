@@ -24,6 +24,18 @@ const symbolUrls = import.meta.glob<string>([
 
 const COOLING_PUMP_STOPPED_SYMBOL_FILE = 'PumpOff.png'
 const CHWP_CWP_STOPPED_SYMBOL_FILE = 'CHWP CWP Off.svg'
+const FAULT_SYMBOL_FILES: Record<string, string> = {
+  'battery-group': 'Battery-group Fault.svg',
+  cabinet: 'Tap-off Unit-group Fault.svg',
+  'cabinet-b': 'Tap-off Unit-group Fault.svg',
+  'cabinet-device': 'Cabinet Fault.svg',
+  'ups-group': 'UPS-group Fault.svg',
+  ups: 'UPS Fault.svg',
+  fm: 'FM Fault.svg',
+  tmu: 'TMU Fault.svg',
+  cdu: 'CDU Fault.svg',
+  ct: 'CT Fault.svg',
+}
 
 export interface SymbolDefinition extends AssetDefinition {
   url: string
@@ -216,8 +228,8 @@ const metadata: SymbolMetadata[] = [
   { file: 'UPS-group.svg', name: 'UPS-group', category: '电力', width: 48, height: 48 },
   { file: 'CPD.png', name: 'CPD', category: '冷却', width: 80, height: 80 },
   { file: 'Cabinet.svg', key: 'cabinet-device', name: 'Cabinet', category: '电力', width: 48, height: 48 },
-  { file: 'Cabinet A.svg', key: 'cabinet', name: 'Tap-off Unit A', category: '电力', width: 48, height: 48 },
-  { file: 'Cabinet B.svg', key: 'cabinet-b', name: 'Tap-off Unit B', category: '电力', width: 48, height: 48 },
+  { file: 'Tap-off Unit-group.svg', key: 'cabinet', name: 'Tap-off Unit-group', category: '电力', width: 48, height: 48 },
+  { file: 'Tap-off Unit-group.svg', key: 'cabinet-b', name: 'Tap-off Unit-group', category: '电力', width: 48, height: 48 },
   {
     file: 'Tap-off Unit.svg',
     key: 'tap-off-unit',
@@ -249,6 +261,7 @@ const registeredFiles = new Set(metadata.flatMap((symbol) => [
 ]).concat(
   `../assets/symbols/${COOLING_PUMP_STOPPED_SYMBOL_FILE}`,
   `../assets/symbols/${CHWP_CWP_STOPPED_SYMBOL_FILE}`,
+  ...Object.values(FAULT_SYMBOL_FILES).map((file) => `../assets/symbols/${file}`),
 ))
 const unregisteredFiles = Object.keys(symbolUrls).filter((path) => !registeredFiles.has(path))
 if (unregisteredFiles.length) {
@@ -361,7 +374,9 @@ export function getSymbolDisplayUrl(
   symbol: SymbolDefinition,
   state: SymbolVisualState = symbol.defaultState ?? 'off',
   coolingPumpStopped = false,
+  fault = false,
 ) {
+  if (fault && FAULT_SYMBOL_FILES[symbol.key]) return getSymbolUrl(FAULT_SYMBOL_FILES[symbol.key])
   return coolingPumpStopped
     ? symbol.key === 'chwp' || symbol.key === 'cwp'
       ? getSymbolUrl(CHWP_CWP_STOPPED_SYMBOL_FILE)

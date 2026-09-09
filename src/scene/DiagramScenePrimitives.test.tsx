@@ -165,6 +165,8 @@ describe('diagram scene primitives', () => {
       .toHaveAttribute('d', 'M 0 16 L 80 16')
     const tap = container.querySelector('[data-busbar-offset="24"]')
     expect(tap).toHaveAttribute('data-connection-type', 'electrical')
+    expect(tap).toHaveAttribute('visibility', 'hidden')
+    expect(tap).toHaveAttribute('aria-hidden', 'true')
     expect(tap).toHaveAttribute('cx', '24')
     expect(tap).toHaveAttribute('cy', '16')
     expect(tap).toHaveAttribute('r', '1.25')
@@ -175,6 +177,19 @@ describe('diagram scene primitives', () => {
       .toHaveAttribute('data-monitor-pipe-shell-replay', 'true')
     expect(container.querySelector('.connection-edge__direction-arrow'))
       .toHaveAttribute('d', 'M 40 32 L 48 32')
+  })
+
+  it('animates suspected leak color only on the existing pipe outline', () => {
+    const { container, rerender } = render(<svg><CoolingPipeOutlineFilter
+      id="leak" points={[{ x: 0, y: 0 }, { x: 80, y: 0 }]} suspectedLeak
+    /></svg>)
+    expect(container.querySelector('animate')).toHaveAttribute('attributeName', 'flood-color')
+    expect(container.querySelector('animate')).toHaveAttribute('dur', '1s')
+    expect(container.querySelector('feMorphology[operator="dilate"]')).toHaveAttribute('radius', '1')
+    expect(container.querySelector('feComposite[in="leak-color"]')).toHaveAttribute('in2', 'pipe-outline')
+    expect(container.querySelector('feMergeNode[in="pipe-fill"]')).not.toBeNull()
+    rerender(<svg><CoolingPipeOutlineFilter id="leak" points={[]} /></svg>)
+    expect(container.querySelector('animate')).toBeNull()
   })
 })
 
@@ -189,4 +204,23 @@ it('renders embedded power waves in the line color with a continuous half-opacit
   expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-color'))).toEqual(['#1BA4FF', '#1BA4FF', '#1BA4FF'])
   expect([...gradient.querySelectorAll('stop')].map(stop => stop.getAttribute('stop-opacity'))).toEqual(['0.5', '1', '0.5'])
   expect(container.querySelector('[stroke-dasharray]')).toBeNull()
+})
+
+it('moves a filled arrow pattern forward and pauses the owning SVG timeline', () => {
+  const paths = [{ id: 'power', style: 'power' as const, baseColor: '#1BA4FF',
+    points: [{ x: 0, y: 0 }, { x: 120, y: 0 }] }]
+  const { container, rerender } = render(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing /></svg>)
+  const pattern = container.querySelector('pattern')!
+  expect(pattern).toHaveAttribute('width', '20')
+  expect(pattern).toHaveAttribute('height', '4')
+  expect(pattern.querySelector('path')).toHaveAttribute('d', 'M 7.5 -2 L 12.5 0 L 7.5 2 Z')
+  expect(pattern.querySelector('animateTransform')).toHaveAttribute('to', '20 0')
+  const svg = container.querySelector('svg')!
+  svg.pauseAnimations = vi.fn()
+  svg.unpauseAnimations = vi.fn()
+  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing={false} /></svg>)
+  expect(svg.pauseAnimations).toHaveBeenCalled()
+  expect(container.querySelector('[data-arrow-playing]')).toHaveAttribute('data-arrow-playing', 'false')
+  rerender(<svg><MonitorAnimatedFlowLines paths={paths} animationMode="arrows" playing /></svg>)
+  expect(svg.unpauseAnimations).toHaveBeenCalled()
 })

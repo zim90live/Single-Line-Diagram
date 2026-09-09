@@ -7,6 +7,7 @@ export const FLOW_CHILD_LINE_SCREEN_WIDTH = 2
 export const FLOW_BUSBAR_SCREEN_WIDTH = 4.5
 export const FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH = 2.25
 export const FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH = 6
+export type FlowAnimationMode = 'wave' | 'arrows'
 export type FlowAnimationStyle = 'power' | 'cooling'
 
 export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
@@ -15,21 +16,24 @@ export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
   dashLength: number
   gapLength: number
   baseSpeed: number
+  waveWidthRatio: number
 }> = {
   power: {
+    waveWidthRatio: 1,
     color: '#FFFFFF',
     opacity: 1,
-    dashLength: 48,
+    dashLength: 80,
     gapLength: 1,
-    baseSpeed: 168,
+    baseSpeed: 160,
   },
   // Both systems use diagram units for wave length and speed.
   cooling: {
+    waveWidthRatio: 0.6,
     color: '#FFFFFF',
     opacity: 1,
-    dashLength: 192,
-    gapLength: 4,
-    baseSpeed: 84,
+    dashLength: 200,
+    gapLength: 1,
+    baseSpeed: 120,
   },
 }
 
@@ -44,6 +48,7 @@ export interface MonitorFlowPath {
   animated?: boolean
   baseColor?: string
   renderPriority?: number
+  animationPhaseDistance?: number
   /** Uncut directed path and topology endpoints, retained across visual masks. */
   phasePath?: {
     id: string
@@ -116,7 +121,7 @@ export function buildMonitorStaticFlowLineGroups(
   const append = (path: MonitorFlowPath, active: boolean) => {
     if (path.points.length < 2) return
     const base = path.baseColor ?? '#000000'
-    const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.5
+    const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.6
     const color = darkenFlowColor(base, active ? 0.75 : inactiveBlackMix)
     const appearance = resolvedStaticLineAppearance(path)
     const renderPriority = path.renderPriority ?? 1

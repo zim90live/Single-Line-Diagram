@@ -1,4 +1,5 @@
-import { memo, useId, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { buildFlowArrows, FLOW_ARROW_PERIOD, FLOW_ARROW_SPEED } from '../monitoring/flowArrows'
+import { memo, useId, useEffect, useRef, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 
 import type {
   AnchorType,
@@ -13,6 +14,7 @@ import {
   FLOW_BUSBAR_SCREEN_WIDTH,
   FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
   FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH,
+  type FlowAnimationMode,
   type MonitorFlowPath,
   type MonitorStaticFlowLineGroup,
 } from '../monitoring/flowPresentation'
@@ -90,13 +92,60 @@ export const MonitorStaticFlowLines = memo(function MonitorStaticFlowLines({
 
 export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
   paths,
+  animationMode = 'wave',
+  playing = true,
 }: {
   paths: MonitorFlowPath[]
+  animationMode?: FlowAnimationMode
+  playing?: boolean
 }) {
+  const arrowGroupRef = useRef<SVGGElement>(null)
   const scope = useId().replace(/[^a-z0-9_-]/gi, '')
   const offsets = flowPhaseOffsets(paths)
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+  useEffect(() => {
+    const svg = arrowGroupRef.current?.ownerSVGElement
+    if (!svg) return
+    if (playing && !reducedMotion) svg.unpauseAnimations?.()
+    else svg.pauseAnimations?.()
+    return () => { svg.unpauseAnimations?.() }
+  }, [playing, reducedMotion, animationMode])
+  if (animationMode === 'arrows') {
+    if (reducedMotion) return buildFlowArrows(paths).map(arrow => <path key={arrow.id}
+      d={`${pathData(arrow.points)} Z`} fill={arrow.baseColor ?? '#FFFFFF'}
+      pointerEvents="none" />)
+    return <g ref={arrowGroupRef} data-arrow-playing={playing && !reducedMotion}>
+      {paths.flatMap((path, pathIndex) => {
+        const speed = FLOW_ARROW_SPEED * Math.max(0.25, Math.min(2.5, path.speedMultiplier ?? 1))
+        if ((path.speedMultiplier ?? 1) <= 0) return []
+        let distance = offsets.get(path.id) ?? 0
+        return path.points.slice(1).flatMap((end, index) => {
+          const start = path.points[index]
+          const length = Math.hypot(end.x - start.x, end.y - start.y)
+          if (!length) return []
+          const dx = (end.x - start.x) / length
+          const dy = (end.y - start.y) / length
+          const id = `${scope}-moving-arrow-${pathIndex}-${index}`
+          const origin = ((distance % FLOW_ARROW_PERIOD) + FLOW_ARROW_PERIOD) % FLOW_ARROW_PERIOD
+          distance += length
+          return <g key={id}>
+            <defs>
+              <pattern id={id} patternUnits="userSpaceOnUse" width={FLOW_ARROW_PERIOD} height={4} y={-2}
+                patternTransform={`matrix(${dx} ${dy} ${-dy} ${dx} ${start.x - dx * origin} ${start.y - dy * origin})`}>
+                <path d="M 7.5 -2 L 12.5 0 L 7.5 2 Z"
+                  fill={path.baseColor ?? '#FFFFFF'} />
+                <animateTransform attributeName="patternTransform" type="translate" additive="sum"
+                  from="0 0" to={`${FLOW_ARROW_PERIOD} 0`} dur={`${FLOW_ARROW_PERIOD / speed}s`} repeatCount="indefinite" />
+              </pattern>
+            </defs>
+            <path className="monitor-moving-arrow-flow" d={pathData([start, end])}
+              fill="none" pointerEvents="none" stroke={`url(#${id})`} strokeWidth={4} strokeLinecap="butt" />
+          </g>
+        })
+      })}
+    </g>
+  }
   return paths.flatMap((path, pathIndex) => {
     const style = FLOW_ANIMATION_STYLES[path.style ?? 'power']
     const speed = style.baseSpeed * Math.max(0, path.speedMultiplier ?? 1)
@@ -204,6 +253,8 @@ export const BusbarTapVisual = memo(function BusbarTapVisual({
         else nodeRegistry.current.delete(nodeId)
       }}
       className="busbar-tap"
+      visibility="hidden"
+      aria-hidden="true"
       data-connection-type="electrical"
       data-busbar-id={busbarId}
       data-busbar-offset={offset}
@@ -731,6 +782,7 @@ export interface DiagramElementVisualProps {
   genericBackgroundColor?: string
   visualState: SymbolVisualState
   coolingPumpStopped?: boolean
+  fault?: boolean
   showCoolingPumpState?: boolean
   colorFilterId?: string
   clipPathId: string
@@ -745,6 +797,7 @@ export const DiagramElementVisual = memo(function DiagramElementVisual({
   genericBackgroundColor,
   visualState,
   coolingPumpStopped = false,
+  fault = false,
   showCoolingPumpState = false,
   colorFilterId,
   clipPathId,
@@ -813,7 +866,7 @@ export const DiagramElementVisual = memo(function DiagramElementVisual({
           ? coolingPumpStopped ? 'stopped' : 'running'
           : undefined}
         filter={symbolColor && colorFilterId ? `url(#${colorFilterId})` : undefined}
-        href={getSymbolDisplayUrl(symbol, visualState, coolingPumpStopped)}
+        href={getSymbolDisplayUrl(symbol, visualState, coolingPumpStopped, fault)}
         x={element.x}
         y={element.y}
         width={element.width}
@@ -830,12 +883,14 @@ export interface CoolingPipeOutlineFilterProps {
   id: string
   points: Point[]
   role?: CoolingLineRole
+  suspectedLeak?: boolean
 }
 
 export const CoolingPipeOutlineFilter = memo(function CoolingPipeOutlineFilter({
   id,
   points,
   role,
+  suspectedLeak = false,
 }: CoolingPipeOutlineFilterProps) {
   const region = coolingPipeFilterRegion(points)
   return (
@@ -857,6 +912,14 @@ export const CoolingPipeOutlineFilter = memo(function CoolingPipeOutlineFilter({
       </feComponentTransfer>
       <feComposite in="pipe-base" in2="pipe-interior" operator="in" result="pipe-fill" />
       <feComposite in="SourceGraphic" in2="pipe-interior" operator="out" result="pipe-outline" />
+      {suspectedLeak ? <>
+        <feMorphology in="SourceAlpha" operator="dilate" radius={role === 'auxiliary' ? 0.8 : 1} result="leak-outer" />
+        <feComposite in="leak-outer" in2="pipe-interior" operator="out" result="pipe-outline" />
+        <feFlood floodColor="#FF3030" result="leak-color">
+          <animate attributeName="flood-color" values="#FF3030;#701515;#FF3030" dur="1s" repeatCount="indefinite" />
+        </feFlood>
+        <feComposite in="leak-color" in2="pipe-outline" operator="in" result="pipe-outline" />
+      </> : null}
       <feMerge>
         <feMergeNode in="pipe-outline" />
         <feMergeNode in="pipe-fill" />

@@ -125,8 +125,8 @@
   --cooling-primary-hot: #fb7800;
   --cooling-secondary-cold: #1ba4ff;
   --cooling-secondary-hot: #00b387;
-  --cooling-tertiary-cold: #a970ff;
-  --cooling-tertiary-hot: #ff4d6d;
+  --cooling-tertiary-cold: #7c5cff;
+  --cooling-tertiary-hot: #f06bd8;
   --connection-cooling-pipe-width: 6px;
   --connection-cooling-pipe-shell-width: 8px;
   --connection-cooling-pipe-shell-color-weight: 100%;
@@ -137,8 +137,9 @@
   --connection-cooling-auxiliary-pipe-shell-color-weight: 100%;
   --connection-cooling-auxiliary-pipe-inner-shadow-opacity: 20%;
   --connection-cooling-auxiliary-pipe-bridge-mask-width: 8px;
-  --connection-cooling-selection-width: 6px;
-  --connection-cooling-selection-color: #b7b8b5;
+  --connection-cooling-selection-width: 10px;
+  --connection-cooling-auxiliary-selection-width: 6px;
+  --connection-cooling-selection-color: #e4e7e2;
   --connection-cooling-pipe-bridge-mask-width: 12px;
   --connection-cooling-pipe-hit-width: 16px;
 

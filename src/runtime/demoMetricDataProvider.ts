@@ -122,6 +122,14 @@ function textReading(
   runtimeOperation?: DemoMonitorMetricOwner['runtimeOperation'],
 ) {
   if (severity === 'offline') return { value: '离线', severity: 'critical' as const }
+  if (metric.name.trim() === '供电方式') {
+    const main = metric.textOptions.find((option) => /^主路(?:供电)?$/.test(option.value.trim()))
+    const bypass = metric.textOptions.find((option) => /^旁路(?:供电)?$/.test(option.value.trim()))
+    if (severity !== 'normal' && bypass) {
+      return { value: bypass.value, severity: bypass.severity === 'normal' ? 'minor' as const : bypass.severity }
+    }
+    if (main) return { value: main.value, severity: 'normal' as const }
+  }
   if (severity === 'normal' && runtimeOperation) {
     const value = runtimeOperation === 'off'
       ? '关闭'

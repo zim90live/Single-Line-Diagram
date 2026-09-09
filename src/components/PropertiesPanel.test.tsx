@@ -75,11 +75,11 @@ describe('PropertiesPanel color property', () => {
     fireEvent.click(screen.getByRole('switch', { name: '显示指标名称与单位' }))
     expect(onPatchBusbar).toHaveBeenCalledWith('bar', { monitorMetricLabelsVisible: false })
   })
-  it('changes only the selected TMU port placement', () => {
+  it.each(['tmu', 'fm'])('changes only the selected %s port placement', (assetKey) => {
     const onPatch = vi.fn()
-    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[element('tmu')]} onPatch={onPatch} onColorPreview={vi.fn()} onDelete={vi.fn()} />)
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[element(assetKey)]} onPatch={onPatch} onColorPreview={vi.fn()} onDelete={vi.fn()} />)
     fireEvent.click(screen.getByRole('switch', { name: '上下接口对调' }))
-    expect(onPatch).toHaveBeenCalledWith('tmu-element', { tmuPortsSwapped: true })
+    expect(onPatch).toHaveBeenCalledWith(`${assetKey}-element`, { [assetKey === 'tmu' ? 'tmuPortsSwapped' : 'fmPortsSwapped']: true })
   })
   it('exposes project palette editing in the empty selection panel', () => {
     render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]} onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()}

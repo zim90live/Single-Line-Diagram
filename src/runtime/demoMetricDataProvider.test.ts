@@ -34,6 +34,27 @@ function element(
 }
 
 describe('demo metric data provider', () => {
+  it('shows main supply as normal and bypass as abnormal, including legacy option severities', () => {
+    const metric: MonitorMetric = {
+      id: 'supply-mode', name: '供电方式', valueType: 'text',
+      textOptions: [
+        { id: 'main', value: '主路', severity: 'major' },
+        { id: 'bypass', value: '旁路供电', severity: 'normal' },
+      ],
+    }
+    const owner = element('ups-supply', 'ups', [metric])
+    for (const fault of [false, true]) {
+      const provider = new DemoMonitorMetricDataProvider({
+        anomalyAssignments: fault ? { [owner.id]: { severity: 'critical', faultCode: 'test' } } : {},
+      })
+      const reading = provider.getRuntimeSnapshot(provider.prepareOwners([owner])).readings[
+        monitorMetricReadingKey(owner.id, metric.id)
+      ]
+      expect(reading).toMatchObject(fault
+        ? { value: '旁路供电', severity: 'minor' }
+        : { value: '主路', severity: 'normal' })
+    }
+  })
   it('covers every registered symbol asset with a device profile', () => {
     const missing = symbolAssets
       .map((asset) => asset.key)
@@ -80,7 +101,7 @@ describe('demo metric data provider', () => {
 
     expect(first).toEqual(second)
     expect(Object.keys(first)).toHaveLength(demoAnomalyCount(40, 'stable-seed:diagram-a'))
-    expect(Object.keys(first)).toHaveLength(2)
+    expect(Object.keys(first)).toHaveLength(1)
   })
 
   it('does not take a unique source or pump offline in the default demo', () => {
@@ -91,6 +112,19 @@ describe('demo metric data provider', () => {
     const assignments = createDemoAnomalyAssignments(protectedElements, 'offline-protection')
 
     expect(Object.values(assignments).map((item) => item.severity)).not.toContain('offline')
+  })
+
+  it('assigns one online fault per page, preferring fault artwork even with hidden metrics', () => {
+    const elements = [
+      element('grid', 'grid'),
+      { ...element('tmu', 'tmu'), monitorDataVisible: false },
+      { ...element('ct', 'ct'), diagramId: 'diagram-b' },
+      { ...element('pump', 'chwp'), diagramId: 'diagram-b' },
+    ]
+    const assignments = createDemoAnomalyAssignments(elements, 'one-fault-per-page')
+    expect(Object.keys(assignments).sort()).toEqual(['ct', 'tmu'])
+    expect(Object.values(assignments).every((assignment) => assignment.severity !== 'offline')).toBe(true)
+    expect(createDemoAnomalyAssignments([], 'one-fault-per-page')).toEqual({})
   })
 
   it('injects metrics only for assigned devices and reproduces readings after reset', () => {

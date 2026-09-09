@@ -4,7 +4,7 @@ import type {
   MonitorMetric,
 } from '../domain/project'
 
-export const DEMO_SIMULATION_ALGORITHM_VERSION = 'demo-runtime-1'
+export const DEMO_SIMULATION_ALGORITHM_VERSION = 'demo-runtime-2'
 export const DEMO_DEVICE_PROFILE_VERSION = 'aidc-demo-profile-2026-09-r4'
 export const DEFAULT_DEMO_SIMULATION_SEED = 'aidc-leadership-demo'
 
@@ -443,12 +443,14 @@ export function defaultDemoMetricsForElement(element: Pick<DiagramElement, 'asse
   return profile.metrics.slice(0, 2).map((item) => createDemoMonitorMetric(element.assetKey, item))
 }
 
-export function demoAnomalyCount(deviceCount: number, seedKey: string) {
-  if (deviceCount <= 0) return 0
-  if (deviceCount <= 7) return 1
-  if (deviceCount <= 30) return 1 + stableDemoHash(`${seedKey}:count`) % 2
-  return 2 + stableDemoHash(`${seedKey}:count`) % 2
+export function demoAnomalyCount(deviceCount: number, _seedKey: string) {
+  return deviceCount > 0 ? 1 : 0
 }
+
+const DEMO_FAULT_ARTWORK_KEYS = new Set([
+  'battery-group', 'cabinet', 'cabinet-b', 'cabinet-device', 'ups-group',
+  'ups', 'fm', 'tmu', 'cdu', 'ct',
+])
 
 const DEMO_OFFLINE_SAFE_ASSET_KEYS = new Set([
   'cabinet-device',
@@ -475,7 +477,7 @@ export function createDemoAnomalyAssignments(
   const result: Record<string, DemoFaultAssignment> = {}
   const byDiagram = new Map<string, typeof elements[number][]>()
   elements.forEach((element) => {
-    if (!demoDeviceProfileForAsset(element.assetKey) || element.monitorDataVisible === false) return
+    if (!demoDeviceProfileForAsset(element.assetKey)) return
     const current = byDiagram.get(element.diagramId) ?? []
     current.push(element)
     byDiagram.set(element.diagramId, current)
@@ -490,16 +492,20 @@ export function createDemoAnomalyAssignments(
         element,
         score: stableDemoHash(`${seed}:${diagramId}:${element.id}`),
       }))
-      .sort((left, right) => left.score - right.score || left.element.id.localeCompare(right.element.id))
+      .sort((left, right) => (
+        Number(DEMO_FAULT_ARTWORK_KEYS.has(right.element.assetKey)) -
+        Number(DEMO_FAULT_ARTWORK_KEYS.has(left.element.assetKey)) ||
+        left.score - right.score || left.element.id.localeCompare(right.element.id)
+      ))
       .slice(0, count)
       .forEach(({ element }) => {
         const derived = derivedSeverity(`${seed}:${diagramId}:${element.id}`)
-        const severity = derived === 'offline' && !canDemoDeviceGoOffline(element.assetKey)
+        const severity = derived === 'offline'
           ? 'critical'
           : derived
         result[element.id] = {
           severity,
-          faultCode: severity === 'offline' ? 'communication-offline' : 'profile-anomaly',
+          faultCode: 'profile-anomaly',
         }
       })
   })

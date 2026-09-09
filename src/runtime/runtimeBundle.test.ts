@@ -75,7 +75,7 @@ describe('diagram runtime bundle', () => {
 
     expect(bundle.formatVersion).toBe(2)
     expect(bundle.simulation).toMatchObject({
-      algorithmVersion: 'demo-runtime-1',
+      algorithmVersion: 'demo-runtime-2',
       profileVersion: 'aidc-demo-profile-2026-09-r4',
       clockMode: 'relative',
     })

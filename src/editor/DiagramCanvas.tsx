@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { Canvas } from '@react-three/fiber'
 import { changeCoolingCircuit } from '../scene/coolingCircuitEditing'
 import { circuitBusbarColor, circuitBusbarKey, circuitColor, circuitDisplayEdges, circuitKey, circuitPaletteStyle, networkPowerChannels, type CircuitPalette } from '../scene/circuitPalette'
@@ -312,6 +313,7 @@ interface DiagramCanvasProps {
   circuitPalette?: CircuitPalette
   elementLabelScale?: number
   mode: CanvasMode
+  animationMode?: FlowAnimationMode
   animationPlaying: boolean
   runtime: DiagramRuntimeContext
   diagramId: string
@@ -1293,7 +1295,8 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
   function DiagramCanvas(
     {
       mode,
-      animationPlaying,
+      animationMode = 'wave',
+  animationPlaying,
       runtime,
       diagramId,
       lineSystemType,
@@ -4306,7 +4309,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
         return { ...element, ...normalizedPatch }
       })
       if (patch.labelVisible === false) setSelectedLabelElementId(null)
-      const patchesGeometry = ['x', 'y', 'width', 'height', 'rotation', 'tmuPortsSwapped'].some((key) => (
+      const patchesGeometry = ['x', 'y', 'width', 'height', 'rotation', 'tmuPortsSwapped', 'fmPortsSwapped'].some((key) => (
         Object.prototype.hasOwnProperty.call(patch, key)
       ))
       if (patchesGeometry) {
@@ -7637,6 +7640,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           {mode === 'monitor' && monitorFlowPaths.length > 0 ? (
             <FlowAnimationLayer
               paths={monitorFlowPaths}
+              animationMode={animationMode}
               playing={animationPlaying}
               viewportRef={viewportValueRef}
               invalidateRef={flowInvalidateRef}

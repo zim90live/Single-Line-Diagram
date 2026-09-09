@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { useMemo, useState, type ReactNode } from 'react'
 
 import type { DiagramElement, MonitorMetric } from '../domain/project'
@@ -314,12 +315,14 @@ function UpsDeviceBody({
   diagramName,
   readings,
   timestamp,
+  animationMode = 'wave',
   animationPlaying,
 }: {
   element: DiagramElement
   diagramName: string
   readings: MonitorMetricReadings
   timestamp: number
+  animationMode?: FlowAnimationMode
   animationPlaying: boolean
 }) {
   const [period, setPeriod] = useState<TrendPeriod>('day')
@@ -368,6 +371,7 @@ function UpsDeviceBody({
           batteryLevel={`${Math.round(batteryLevel)}%`}
           inputCurrent={`${inputCurrent.toFixed(1)}A`}
           outputCurrent={`${outputCurrent.toFixed(1)}A`}
+          animationMode={animationMode}
           animationPlaying={animationPlaying}
         />
       </section>
@@ -408,6 +412,7 @@ export function MonitorDevicePanel({
   timestamp,
   readings,
   deviceState,
+  animationMode = 'wave',
   animationPlaying = false,
 }: {
   element: DiagramElement
@@ -415,6 +420,7 @@ export function MonitorDevicePanel({
   timestamp: number
   readings: MonitorMetricReadings
   deviceState?: DemoDeviceRuntimeState
+  animationMode?: FlowAnimationMode
   animationPlaying?: boolean
 }) {
   const title = elementDeviceIdentifier(element)
@@ -437,6 +443,7 @@ export function MonitorDevicePanel({
           diagramName={diagramName}
           readings={readings}
           timestamp={timestamp}
+          animationMode={animationMode}
           animationPlaying={animationPlaying}
         />
       ) : (

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 41 as const
+export const SCHEMA_VERSION = 42 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -179,6 +179,7 @@ export const diagramElementSchema = z.object({
   height: z.number().positive(),
   rotation: z.number().finite(),
   tmuPortsSwapped: z.boolean().optional(),
+  fmPortsSwapped: z.boolean().optional(),
   labelVisible: z.boolean().optional(),
   labelPlacement: elementLabelPlacementSchema.optional(),
   monitorDataVisible: z.boolean().optional(),
@@ -1772,7 +1773,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 
@@ -2425,6 +2426,15 @@ export function parseProjectDocument(
   }))
   const synchronized = {
     ...document,
+    ...(document.circuitPalette ? {
+      circuitPalette: {
+        ...document.circuitPalette,
+        ...(document.circuitPalette['cooling-tertiary-cold']?.toUpperCase() === '#A970FF'
+          ? { 'cooling-tertiary-cold': '#7C5CFF' } : {}),
+        ...(document.circuitPalette['cooling-tertiary-hot']?.toUpperCase() === '#FF4D6D'
+          ? { 'cooling-tertiary-hot': '#F06BD8' } : {}),
+      },
+    } : {}),
     lineSystems: document.lineSystems.map((lineSystem) => (
       lineSystem.type === 'power'
         ? { ...lineSystem, name: '电力线路' }
@@ -2487,15 +2497,12 @@ export function parseProjectDocument(
         ? migrateAssetLayoutElement(withCurrentTmuLayout, resizedCoolingLayout)
         : withCurrentTmuLayout
       if (
-        withCurrentCoolingSvgLayout.assetKey === 'cabinet' &&
-        ['Cabinet', 'Cabinet A'].includes(withCurrentCoolingSvgLayout.name)
+        ['cabinet', 'cabinet-b'].includes(withCurrentCoolingSvgLayout.assetKey) &&
+        ['Cabinet', 'Cabinet A', 'Cabinet B', 'Tap-off Unit A', 'Tap-off Unit B'].includes(withCurrentCoolingSvgLayout.name)
       ) {
-        return { ...withCurrentCoolingSvgLayout, name: 'Tap-off Unit A' }
+        return { ...withCurrentCoolingSvgLayout, name: 'Tap-off Unit-group' }
       }
-      return withCurrentCoolingSvgLayout.assetKey === 'cabinet-b' &&
-        withCurrentCoolingSvgLayout.name === 'Cabinet B'
-        ? { ...withCurrentCoolingSvgLayout, name: 'Tap-off Unit B' }
-        : withCurrentCoolingSvgLayout
+      return withCurrentCoolingSvgLayout
     }),
     diagrams: document.diagrams.map((diagram) => ({
       ...diagram,

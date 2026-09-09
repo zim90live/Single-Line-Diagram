@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   FLOW_DASH_COLOR,
+  FLOW_ANIMATION_STYLES,
   FLOW_DASH_OPACITY,
   FLOW_INACTIVE_BLACK_MIX,
   buildFlowLineGeometry,
@@ -11,6 +12,10 @@ import {
 } from './FlowAnimationLayer'
 
 describe('monitor flow appearance tokens', () => {
+  it('configures power and cooling wave widths independently', () => {
+    expect(FLOW_ANIMATION_STYLES.power.waveWidthRatio).toBe(1)
+    expect(FLOW_ANIMATION_STYLES.cooling.waveWidthRatio).toBe(0.6)
+  })
   it('keeps moving dashes separate from the 50% black inactive color mix', () => {
     expect({ color: FLOW_DASH_COLOR, opacity: FLOW_DASH_OPACITY }).toEqual({
       color: '#303238',

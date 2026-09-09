@@ -146,6 +146,23 @@ describe('symbol catalog', () => {
     expect(getSymbolDisplayUrl(symbolsByKey.get('ct')!, 'off', true)).toBe(COOLING_PUMP_STOPPED_SYMBOL_URL)
   })
 
+  it('uses fault artwork for supported assets and restores their normal artwork', () => {
+    const files = {
+      'battery-group': 'Battery-group', cabinet: 'Tap-off Unit-group',
+      'cabinet-b': 'Tap-off Unit-group', 'cabinet-device': 'Cabinet',
+      'ups-group': 'UPS-group', ups: 'UPS', fm: 'FM', tmu: 'TMU', cdu: 'CDU', ct: 'CT',
+    }
+    for (const [key, file] of Object.entries(files)) {
+      const symbol = symbolsByKey.get(key)!
+      expect(decodeURIComponent(getSymbolDisplayUrl(symbol, 'on', false, true)))
+        .toContain(`${file} Fault.svg`)
+      expect(getSymbolDisplayUrl(symbol, 'on', false, false)).toBe(symbol.url)
+    }
+    const pump = symbolsByKey.get('chwp')!
+    expect(getSymbolDisplayUrl(pump, 'on', false, true)).toBe(pump.url)
+    expect(symbolCatalog.some((symbol) => symbol.source.includes(' Fault.svg'))).toBe(false)
+  })
+
   it('registers Cabinet separately and keeps both renamed Tap-off Units on legacy keys', () => {
     expect(symbolsByKey.get('cabinet-device')).toMatchObject({
       name: 'Cabinet',
@@ -155,15 +172,15 @@ describe('symbol catalog', () => {
       intrinsicHeight: 48,
     })
     expect(symbolsByKey.get('cabinet')).toMatchObject({
-      name: 'Tap-off Unit A',
-      source: 'src/assets/symbols/Cabinet A.svg',
+      name: 'Tap-off Unit-group',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
       category: '电力',
       intrinsicWidth: 48,
       intrinsicHeight: 48,
     })
     expect(symbolsByKey.get('cabinet-b')).toMatchObject({
-      name: 'Tap-off Unit B',
-      source: 'src/assets/symbols/Cabinet B.svg',
+      name: 'Tap-off Unit-group',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
       category: '电力',
       intrinsicWidth: 48,
       intrinsicHeight: 48,

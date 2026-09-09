@@ -6,7 +6,7 @@ export const DEFAULT_CIRCUIT_PALETTE = {
   a: '#1BA4FF', b: '#00B387',
   'cooling-primary-cold': '#FCBC00', 'cooling-primary-hot': '#FB7800',
   'cooling-secondary-cold': '#1BA4FF', 'cooling-secondary-hot': '#00B387',
-  'cooling-tertiary-cold': '#A970FF', 'cooling-tertiary-hot': '#FF4D6D',
+  'cooling-tertiary-cold': '#7C5CFF', 'cooling-tertiary-hot': '#F06BD8',
 } as const
 export type CircuitKey = keyof typeof DEFAULT_CIRCUIT_PALETTE
 export type CircuitPalette = ProjectDocument['circuitPalette']

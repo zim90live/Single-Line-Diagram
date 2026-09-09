@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../../monitoring/flowPresentation'
 import { useId, useMemo, type ReactNode } from 'react'
 
 import type {
@@ -34,6 +35,7 @@ export interface ReadOnlyDiagramSceneProps {
   connections: ConnectionNetwork[]
   routeAssets: AssetDefinition[]
   activeEdgeIds?: readonly string[]
+  animationMode?: FlowAnimationMode
   animationPlaying?: boolean
   contentBounds?: Rect
   children?: ReactNode
@@ -49,6 +51,7 @@ export function ReadOnlyDiagramScene({
   connections,
   routeAssets,
   activeEdgeIds = [],
+  animationMode = 'wave',
   animationPlaying = false,
   contentBounds,
   children,
@@ -151,7 +154,7 @@ export function ReadOnlyDiagramScene({
           </g>
           <g className="read-only-diagram-scene__active-lines" aria-hidden="true">
             <MonitorStaticFlowLines groups={activeFlowGroups} />
-            {animationPlaying ? <MonitorAnimatedFlowLines paths={activeFlowPaths} /> : null}
+            {animationPlaying || animationMode === 'arrows' ? <MonitorAnimatedFlowLines paths={activeFlowPaths} animationMode={animationMode} playing={animationPlaying} /> : null}
           </g>
           <g className="read-only-diagram-scene__elements">
             {elementPresentations.map(({ element, symbol, visualState, symbolColor }) => (

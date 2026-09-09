@@ -3576,3 +3576,11 @@ button:focus-visible,
 .connection-edge__pipe-shell[data-cooling-line-role='auxiliary'] {
   --connection-display-color: color-mix(in srgb, var(--connection-color) var(--connection-cooling-auxiliary-color-weight), var(--connection-cooling-auxiliary-neutral));
 }
+
+/* Selection must remain visible outside the widened cooling interior. */
+.canvas-stage[data-mode='edit'] .connection-edge[data-cooling-line-role='auxiliary'] .connection-edge__cooling-selection {
+  stroke-width: var(--connection-cooling-auxiliary-selection-width);
+}
+.canvas-stage[data-mode='edit'] .connection-edge[data-connection-type^='cooling-'][data-selected='true'] .connection-edge__line {
+  stroke: color-mix(in srgb, var(--connection-display-color) 60%, #000);
+}

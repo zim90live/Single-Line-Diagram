@@ -21,10 +21,11 @@
 ## 当前专业分类
 
 - 冷却：包括 CPD、TMU。
+- 2026-09-09：九份 `Fault.svg` 为监控故障辅助素材，不进入独立素材栏；Battery-group、Tap-off Unit-group（旧 A/B）、Cabinet、UPS-group、UPS、FM、TMU、CDU、CT 在三级异常时使用，保持实例几何并不改变流动资格。
 - 电力：包括 FM、Battery、Battery-group、UPS、UPS-group、Cabinet、Tap-off Unit A、Tap-off Unit B、Tap-off Unit、算力 POD、动力 POD。
 - `Battery-group.svg` 显示为 Battery-group，使用稳定键 `battery-group`，是 48×48 的独立普通电力图元；首版无预置锚点、改色或运行状态，不继承现有 Battery 的监控 Source 角色。
 - `UPS-group.svg` 显示为 UPS-group，使用稳定键 `ups-group`，是 48×48 的独立普通电力图元；首版无预置锚点、改色、运行状态或子图下探关系，不继承现有 UPS 的实例或监控语义。
-- 新 `Cabinet.svg` 显示为 Cabinet，使用稳定键 `cabinet-device`。原 `Cabinet A.svg` / `Cabinet B.svg` 的显示名分别为 Tap-off Unit A / B，继续使用历史键 `cabinet` / `cabinet-b`；三者是独立图元，不使用实例水平翻转互相转换。
+- `Cabinet.svg` 显示为 Cabinet，使用稳定键 `cabinet-device`。2026-09-09 原 A/B 两份素材已统一为 48×48 `Tap-off Unit-group.svg`；历史键 `cabinet` / `cabinet-b` 均使用新外观和名称，保留独立锚点配置，素材栏仅显示一个入口。旧 SVG 可从 Git 恢复。
 - 2026-09-07：TMU、FM、UPS-group、Cabinet 已替换为用户最新 SVG。TMU 按根画布登记为 48×48，并迁移旧默认尺寸实例；FM、UPS-group、Cabinet 的根画布与目录尺寸分别保持 64×64、48×48、48×48。
 - 2026-09-08：UPS-group、CDU 再次按用户附件更新，均使用原 SVG 的 48×48 尺寸，CDU 历史版式通过载入迁移兼容。
 - `Tap-off Unit.svg` 显示为 Tap-off Unit，使用稳定键 `tap-off-unit`，是 Tap-off Unit A/B 的 32×32 子图元。当前作为独立实例使用，不自动嵌入或跟随 A/B，首版不预置锚点；右侧属性面板允许修改或恢复单一实例颜色。

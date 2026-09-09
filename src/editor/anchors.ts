@@ -174,7 +174,7 @@ export function transformAnchorToElement(
   anchor: SymbolAnchor,
   asset: Pick<AssetDefinition, 'intrinsicWidth' | 'intrinsicHeight'>,
   element: Pick<DiagramElement, 'x' | 'y' | 'width' | 'height' | 'rotation'> &
-    Partial<Pick<DiagramElement, 'assetKey' | 'tmuPortsSwapped'>>,
+    Partial<Pick<DiagramElement, 'assetKey' | 'tmuPortsSwapped' | 'fmPortsSwapped'>>,
 ): TransformedAnchorPoint {
   anchor = instanceAnchorPlacement(anchor, asset, element)
   const center = {

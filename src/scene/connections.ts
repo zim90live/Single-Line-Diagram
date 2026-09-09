@@ -2036,7 +2036,8 @@ function routingElementsEqual(left: DiagramElement, right: DiagramElement) {
     left.width === right.width &&
     left.height === right.height &&
     left.rotation === right.rotation &&
-    left.tmuPortsSwapped === right.tmuPortsSwapped
+    left.tmuPortsSwapped === right.tmuPortsSwapped &&
+    left.fmPortsSwapped === right.fmPortsSwapped
 }
 
 function routingBusbarsEqual(left: Busbar, right: Busbar) {

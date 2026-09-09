@@ -4,9 +4,11 @@ import type { AssetDefinition, DiagramElement, SymbolAnchor } from '../domain/pr
 export function instanceAnchorPlacement(
   anchor: SymbolAnchor,
   asset: Pick<AssetDefinition, 'intrinsicHeight'>,
-  element: Partial<Pick<DiagramElement, 'assetKey' | 'tmuPortsSwapped'>>,
+  element: Partial<Pick<DiagramElement, 'assetKey' | 'tmuPortsSwapped' | 'fmPortsSwapped'>>,
 ): SymbolAnchor {
-  if (element.assetKey !== 'tmu' || !element.tmuPortsSwapped ||
+  const swapped = element.assetKey === 'tmu' ? element.tmuPortsSwapped
+    : element.assetKey === 'fm' ? element.fmPortsSwapped : false
+  if (!swapped ||
     anchor.type === 'electrical' || !['top', 'bottom'].includes(anchor.direction)) return anchor
   return {
     ...anchor,

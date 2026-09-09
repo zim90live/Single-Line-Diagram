@@ -8,8 +8,8 @@ describe('object colors', () => {
     expect(defaultConnectionColor('cooling-primary-hot')).toBe('#FB7800')
     expect(defaultConnectionColor('cooling-secondary-cold')).toBe('#1BA4FF')
     expect(defaultConnectionColor('cooling-secondary-hot')).toBe('#00B387')
-    expect(defaultConnectionColor('cooling-tertiary-cold')).toBe('#A970FF')
-    expect(defaultConnectionColor('cooling-tertiary-hot')).toBe('#FF4D6D')
+    expect(defaultConnectionColor('cooling-tertiary-cold')).toBe('#7C5CFF')
+    expect(defaultConnectionColor('cooling-tertiary-hot')).toBe('#F06BD8')
   })
 
   it('normalizes editable HEX values', () => {

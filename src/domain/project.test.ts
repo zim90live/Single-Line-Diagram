@@ -1484,21 +1484,21 @@ describe('project document', () => {
       ...legacyCabinet,
       key: 'cabinet-b',
       name: 'Cabinet B',
-      source: 'src/assets/symbols/Cabinet B.svg',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
       anchors: [],
     }
     const tapUnitA = {
       ...legacyCabinet,
-      name: 'Tap-off Unit A',
+      name: 'Tap-off Unit-group',
       category: '电力',
-      source: 'src/assets/symbols/Cabinet A.svg',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
       anchors: [],
     }
     const tapUnitB = {
       ...tapUnitA,
       key: 'cabinet-b',
-      name: 'Tap-off Unit B',
-      source: 'src/assets/symbols/Cabinet B.svg',
+      name: 'Tap-off Unit-group',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
     }
     const cabinet = {
       ...tapUnitA,
@@ -1613,9 +1613,9 @@ describe('project document', () => {
     const parsed = parseProjectDocument(document, installedAssets)
 
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet')).toMatchObject({
-      name: 'Tap-off Unit A',
+      name: 'Tap-off Unit-group',
       category: '电力',
-      source: 'src/assets/symbols/Cabinet A.svg',
+      source: 'src/assets/symbols/Tap-off Unit-group.svg',
       anchors: legacyCabinet.anchors,
     })
     expect(parsed.assets.find((candidate) => candidate.key === 'cabinet-b')).toEqual(tapUnitB)
@@ -1626,10 +1626,10 @@ describe('project document', () => {
     expect(parsed.assets.find((candidate) => candidate.key === 'generic')).toEqual(generic)
     expect(parsed.assets.find((candidate) => candidate.key === 'tmu')).toEqual(tmu)
     expect(parsed.elements.map((element) => element.name)).toEqual([
-      'Tap-off Unit A',
+      'Tap-off Unit-group',
       '东侧机柜',
-      'Tap-off Unit A',
-      'Tap-off Unit B',
+      'Tap-off Unit-group',
+      'Tap-off Unit-group',
     ])
     expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)
   })

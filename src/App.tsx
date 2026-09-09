@@ -1,3 +1,5 @@
+import type { FlowAnimationMode } from './monitoring/flowPresentation'
+import { SegmentedControl } from './components/ui/SegmentedControl'
 import {
   ChevronLeft,
   ChevronRight,
@@ -187,6 +189,7 @@ export default function App() {
   const [anchorEditorAssetKey, setAnchorEditorAssetKey] = useState<string | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<CanvasMode>('edit')
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false)
+  const [animationMode, setAnimationMode] = useState<FlowAnimationMode>('wave')
   const [animationPlaying, setAnimationPlaying] = useState(true)
   const [monitorZoom, setMonitorZoom] = useState(1)
   const [onOffStates, setOnOffStates] = useState<Record<string, boolean>>({})
@@ -817,6 +820,7 @@ export default function App() {
                 ref={monitorRef}
                 view={runtimeView!}
                 runtime={runtime}
+                animationMode={animationMode}
                 animationPlaying={animationPlaying}
                 documentEpoch={documentEpoch}
                 viewport={currentDiagram.canvas.viewport}
@@ -878,12 +882,20 @@ export default function App() {
                   <IconButton label="删除所选对象" variant="danger-soft" icon={<Trash2 />} disabled={!commandState.hasSelection} onClick={() => editorRef.current?.deleteSelected()} />
                 </>
               ) : (
+                <>
                 <IconButton
                   label={animationPlaying ? '暂停流动' : '播放流动'}
                   variant={animationPlaying ? 'primary-solid' : 'neutral-soft'}
                   icon={animationPlaying ? <Pause /> : <Play />}
                   onClick={() => setAnimationPlaying((playing) => !playing)}
                 />
+                <SegmentedControl<FlowAnimationMode>
+                  label="动画样式"
+                  value={animationMode}
+                  options={[{ value: 'wave', label: '光波' }, { value: 'arrows', label: '箭头' }]}
+                  onValueChange={setAnimationMode}
+                />
+                </>
               )}
             </div>
             <div className="canvas-zoom-controls" aria-label="画布缩放">
@@ -1038,6 +1050,7 @@ export default function App() {
               timestamp={monitorPresentation?.timestamp ?? Date.now()}
               readings={monitorPresentation?.readings ?? {}}
               deviceState={monitorPresentation?.deviceStates[selectedMonitorPresentationElement.id]}
+              animationMode={animationMode}
               animationPlaying={animationPlaying}
             />
           ) : <MonitorPropertiesPanel

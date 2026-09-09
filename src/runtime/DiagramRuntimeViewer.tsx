@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { forwardRef, memo, useCallback } from 'react'
 
 import type { DiagramViewport } from '../domain/project'
@@ -13,6 +14,7 @@ import type { DiagramRuntimeContext } from './types'
 export interface DiagramRuntimeViewerProps {
   view: DiagramRuntimeView
   runtime: DiagramRuntimeContext
+  animationMode?: FlowAnimationMode
   animationPlaying: boolean
   documentEpoch?: number
   viewport?: DiagramViewport
@@ -30,6 +32,7 @@ export const DiagramRuntimeViewer = memo(forwardRef<
 >(function DiagramRuntimeViewer({
   view,
   runtime,
+  animationMode = 'wave',
   animationPlaying,
   documentEpoch = 0,
   viewport = view.diagram.canvas.viewport,
@@ -48,6 +51,7 @@ export const DiagramRuntimeViewer = memo(forwardRef<
       ref={ref}
       view={view}
       runtime={runtime}
+      animationMode={animationMode}
       animationPlaying={animationPlaying}
       documentEpoch={documentEpoch}
       viewport={viewport}

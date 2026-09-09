@@ -1578,12 +1578,13 @@ export function PropertiesPanel({
             ))}
           </SelectField>
         ) : null}
-        {element.assetKey === 'tmu' ? (
+        {element.assetKey === 'tmu' || element.assetKey === 'fm' ? (
           <PropertyToggle
             label="上下接口对调"
-            description="仅对调当前 TMU 的上下管路接口，不改变图元方向"
-            checked={element.tmuPortsSwapped === true}
-            onChange={(tmuPortsSwapped) => onPatch(element.id, { tmuPortsSwapped })}
+            description={`仅对调当前 ${element.assetKey.toUpperCase()} 的上下管路接口，不改变图元方向`}
+            checked={(element.assetKey === 'tmu' ? element.tmuPortsSwapped : element.fmPortsSwapped) === true}
+            onChange={(swapped) => onPatch(element.id, element.assetKey === 'tmu'
+              ? { tmuPortsSwapped: swapped } : { fmPortsSwapped: swapped })}
           />
         ) : null}
         {!isGeneric ? (

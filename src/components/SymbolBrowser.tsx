@@ -1,8 +1,11 @@
 import { PencilLine, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { symbolCatalog } from '../scene/symbolCatalog'
+import { symbolCatalog as allSymbols } from '../scene/symbolCatalog'
 import { IconButton, Pressable, TextField } from '@aidc/ui'
+
+// Retain the legacy B template for saved anchors, but offer one group for insertion.
+const symbolCatalog = allSymbols.filter((symbol) => symbol.key !== 'cabinet-b')
 
 interface SymbolBrowserProps {
   idPrefix: string

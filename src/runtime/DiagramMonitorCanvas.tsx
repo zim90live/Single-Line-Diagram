@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { Canvas } from '@react-three/fiber'
 import { circuitBusbarColor, circuitDisplayEdges, circuitPaletteStyle } from '../scene/circuitPalette'
 import { completeSceneBounds, fitSceneViewport } from '../scene/sceneFit'
@@ -83,6 +84,7 @@ import {
   type SymbolVisualState,
 } from '../scene/symbolCatalog'
 import { useRoutedConnections } from './useRoutedConnections'
+import { demoLeakRegion } from './demoLeakRegion'
 import {
   inferWheelGestureKind,
   pinchZoomFactor,
@@ -142,6 +144,7 @@ export interface DiagramMonitorCanvasHandle {
 export interface DiagramMonitorCanvasProps {
   view: DiagramRuntimeView
   runtime: DiagramRuntimeContext
+  animationMode?: FlowAnimationMode
   animationPlaying: boolean
   documentEpoch?: number
   viewport?: DiagramViewport
@@ -378,6 +381,7 @@ function MonitorElement({
         genericBackgroundColor={genericBackgroundColor}
         visualState={visualState}
         coolingPumpStopped={coolingPumpStopped}
+        fault={deviceState?.health === 'minor' || deviceState?.health === 'major' || deviceState?.health === 'critical'}
         showCoolingPumpState={asset?.coolingDeviceRole === 'pump'}
         colorFilterId={symbolColor
           ? symbolColorFilterId(symbolColor, filterScope)
@@ -406,6 +410,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
 >(function DiagramMonitorCanvas({
   view,
   runtime,
+  animationMode = 'wave',
   animationPlaying,
   documentEpoch = 0,
   viewport = view.diagram.canvas.viewport,
@@ -1097,11 +1102,32 @@ export const DiagramMonitorCanvas = memo(forwardRef<
     ),
     [activeFlowPaths, inactiveFlowPaths, routeGroups],
   )
+  // One stable network represents the suspected area, not an exact leak location.
+  const leakRegion = useMemo(() => demoLeakRegion(diagram.name, connections, elements), [diagram.name, connections, elements])
+  const suspectedLeakNetworkId = leakRegion?.networkId
+  const leakLabelElements = useMemo(() => visibleMetricElements.map((element) => (
+    leakRegion?.sensorIds.includes(element.id) ? {
+      ...element,
+      monitorDataVisible: true,
+      monitorMetrics: [
+        ...(element.monitorDataVisible === false ? [] : element.monitorMetrics ?? []),
+        { id: '__demo-suspected-leak', name: '管路状态', valueType: 'text' as const,
+          textOptions: [{ id: 'leak', value: '疑似漏液', severity: 'critical' as const }] },
+      ],
+    } : element
+  )), [leakRegion, visibleMetricElements])
+  const leakLabelReadings = useMemo(() => ({
+    ...metricReadings,
+    ...Object.fromEntries((leakRegion?.sensorIds ?? []).map((id) => [
+      monitorMetricReadingKey(id, '__demo-suspected-leak'),
+      { elementId: id, metricId: '__demo-suspected-leak', value: '疑似漏液', severity: 'critical' as const },
+    ])),
+  }), [leakRegion, metricReadings])
   const connectedAnchors = useMemo(
     () => createConnectedAnchorIdsByElement(connections),
     [connections],
   )
-  const elementLabels = useMemo(() => layoutElementLabels(visibleMetricElements.map((element) => (
+  const elementLabels = useMemo(() => layoutElementLabels(leakLabelElements.map((element) => (
     element.assetKey === 'switch' ? {
       ...element,
       monitorMetrics: element.monitorMetrics?.filter((metric) => {
@@ -1115,8 +1141,8 @@ export const DiagramMonitorCanvas = memo(forwardRef<
   )), assetsByKey, {
     connectedAnchorIdsByElement: connectedAnchors,
     scale: view.elementLabelScale,
-    readings: metricReadings,
-  }), [assetsByKey, connectedAnchors, metricReadings, visibleMetricElements, view.elementLabelScale])
+    readings: leakLabelReadings,
+  }), [assetsByKey, connectedAnchors, metricReadings, leakLabelElements, leakLabelReadings, view.elementLabelScale])
   const busbarLabels = useMemo(() => layoutBusbarLabels(visibleBusbars, metricReadings), [visibleBusbars, metricReadings])
   const connectionLabels = useMemo(() => layoutConnectionLabels(
     visibleRoutes,
@@ -1204,6 +1230,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
       data-rendered-elements={visibleElements.length}
       data-rendered-busbars={visibleBusbars.length}
       data-rendered-routes={visibleRoutes.length}
+      data-animation-mode={animationMode}
       data-monitor-flow-path-count={animationPlaying ? activeFlowPaths.length : 0}
       data-mode="monitor"
       data-runtime-scene="readonly"
@@ -1255,6 +1282,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                   id={id}
                   points={shell.points}
                   role={group.coolingLineRole}
+                  suspectedLeak={group.routes.some((route) => route.networkId === suspectedLeakNetworkId)}
                 />
               )] : []
             })}
@@ -1401,6 +1429,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
         {activeFlowPaths.length > 0 ? (
           <FlowAnimationLayer
             paths={activeFlowPaths}
+            animationMode={animationMode}
             playing={animationPlaying}
             viewportRef={viewportRef}
             invalidateRef={flowInvalidateRef}

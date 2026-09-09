@@ -1,3 +1,4 @@
+import type { FlowAnimationMode } from '../../monitoring/flowPresentation'
 import type {
   AssetDefinition,
   ConnectionNetwork,
@@ -125,6 +126,7 @@ export function UpsLineDiagram({
   batteryLevel,
   inputCurrent,
   outputCurrent,
+  animationMode = 'wave',
   animationPlaying = false,
 }: {
   inputVoltage: string
@@ -132,6 +134,7 @@ export function UpsLineDiagram({
   batteryLevel: string
   inputCurrent: string
   outputCurrent: string
+  animationMode?: FlowAnimationMode
   animationPlaying?: boolean
 }) {
   return (
@@ -145,6 +148,7 @@ export function UpsLineDiagram({
         connections={UPS_CONNECTIONS}
         routeAssets={UPS_ROUTE_ASSETS}
         activeEdgeIds={UPS_ACTIVE_EDGE_IDS}
+        animationMode={animationMode}
         animationPlaying={animationPlaying}
         contentBounds={UPS_CONTENT_BOUNDS}
       >

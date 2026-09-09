@@ -8,8 +8,8 @@ const DEFAULT_CONNECTION_COLORS: Record<AnchorType, string> = {
   'cooling-primary-hot': '#FB7800',
   'cooling-secondary-cold': '#1BA4FF',
   'cooling-secondary-hot': '#00B387',
-  'cooling-tertiary-cold': '#A970FF',
-  'cooling-tertiary-hot': '#FF4D6D',
+  'cooling-tertiary-cold': '#7C5CFF',
+  'cooling-tertiary-hot': '#F06BD8',
   'cooling-general': '#B6B8B4',
 }
 
