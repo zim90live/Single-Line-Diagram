@@ -61,8 +61,8 @@ function resolvedLineWidth(path: MonitorFlowPath) {
   return path.worldWidth !== undefined
     ? { lineWidth: path.worldWidth, scalesWithZoom: true }
     : {
-        lineWidth: staticWidth,
-        scalesWithZoom: false,
+        lineWidth: path.powerLineWidth ?? staticWidth,
+        scalesWithZoom: true,
       }
 }
 
@@ -145,6 +145,7 @@ export function deriveInactiveFlowPaths(
         points: fragment,
         screenWidth: path.screenWidth,
         worldWidth: path.worldWidth,
+        powerLineWidth: path.powerLineWidth,
         style,
         animated: false,
         baseColor: path.baseColor,

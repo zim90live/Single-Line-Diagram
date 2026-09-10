@@ -38,6 +38,21 @@ const emptySelectionProps = {
 }
 
 describe('PropertiesPanel color property', () => {
+  it('sets and resets electrical child-line width for the selected edges', () => {
+    const onPatchConnectionEdges = vi.fn()
+    render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]}
+      selectedConnection={{ id: 'selection', type: 'electrical', edges: [
+        { id: 'e1', sourceNodeId: 'a', targetNodeId: 'b' },
+        { id: 'e2', sourceNodeId: 'b', targetNodeId: 'c' },
+      ] }} onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()} onPatchConnectionEdges={onPatchConnectionEdges} />)
+    const field = screen.getByRole('textbox', { name: '子线粗细 (px)' })
+    fireEvent.change(field, { target: { value: '5' } })
+    fireEvent.blur(field)
+    expect(onPatchConnectionEdges).toHaveBeenLastCalledWith(['e1', 'e2'], { lineWidth: 5 })
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.blur(field)
+    expect(onPatchConnectionEdges).toHaveBeenLastCalledWith(['e1', 'e2'], { lineWidth: undefined })
+  })
   it('edits standalone text content and typography without device controls', () => {
     const onPatch = vi.fn()
     render(<PropertiesPanel {...emptySelectionProps} selectedElements={[element('text')]}

@@ -153,7 +153,7 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
     if (!speed) return []
     const period = style.dashLength + style.gapLength
     let distance = offsets.get(path.id) ?? 0
-    const width = path.worldWidth ?? (path.screenWidth === FLOW_BUSBAR_SCREEN_WIDTH
+    const width = path.worldWidth ?? path.powerLineWidth ?? (path.screenWidth === FLOW_BUSBAR_SCREEN_WIDTH
       ? FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH : FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH)
     return path.points.slice(1).flatMap((end, index) => {
       const start = path.points[index]
@@ -181,7 +181,7 @@ export const MonitorAnimatedFlowLines = memo(function MonitorAnimatedFlowLines({
           <path className="monitor-wave-flow-line" d={pathData([start, end])}
             fill="none" pointerEvents="none" stroke={`url(#${id})`}
             strokeWidth={width * 0.8} strokeLinecap="butt"
-            vectorEffect={path.worldWidth === undefined ? 'non-scaling-stroke' : undefined} />
+            />
         </g>
       )]
     })
@@ -337,6 +337,7 @@ export const ConnectionDirectionArrow = memo(function ConnectionDirectionArrow({
 })
 
 export interface DiagramConnectionVisualProps {
+  lineWidth?: number
   edgeId: string
   networkId: string
   type: AnchorType
@@ -353,6 +354,7 @@ export interface DiagramConnectionVisualProps {
 }
 
 export const DiagramConnectionVisual = memo(function DiagramConnectionVisual({
+  lineWidth,
   edgeId,
   networkId,
   type,
@@ -382,7 +384,7 @@ export const DiagramConnectionVisual = memo(function DiagramConnectionVisual({
       data-cooling-line-role={coolingLineRole}
       data-selected={selected || undefined}
       data-interactive={interactive || undefined}
-      style={color ? { '--connection-color': color } as CSSProperties : undefined}
+      style={{ ...(color ? { '--connection-color': color } : {}), ...(type === 'electrical' && lineWidth !== undefined ? { '--connection-line-width': `${lineWidth}px`, '--connection-selected-line-width': `${lineWidth + 1.5}px`, '--connection-hit-width': `${Math.max(12, lineWidth + 4)}px` } : {}) } as CSSProperties}
     >
       {lineUnderlay}
       <path className="connection-edge__line" d={linePath} />

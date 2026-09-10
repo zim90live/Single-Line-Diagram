@@ -164,6 +164,8 @@ describe('diagram scene primitives', () => {
     )
     expect(container.querySelector('[data-busbar-id="shared-busbar"] .busbar__line'))
       .toHaveAttribute('d', 'M 0 16 L 80 16')
+    expect(container.querySelector('[data-busbar-id="shared-busbar"] .busbar__line'))
+      .not.toHaveAttribute('vector-effect', 'non-scaling-stroke')
     const tap = container.querySelector('[data-busbar-offset="24"]')
     expect(tap).toHaveAttribute('data-connection-type', 'electrical')
     expect(tap).toHaveAttribute('visibility', 'hidden')

@@ -961,6 +961,17 @@ export function PropertiesPanel({
               onApply={metrics => onPatchBusbarMetrics(selectedBusbars.map(bar => bar.id), metrics)}
             />
           </> : null}
+          {connectionCount > 0 && busbarCount === 0 && selectedConnection?.type === 'electrical' ? <>
+            <CommittedTextField label="子线粗细 (px)"
+              value={selectedConnection.edges.every(edge => (edge.lineWidth ?? 2.25) === (selectedConnection.edges[0].lineWidth ?? 2.25))
+                ? String(selectedConnection.edges[0].lineWidth ?? 2.25) : ''}
+              placeholder="0.5–12，留空恢复默认"
+              onCommit={text => {
+                const width = text.trim() ? Number(text) : undefined
+                if (width !== undefined && (!Number.isFinite(width) || width < 0.5 || width > 12)) return
+                onPatchConnectionEdges(selectedConnection.edges.map(edge => edge.id), { lineWidth: width })
+              }} />
+          </> : null}
           {connectionCount === 1 && busbarCount === 0 ? (
             <>
               <CommittedTextField

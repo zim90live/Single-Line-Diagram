@@ -213,6 +213,8 @@ describe('DiagramMonitorCanvas', () => {
     expect(canvas).toHaveAttribute('data-mode', 'monitor')
     expect(screen.getByTestId('runtime-monitor-overlay')).toBeInTheDocument()
     const labels = screen.getByTestId('element-label-layer')
+    expect(labels.parentElement?.style.transform).toBe('')
+    expect((screen.getByTestId('runtime-monitor-overlay').querySelector('.viewport-world') as SVGElement).style.transform).toBe('')
     expect(labels.closest('svg')).toBe(screen.getByTestId('label-overlay'))
     expect(screen.getByTestId('runtime-monitor-overlay')).not.toContainElement(labels)
     expect(labels.parentElement?.getAttribute('transform')).toBe(

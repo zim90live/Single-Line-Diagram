@@ -72,6 +72,7 @@ export const FLOW_ANIMATION_STYLES: Record<FlowAnimationStyle, {
 }
 
 export interface MonitorFlowPath {
+  powerLineWidth?: number
   id: string
   connectionEdgeId?: string
   points: Point[]
@@ -133,10 +134,10 @@ function resolvedStaticLineAppearance(path: MonitorFlowPath) {
   const isBusbar = path.screenWidth === FLOW_BUSBAR_SCREEN_WIDTH
   return {
     kind: isBusbar ? 'busbar' as const : 'connection' as const,
-    lineWidth: isBusbar
+    lineWidth: path.powerLineWidth ?? (isBusbar
       ? FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH
-      : FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH,
-    widthSpace: 'screen' as const,
+      : FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH),
+    widthSpace: 'world' as const,
     lineCap: isBusbar ? 'square' as const : 'round' as const,
     lineJoin: 'round' as const,
   }

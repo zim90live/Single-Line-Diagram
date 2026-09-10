@@ -329,6 +329,7 @@ export function createDisplayedRoutePaths(
           }
         : {}),
       worldWidth: cooling ? coolingPipeCoreWidth(edge?.coolingLineRole) : undefined,
+      powerLineWidth: cooling ? undefined : edge?.lineWidth,
       style: cooling ? 'cooling' : 'power',
       renderPriority: connectionEdgeCrossingPriority(edge),
       baseColor: cooling

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const SCHEMA_VERSION = 42 as const
+export const SCHEMA_VERSION = 43 as const
 export const EDITOR_GRID_SIZE = 8 as const
 export const BUSBAR_MIN_LENGTH = 8 as const
 
@@ -248,6 +248,7 @@ export const connectionEdgeSchema = z.object({
   sourceNodeId: z.string().min(1),
   targetNodeId: z.string().min(1),
   logicalConnectionId: z.string().min(1).optional(),
+  lineWidth: z.number().min(0.5).max(12).optional(),
   flowDirection: connectionFlowDirectionSchema.optional(),
   externalSupplyEndpoint: externalSupplyEndpointSchema.optional(),
   externalSupplyChannel: powerSupplyChannelSchema.optional(),
@@ -1780,7 +1781,7 @@ function migrateProjectDocument(
   input: unknown,
   installedAssets: AssetDefinition[],
 ): unknown {
-  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
+  if (!isRecord(input) || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, SCHEMA_VERSION].includes(Number(input.schemaVersion))) return input
 
   const sourceSchemaVersion = Number(input.schemaVersion)
 

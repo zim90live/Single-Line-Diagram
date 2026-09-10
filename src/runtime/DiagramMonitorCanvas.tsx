@@ -468,7 +468,6 @@ export const DiagramMonitorCanvas = memo(forwardRef<
         'transform',
         `translate(${nextViewport.tx} ${nextViewport.ty}) scale(${nextViewport.zoom})`,
       )
-      world.style.transform = `translate(${nextViewport.tx}px, ${nextViewport.ty}px) scale(${nextViewport.zoom})`
     }
     const stage = canvasStageRef.current
     if (stage) {
@@ -1035,6 +1034,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
               points: flowPoints,
             },
           worldWidth: displayedPath?.worldWidth,
+          powerLineWidth: displayedPath?.powerLineWidth,
           speedMultiplier: flow.speedMultiplier,
           style: cooling ? 'cooling' as const : 'power' as const,
           animated: true,
@@ -1316,9 +1316,6 @@ export const DiagramMonitorCanvas = memo(forwardRef<
             ref={viewportWorldRef}
             className="viewport-world"
             transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}
-            style={{
-              transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})`,
-            }}
           >
             <g className="busbar-layer" data-testid="busbar-layer">
               {visibleBusbars.map((busbar) => {
@@ -1455,7 +1452,6 @@ export const DiagramMonitorCanvas = memo(forwardRef<
         ) : null}
           <svg className="editor-overlay label-overlay" data-testid="label-overlay">
             <g ref={labelWorldRef} className="viewport-world"
-              style={{ transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})` }}
               transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}>
             <g className="element-label-layer" data-testid="element-label-layer">
               {elementLabels.map((layout) => (

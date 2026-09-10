@@ -37,6 +37,11 @@ describe('monitor flow appearance tokens', () => {
 })
 
 describe('monitor flow geometry', () => {
+  it('uses custom electrical width for static strokes and wave geometry', () => {
+    const path = { id: 'custom', style: 'power' as const, powerLineWidth: 4.5, points: [{ x: 0, y: 0 }, { x: 80, y: 0 }] }
+    expect([...buildFlowLineGeometry([path]).widths]).toEqual(Array(6).fill(4.5))
+    expect(buildMonitorStaticFlowLineGroups([path], [])[0].lineWidth).toBe(4.5)
+  })
   it('keeps the same wave phase at a cooling fork despite differing flow readings', () => {
     const path = (id: string, start: string, end: string, points: Array<{ x: number; y: number }>, speedMultiplier: number) => ({
       id, points, style: 'cooling' as const, speedMultiplier,
@@ -86,7 +91,7 @@ describe('monitor flow geometry', () => {
     ])
     expect([...geometry.widths]).toEqual(new Array(12).fill(2.25))
     expect([...geometry.speeds]).toEqual(new Array(12).fill(1))
-    expect([...geometry.widthScales]).toEqual(new Array(12).fill(0))
+    expect([...geometry.widthScales]).toEqual(new Array(12).fill(1))
     expect([...geometry.distances]).toEqual([
       0, 0, 8, 0, 8, 8,
       8, 8, 14, 8, 14, 14,
@@ -148,7 +153,7 @@ describe('monitor flow geometry', () => {
     expect(geometry.distances).toHaveLength(12)
   })
 
-  it('keeps a wider screen-space strip for busbar flow', () => {
+  it('scales the wider busbar strip with the diagram', () => {
     const geometry = buildFlowLineGeometry([{
       id: 'busbar',
       points: [{ x: 0, y: 0 }, { x: 16, y: 0 }],
@@ -156,7 +161,7 @@ describe('monitor flow geometry', () => {
     }])
 
     expect([...geometry.widths]).toEqual(new Array(6).fill(6))
-    expect([...geometry.widthScales]).toEqual(new Array(6).fill(0))
+    expect([...geometry.widthScales]).toEqual(new Array(6).fill(1))
   })
 
   it('keeps cooling-flow speed on every generated vertex', () => {
@@ -257,8 +262,8 @@ describe('monitor static flow lines', () => {
       lineWidth,
       widthSpace,
     }))).toEqual([
-      { kind: 'busbar', lineWidth: 6, widthSpace: 'screen' },
-      { kind: 'connection', lineWidth: 2.25, widthSpace: 'screen' },
+      { kind: 'busbar', lineWidth: 6, widthSpace: 'world' },
+      { kind: 'connection', lineWidth: 2.25, widthSpace: 'world' },
     ])
   })
 

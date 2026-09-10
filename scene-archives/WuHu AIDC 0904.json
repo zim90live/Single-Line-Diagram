@@ -1,11 +1,11 @@
 {
   "elementLabelScale": 1,
-  "schemaVersion": 42,
+  "schemaVersion": 43,
   "project": {
     "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f",
     "name": "AIDC 一次接线图",
     "createdAt": "2026-08-13T10:32:21.116Z",
-    "updatedAt": "2026-09-10T01:38:41.759Z"
+    "updatedAt": "2026-09-10T07:22:44.232Z"
   },
   "lineSystems": [
     {
@@ -15637,12 +15637,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 640,
-      "y": 240,
+      "x": 816,
+      "y": 280,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "top",
+      "rotation": 0,
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [],
       "onOffState": "off",
@@ -15658,12 +15658,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
-      "y": 240,
+      "x": 816,
+      "y": 328,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "bottom",
+      "rotation": 0,
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -15695,12 +15695,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 1968,
-      "y": 240,
+      "x": 1728,
+      "y": 280,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "top",
+      "rotation": 0,
+      "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetrics": [],
       "onOffState": "off",
@@ -15716,12 +15716,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 2016,
-      "y": 240,
+      "x": 1728,
+      "y": 328,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "bottom",
+      "rotation": 0,
+      "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -15754,7 +15754,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1304,
-      "y": 320,
+      "y": 336,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -15790,12 +15790,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "grid",
       "name": "Grid",
-      "x": 304,
-      "y": 472,
+      "x": 472,
+      "y": 160,
       "width": 48,
       "height": 48,
       "rotation": 0,
-      "labelPlacement": "top",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -15870,12 +15870,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 416,
-      "y": 480,
+      "x": 480,
+      "y": 304,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "bottom",
+      "rotation": 180,
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -15909,7 +15909,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 720,
-      "y": 368,
+      "y": 456,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -15944,7 +15944,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 880,
-      "y": 384,
+      "y": 472,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -15980,8 +15980,8 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
-      "y": 384,
+      "x": 576,
+      "y": 472,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16019,11 +16019,11 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1304,
-      "y": 384,
+      "y": 416,
       "width": 32,
       "height": 32,
       "rotation": 90,
-      "labelPlacement": "top",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -16056,7 +16056,7 @@
       "assetKey": "fm",
       "name": "FM",
       "x": 1288,
-      "y": 480,
+      "y": 528,
       "width": 64,
       "height": 64,
       "rotation": 0,
@@ -16073,12 +16073,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "grid",
       "name": "Grid",
-      "x": 2288,
-      "y": 472,
+      "x": 2104,
+      "y": 160,
       "width": 48,
       "height": 48,
       "rotation": 0,
-      "labelPlacement": "top",
+      "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -16153,12 +16153,12 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 2192,
-      "y": 480,
+      "x": 2112,
+      "y": 304,
       "width": 32,
       "height": 32,
-      "rotation": 90,
-      "labelPlacement": "bottom",
+      "rotation": 0,
+      "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -16192,7 +16192,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 1856,
-      "y": 368,
+      "y": 456,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16227,7 +16227,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 2016,
-      "y": 384,
+      "y": 472,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16265,7 +16265,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1728,
-      "y": 384,
+      "y": 472,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16302,7 +16302,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 720,
-      "y": 576,
+      "y": 664,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16337,7 +16337,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 880,
-      "y": 592,
+      "y": 680,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16373,8 +16373,8 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
-      "y": 592,
+      "x": 576,
+      "y": 680,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16412,11 +16412,11 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1304,
-      "y": 592,
+      "y": 624,
       "width": 32,
       "height": 32,
       "rotation": 90,
-      "labelPlacement": "top",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -16449,7 +16449,7 @@
       "assetKey": "cabinet",
       "name": "Tap-off Unit-group",
       "x": 1296,
-      "y": 624,
+      "y": 672,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -16469,7 +16469,7 @@
       "assetKey": "fm",
       "name": "FM",
       "x": 1288,
-      "y": 688,
+      "y": 736,
       "width": 64,
       "height": 64,
       "rotation": 0,
@@ -16487,7 +16487,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 1856,
-      "y": 576,
+      "y": 664,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16522,7 +16522,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 2016,
-      "y": 592,
+      "y": 680,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16560,7 +16560,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1728,
-      "y": 592,
+      "y": 680,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16597,7 +16597,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 720,
-      "y": 784,
+      "y": 872,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16632,7 +16632,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 880,
-      "y": 800,
+      "y": 888,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16668,8 +16668,8 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
-      "y": 800,
+      "x": 576,
+      "y": 888,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16707,11 +16707,11 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1304,
-      "y": 800,
+      "y": 832,
       "width": 32,
       "height": 32,
       "rotation": 90,
-      "labelPlacement": "top",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -16744,7 +16744,7 @@
       "assetKey": "fm",
       "name": "FM",
       "x": 1288,
-      "y": 896,
+      "y": 944,
       "width": 64,
       "height": 64,
       "rotation": 0,
@@ -16762,7 +16762,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 1856,
-      "y": 784,
+      "y": 872,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16797,7 +16797,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 2016,
-      "y": 800,
+      "y": 888,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16835,7 +16835,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1728,
-      "y": 800,
+      "y": 888,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16872,7 +16872,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 720,
-      "y": 992,
+      "y": 1080,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -16907,7 +16907,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 880,
-      "y": 1008,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16943,8 +16943,8 @@
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "assetKey": "switch",
       "name": "Switch",
-      "x": 592,
-      "y": 1008,
+      "x": 576,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -16982,11 +16982,11 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1304,
-      "y": 1008,
+      "y": 1040,
       "width": 32,
       "height": 32,
       "rotation": 90,
-      "labelPlacement": "top",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -17019,7 +17019,7 @@
       "assetKey": "fm",
       "name": "FM",
       "x": 1288,
-      "y": 1104,
+      "y": 1152,
       "width": 64,
       "height": 64,
       "rotation": 0,
@@ -17037,7 +17037,7 @@
       "assetKey": "transformer",
       "name": "Transformer",
       "x": 1856,
-      "y": 992,
+      "y": 1080,
       "width": 64,
       "height": 64,
       "rotation": 270,
@@ -17072,7 +17072,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 2016,
-      "y": 1008,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -17110,7 +17110,7 @@
       "assetKey": "switch",
       "name": "Switch",
       "x": 1728,
-      "y": 1008,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -17147,7 +17147,7 @@
       "assetKey": "cabinet",
       "name": "Tap-off Unit-group",
       "x": 1296,
-      "y": 832,
+      "y": 880,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17167,7 +17167,7 @@
       "assetKey": "cabinet",
       "name": "Tap-off Unit-group",
       "x": 1296,
-      "y": 1040,
+      "y": 1088,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17187,7 +17187,7 @@
       "assetKey": "cabinet",
       "name": "Tap-off Unit-group",
       "x": 1296,
-      "y": 416,
+      "y": 464,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17207,7 +17207,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1040,
-      "y": 416,
+      "y": 464,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17250,7 +17250,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1040,
-      "y": 624,
+      "y": 672,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17292,7 +17292,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1040,
-      "y": 832,
+      "y": 880,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17334,7 +17334,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1040,
-      "y": 1040,
+      "y": 1088,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17376,7 +17376,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1552,
-      "y": 416,
+      "y": 464,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17417,7 +17417,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1552,
-      "y": 624,
+      "y": 672,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17458,7 +17458,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1552,
-      "y": 832,
+      "y": 880,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17499,7 +17499,7 @@
       "assetKey": "ups-group",
       "name": "UPS-group",
       "x": 1552,
-      "y": 1040,
+      "y": 1088,
       "width": 48,
       "height": 48,
       "rotation": 0,
@@ -17653,7 +17653,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -528,
+      "x": -592,
       "y": 584,
       "width": 32,
       "height": 32,
@@ -17719,7 +17719,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 704,
+      "x": 736,
       "y": 584,
       "width": 32,
       "height": 32,
@@ -17806,7 +17806,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -576,
+      "x": -640,
       "y": 584,
       "width": 32,
       "height": 32,
@@ -17872,7 +17872,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 752,
+      "x": 784,
       "y": 584,
       "width": 32,
       "height": 32,
@@ -18208,12 +18208,12 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": -264,
-      "y": 688,
+      "x": -312,
+      "y": 656,
       "width": 80,
       "height": 128,
-      "rotation": 0,
-      "labelPlacement": "left",
+      "rotation": 90,
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetrics": [
         {
@@ -18243,11 +18243,11 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": 88,
-      "y": 688,
+      "x": 40,
+      "y": 656,
       "width": 80,
       "height": 128,
-      "rotation": 0,
+      "rotation": 90,
       "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
@@ -18279,11 +18279,11 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": 440,
-      "y": 688,
+      "x": 392,
+      "y": 656,
       "width": 80,
       "height": 128,
-      "rotation": 0,
+      "rotation": 90,
       "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
@@ -18316,7 +18316,7 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": -264,
-      "y": 832,
+      "y": 784,
       "width": 80,
       "height": 128,
       "rotation": 0,
@@ -18350,7 +18350,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -352,
-      "y": 808,
+      "y": 768,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18400,13 +18400,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -144,
-      "y": 808,
+      "x": -112,
+      "y": 768,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18453,7 +18453,7 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": 88,
-      "y": 832,
+      "y": 784,
       "width": 80,
       "height": 128,
       "rotation": 0,
@@ -18488,7 +18488,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 0,
-      "y": 808,
+      "y": 768,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18539,13 +18539,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 208,
-      "y": 808,
+      "x": 240,
+      "y": 768,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18592,7 +18592,7 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": 440,
-      "y": 832,
+      "y": 784,
       "width": 80,
       "height": 128,
       "rotation": 0,
@@ -18627,7 +18627,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 352,
-      "y": 808,
+      "y": 768,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18678,13 +18678,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 560,
-      "y": 808,
+      "x": 592,
+      "y": 768,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18730,13 +18730,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -144,
-      "y": 976,
+      "x": -112,
+      "y": 896,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18783,7 +18783,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -352,
-      "y": 976,
+      "y": 896,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18834,13 +18834,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 208,
-      "y": 976,
+      "x": 240,
+      "y": 896,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18887,7 +18887,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 0,
-      "y": 976,
+      "y": 896,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18938,13 +18938,13 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 560,
-      "y": 976,
+      "x": 592,
+      "y": 896,
       "width": 32,
       "height": 32,
-      "rotation": 270,
+      "rotation": 90,
       "labelVisible": false,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18991,7 +18991,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 352,
-      "y": 976,
+      "y": 896,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19042,11 +19042,11 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "chwp",
       "name": "CHWP",
-      "x": -264,
-      "y": 976,
+      "x": -200,
+      "y": 912,
       "width": 80,
       "height": 128,
-      "rotation": 0,
+      "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetrics": [
@@ -19076,11 +19076,11 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "chwp",
       "name": "CHWP",
-      "x": 88,
-      "y": 976,
+      "x": 152,
+      "y": 912,
       "width": 80,
       "height": 128,
-      "rotation": 0,
+      "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
@@ -19112,11 +19112,11 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "chwp",
       "name": "CHWP",
-      "x": 440,
-      "y": 976,
+      "x": 504,
+      "y": 912,
       "width": 80,
       "height": 128,
-      "rotation": 0,
+      "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
@@ -19149,7 +19149,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -464,
-      "y": 1152,
+      "y": 1064,
       "width": 32,
       "height": 32,
       "rotation": 180,
@@ -19200,7 +19200,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 608,
-      "y": 1152,
+      "y": 1064,
       "width": 32,
       "height": 32,
       "rotation": 180,
@@ -19251,7 +19251,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -640,
-      "y": 1152,
+      "y": 1064,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19302,7 +19302,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 784,
-      "y": 1152,
+      "y": 1064,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19353,7 +19353,7 @@
       "assetKey": "2-wv",
       "name": "2WV",
       "x": -576,
-      "y": 1184,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19390,7 +19390,7 @@
       "assetKey": "2-wv",
       "name": "2WV",
       "x": 720,
-      "y": 1184,
+      "y": 1096,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19427,7 +19427,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -144,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19493,7 +19493,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -192,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19544,7 +19544,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 160,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19595,7 +19595,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 560,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19646,7 +19646,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 512,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19712,7 +19712,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 208,
-      "y": 1296,
+      "y": 1208,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19846,7 +19846,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "generic",
       "name": "通用图元",
-      "x": -544,
+      "x": -576,
       "y": 696,
       "width": 96,
       "height": 96,
@@ -19863,8 +19863,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "generic",
       "name": "通用图元",
-      "x": -560,
-      "y": 944,
+      "x": -576,
+      "y": 880,
       "width": 96,
       "height": 96,
       "rotation": 0,
@@ -19880,8 +19880,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -480,
-      "y": 1072,
+      "x": -496,
+      "y": 984,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19931,8 +19931,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -576,
-      "y": 1072,
+      "x": -592,
+      "y": 984,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19999,7 +19999,7 @@
       "assetKey": "cdu",
       "name": "CDU",
       "x": 336,
-      "y": 1344,
+      "y": 1272,
       "width": 96,
       "height": 96,
       "rotation": 0,
@@ -20017,7 +20017,7 @@
       "assetKey": "cpd",
       "name": "CPD",
       "x": -528,
-      "y": 1280,
+      "y": 1192,
       "width": 80,
       "height": 80,
       "rotation": 0,
@@ -20033,7 +20033,7 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "text",
       "name": "文字",
-      "x": -872,
+      "x": -824,
       "y": 576,
       "width": 64,
       "height": 40,
@@ -20054,8 +20054,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "text",
       "name": "文字",
-      "x": -872,
-      "y": 1176,
+      "x": -824,
+      "y": 1088,
       "width": 64,
       "height": 40,
       "rotation": 0,
@@ -20542,28 +20542,6 @@
       "y": 256,
       "length": 1232,
       "color": "#F4C000"
-    },
-    {
-      "id": "80bbf93e-605c-4715-b167-aa565f3349f7",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "orientation": "vertical",
-      "x": 528,
-      "y": 192,
-      "length": 880,
-      "color": "#0084FF",
-      "powerSupplyChannel": "a"
-    },
-    {
-      "id": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "orientation": "vertical",
-      "x": 2112,
-      "y": 192,
-      "length": 880,
-      "color": "#00F074",
-      "powerSupplyChannel": "b"
     }
   ],
   "connections": [
@@ -47742,7 +47720,7 @@
           "id": "connection-busbar-tap-42a0284f-0c82-435f-91dc-b5ec13aaa097",
           "kind": "busbar-tap",
           "busbarId": "567c5ada-12d7-4d53-a155-bf4d07507deb",
-          "offset": 0
+          "offset": 128
         },
         {
           "id": "connection-node-325f1150-04fc-4022-b696-5dfd3b6715e5",
@@ -47817,16 +47795,16 @@
           "offset": 1112
         },
         {
-          "id": "connection-node-0802721a-d7e9-40bb-960c-06f60650435a",
+          "id": "connection-node-96ce4b06-4c66-467e-a2c1-d7d42ec7575b",
           "kind": "element-anchor",
           "elementId": "9bfc6c6b-61c4-471a-9a71-2b1e5675d4cb",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
         },
         {
-          "id": "connection-busbar-tap-e1fb7705-2e2a-4130-a0db-28f7c1d4ef4a",
+          "id": "connection-busbar-tap-6f7caa53-787c-42d6-9b9a-432df42dd282",
           "kind": "busbar-tap",
           "busbarId": "567c5ada-12d7-4d53-a155-bf4d07507deb",
-          "offset": 1232
+          "offset": 1040
         }
       ],
       "edges": [
@@ -47886,9 +47864,9 @@
           "color": "#F4C000"
         },
         {
-          "id": "connection-edge-f4de808b-6e6c-4b2a-8abf-b578115fef14",
-          "sourceNodeId": "connection-node-0802721a-d7e9-40bb-960c-06f60650435a",
-          "targetNodeId": "connection-busbar-tap-e1fb7705-2e2a-4130-a0db-28f7c1d4ef4a",
+          "id": "connection-edge-325f28cb-9695-4544-876c-f0e89bef828e",
+          "sourceNodeId": "connection-node-96ce4b06-4c66-467e-a2c1-d7d42ec7575b",
+          "targetNodeId": "connection-busbar-tap-6f7caa53-787c-42d6-9b9a-432df42dd282",
           "color": "#F4C000"
         }
       ]
@@ -48159,7 +48137,7 @@
           "id": "connection-node-b652211e-a154-4ac0-a0a8-07615e6c8bd7",
           "kind": "node",
           "x": 992,
-          "y": 400
+          "y": 488
         },
         {
           "id": "connection-node-ccd3fd00-b977-4dac-8618-f410c1fd4bcf",
@@ -48243,7 +48221,7 @@
           "id": "connection-node-bdcb339d-4b26-4a92-b4fb-a5bbf276183d",
           "kind": "node",
           "x": 1648,
-          "y": 400
+          "y": 488
         },
         {
           "id": "connection-node-e008f864-dbe0-43c2-b2fb-bd6ec26ec94c",
@@ -48366,7 +48344,8 @@
           "id": "connection-edge-772c61f1-7d3e-4d63-a7bc-06d86bd415d2",
           "sourceNodeId": "connection-node-bd7d06f2-53ba-4893-9b60-e44cc8d80e6b",
           "targetNodeId": "connection-node-90911eb3-ac28-4dea-9180-3fb711273466",
-          "color": "#00F074"
+          "color": "#00F074",
+          "lineWidth": 6
         }
       ]
     },
@@ -48422,7 +48401,8 @@
           "id": "connection-edge-71ca1284-740b-426d-921d-d3af45badccc",
           "sourceNodeId": "connection-node-20dbd392-07a0-47e2-9897-87ac057bf2aa",
           "targetNodeId": "connection-node-ca519fab-3bc3-401f-8028-165f31b68a6e",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "lineWidth": 6
         }
       ]
     },
@@ -48448,7 +48428,7 @@
           "id": "connection-node-410c9156-a63f-4da0-81cc-f2191f87c363",
           "kind": "node",
           "x": 992,
-          "y": 608
+          "y": 696
         },
         {
           "id": "connection-node-223895be-d00e-49c6-8de0-68fa7c934f1f",
@@ -48538,7 +48518,7 @@
           "id": "connection-node-1377159c-6c26-40a3-9c07-dcf44958f426",
           "kind": "node",
           "x": 1648,
-          "y": 608
+          "y": 696
         },
         {
           "id": "connection-node-e8363ae4-d282-4256-9330-eb88a0b35598",
@@ -48643,7 +48623,8 @@
           "id": "connection-edge-8c3f4ce3-0c83-4114-9326-3e199eb2c5a6",
           "sourceNodeId": "connection-node-8518b5c2-88f8-49c0-a3e5-f65c631c78b6",
           "targetNodeId": "connection-node-1c40200f-2ace-400d-8348-5d495f452b9c",
-          "color": "#00F074"
+          "color": "#00F074",
+          "lineWidth": 6
         }
       ]
     },
@@ -48699,7 +48680,8 @@
           "id": "connection-edge-9417a109-dcf2-4136-a961-6c6d74feed9c",
           "sourceNodeId": "connection-node-a052f135-d264-45e5-b6c1-8e15f254e9ff",
           "targetNodeId": "connection-node-dae1f0b1-fe39-4069-acde-7bca2d92bfd6",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "lineWidth": 6
         }
       ]
     },
@@ -48719,7 +48701,7 @@
           "id": "connection-node-d42a57bb-f68f-43a3-aa7c-3867f51456f8",
           "kind": "node",
           "x": 992,
-          "y": 816
+          "y": 904
         },
         {
           "id": "connection-node-e2dc2b90-639d-4b6f-a8e8-6f4ae18c6f9a",
@@ -48778,7 +48760,7 @@
           "id": "connection-node-6cd440dd-eb0d-4f77-8023-0f3ffa4eec30",
           "kind": "node",
           "x": 1648,
-          "y": 816
+          "y": 904
         },
         {
           "id": "connection-node-703fe053-6dea-4196-aab9-be754c575ff4",
@@ -48900,7 +48882,8 @@
           "id": "connection-edge-0c39c20a-4fb7-4313-897d-128afca21994",
           "sourceNodeId": "connection-node-dd0ad0c9-27c7-4512-86d6-cb356a713891",
           "targetNodeId": "connection-node-77987ecf-bab2-4338-864c-689aa3ac19b0",
-          "color": "#00F074"
+          "color": "#00F074",
+          "lineWidth": 6
         }
       ]
     },
@@ -48956,7 +48939,8 @@
           "id": "connection-edge-5140b419-cd76-40bc-8ad0-d3015838685f",
           "sourceNodeId": "connection-node-afa1a44d-c546-4011-8a65-33c0e4b8bc39",
           "targetNodeId": "connection-node-c0ba3f60-131a-4f17-83fa-278a6141dc7b",
-          "color": "#0084FF"
+          "color": "#0084FF",
+          "lineWidth": 6
         }
       ]
     },
@@ -48982,7 +48966,7 @@
           "id": "connection-node-915c87bd-1627-4432-8f1d-b2faed39d721",
           "kind": "node",
           "x": 992,
-          "y": 1024
+          "y": 1112
         },
         {
           "id": "connection-node-95055496-ebd0-477f-944c-fc3a533e3004",
@@ -49072,7 +49056,7 @@
           "id": "connection-node-4165001b-4163-466b-b481-fb384d3e0204",
           "kind": "node",
           "x": 1648,
-          "y": 1024
+          "y": 1112
         },
         {
           "id": "connection-node-5a819bdd-04e3-401f-a051-239c428cf04b",
@@ -49190,7 +49174,8 @@
           "id": "connection-edge-8707ff8a-c3af-44d7-b73f-e7b2ba9f6318",
           "sourceNodeId": "connection-node-fe1ad4f8-55e4-45d9-ad55-dece6f802f57",
           "targetNodeId": "connection-node-cf033b9f-0da3-42cd-9337-ab1916fcf12b",
-          "color": "#00F074"
+          "color": "#00F074",
+          "lineWidth": 6
         }
       ]
     },
@@ -49246,143 +49231,8 @@
           "id": "connection-edge-61798dab-d11d-48b5-b518-15c62d117b87",
           "sourceNodeId": "connection-node-03cb71ca-27af-45e0-a914-d15c973f4d42",
           "targetNodeId": "connection-node-13203f73-7c0c-46fb-b6ff-23c6e13590c3",
-          "color": "#0084FF"
-        }
-      ]
-    },
-    {
-      "id": "connection-network-5712d104-6029-404f-9c79-d8cdfa2dfe9c",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "powerSupplyChannel": "b",
-      "nodes": [
-        {
-          "id": "connection-busbar-tap-b89b648b-b2ce-481e-be61-fcb62989a4eb",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 832
-        },
-        {
-          "id": "connection-node-c4783b69-8785-4aef-8e19-b73c5c4afb64",
-          "kind": "element-anchor",
-          "elementId": "a0f697aa-ef70-44e9-8091-54af47b294e5",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-bdf91368-6e3e-4f99-8267-26f0d969ffa9",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 144
-        },
-        {
-          "id": "connection-node-c32d33bc-aab8-43a0-a702-eb64b9c7074f",
-          "kind": "element-anchor",
-          "elementId": "a02eb696-570f-404f-8d71-2451cea3fce5",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-61f5fd15-ecbb-46aa-be93-284935118108",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 208
-        },
-        {
-          "id": "connection-node-e17ca6f9-242b-4db1-ac1a-acfe74c8ae71",
-          "kind": "element-anchor",
-          "elementId": "ba67cb78-ccaa-4a66-b463-c9f2d574ffc4",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-2fed21c1-d5bb-4b9a-9aa3-723eb956b080",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 416
-        },
-        {
-          "id": "connection-node-9a867a13-63de-4667-8ca6-fa32205ff3de",
-          "kind": "element-anchor",
-          "elementId": "d28e9f2e-2494-4027-ab72-9d0d739d0c1f",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-dc77a83b-daf2-4346-bf72-8f0bfb01b1a2",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 624
-        },
-        {
-          "id": "connection-node-fdd1a196-d13d-489f-a830-6f7fab5a8887",
-          "kind": "element-anchor",
-          "elementId": "9f92a115-9228-4a5c-98d5-f81cf19916d4",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-node-985f813a-0ef6-4e55-8e9d-dff714c57992",
-          "kind": "element-anchor",
-          "elementId": "951f507b-9076-40ae-973f-35109ba3cc4f",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-e23962e4-30d8-4a78-9ab2-be46d3a85768",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 304
-        },
-        {
-          "id": "connection-node-8b4a86b8-cff4-4fa5-9989-b38feeeac054",
-          "kind": "element-anchor",
-          "elementId": "ef7b12a7-35a4-4d80-85dd-d7f305ff75f1",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-0d4611a2-12c1-4df9-8b16-4f8edcad98bf",
-          "kind": "busbar-tap",
-          "busbarId": "8c5d1d88-d77a-44e5-8613-4056be975c76",
-          "offset": 64
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-f74da016-4b12-4bb4-981d-f7889e798a41",
-          "sourceNodeId": "connection-node-c4783b69-8785-4aef-8e19-b73c5c4afb64",
-          "targetNodeId": "connection-busbar-tap-bdf91368-6e3e-4f99-8267-26f0d969ffa9",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-ded560ce-8042-471e-802d-14f865a6273f",
-          "sourceNodeId": "connection-node-c32d33bc-aab8-43a0-a702-eb64b9c7074f",
-          "targetNodeId": "connection-busbar-tap-61f5fd15-ecbb-46aa-be93-284935118108",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-bce2692d-7fe9-4a37-b1fc-725f7b8d936a",
-          "sourceNodeId": "connection-node-e17ca6f9-242b-4db1-ac1a-acfe74c8ae71",
-          "targetNodeId": "connection-busbar-tap-2fed21c1-d5bb-4b9a-9aa3-723eb956b080",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-8c39347f-64ce-48c7-aeb1-0ddebc181a03",
-          "sourceNodeId": "connection-node-9a867a13-63de-4667-8ca6-fa32205ff3de",
-          "targetNodeId": "connection-busbar-tap-dc77a83b-daf2-4346-bf72-8f0bfb01b1a2",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-296b87ac-fb94-4860-8a12-436ebdf98d65",
-          "sourceNodeId": "connection-node-fdd1a196-d13d-489f-a830-6f7fab5a8887",
-          "targetNodeId": "connection-busbar-tap-b89b648b-b2ce-481e-be61-fcb62989a4eb",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-ca25c2f2-f194-4403-a162-ab31ba794549",
-          "sourceNodeId": "connection-node-985f813a-0ef6-4e55-8e9d-dff714c57992",
-          "targetNodeId": "connection-busbar-tap-e23962e4-30d8-4a78-9ab2-be46d3a85768",
-          "color": "#00F074"
-        },
-        {
-          "id": "connection-edge-465b164f-856a-41ed-8811-eb1d98210b03",
-          "sourceNodeId": "connection-node-8b4a86b8-cff4-4fa5-9989-b38feeeac054",
-          "targetNodeId": "connection-busbar-tap-0d4611a2-12c1-4df9-8b16-4f8edcad98bf",
-          "color": "#00F074"
+          "color": "#0084FF",
+          "lineWidth": 6
         }
       ]
     },
@@ -49635,227 +49485,6 @@
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "connection-network-b28c328e-7b18-458e-89f7-b84f7aa3fcda",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "powerSupplyChannel": "a",
-      "nodes": [
-        {
-          "id": "connection-node-5e794810-b87e-49ba-b13d-3805da510cef",
-          "kind": "element-anchor",
-          "elementId": "97e08dc3-c97c-4b65-9da3-b177fe9720d8",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-8f014ec3-2599-494c-94c1-7c7759875f35",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 208
-        },
-        {
-          "id": "connection-node-858c824e-33e0-46e7-bea9-68bbbf6fb94b",
-          "kind": "element-anchor",
-          "elementId": "8bd86d8c-c043-42dd-9360-8d7a391ac0ee",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-8bf00b49-9df4-4844-a380-6fc6e84329a4",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 416
-        },
-        {
-          "id": "connection-node-0cd4a441-ccd9-4595-87bf-0b4409dc0033",
-          "kind": "element-anchor",
-          "elementId": "f9558ea9-5c70-460c-97eb-4f205a567782",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        },
-        {
-          "id": "connection-busbar-tap-df84199a-dea3-4ab1-8048-9e87c9895c4a",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 304
-        },
-        {
-          "id": "connection-node-e5b3f8b6-3425-4542-8cfe-6780fa00f412",
-          "kind": "element-anchor",
-          "elementId": "65721fb0-cda4-413b-b403-f1bec6dba2ad",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-0d7d5187-5312-4085-a4d1-71a97617dff1",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 624
-        },
-        {
-          "id": "connection-node-e08e2639-78be-40b8-a229-f042520aa41a",
-          "kind": "element-anchor",
-          "elementId": "d1eb5456-7ed1-436d-bc4e-21507f292514",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-196bcb7c-8149-4889-b7a8-e542c38f17ee",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 832
-        },
-        {
-          "id": "connection-node-dcc637b9-4e3b-4201-b489-4d6e855347c7",
-          "kind": "element-anchor",
-          "elementId": "a0f697aa-ef70-44e9-8091-54af47b294e5",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-63516345-ca24-43dd-9f23-6bbd4dca1a42",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 144
-        },
-        {
-          "id": "connection-node-a0e7101b-00cf-4c61-a336-685a1591de88",
-          "kind": "element-anchor",
-          "elementId": "f6ca5069-b889-4a1f-8e53-f43efd8dee4e",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-busbar-tap-6edb7ac2-2cb1-4549-8340-7384651c154b",
-          "kind": "busbar-tap",
-          "busbarId": "80bbf93e-605c-4715-b167-aa565f3349f7",
-          "offset": 64
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-4a452897-e18a-48de-a9d6-e61df3ef9fd6",
-          "sourceNodeId": "connection-node-5e794810-b87e-49ba-b13d-3805da510cef",
-          "targetNodeId": "connection-busbar-tap-8f014ec3-2599-494c-94c1-7c7759875f35",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-0416ddc7-6363-44a1-b8d6-27cfb03861e6",
-          "sourceNodeId": "connection-node-858c824e-33e0-46e7-bea9-68bbbf6fb94b",
-          "targetNodeId": "connection-busbar-tap-8bf00b49-9df4-4844-a380-6fc6e84329a4",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-c767aab2-365c-49f8-8758-bbdee3dc314f",
-          "sourceNodeId": "connection-node-0cd4a441-ccd9-4595-87bf-0b4409dc0033",
-          "targetNodeId": "connection-busbar-tap-df84199a-dea3-4ab1-8048-9e87c9895c4a",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-7f9d8772-2424-44cf-830a-d81de95eb138",
-          "sourceNodeId": "connection-node-e5b3f8b6-3425-4542-8cfe-6780fa00f412",
-          "targetNodeId": "connection-busbar-tap-0d7d5187-5312-4085-a4d1-71a97617dff1",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-67b53af4-09a6-4f51-b21a-b6414193c8e9",
-          "sourceNodeId": "connection-node-e08e2639-78be-40b8-a229-f042520aa41a",
-          "targetNodeId": "connection-busbar-tap-196bcb7c-8149-4889-b7a8-e542c38f17ee",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-2467a4cc-c9eb-4e08-826d-a50f345b47e0",
-          "sourceNodeId": "connection-node-dcc637b9-4e3b-4201-b489-4d6e855347c7",
-          "targetNodeId": "connection-busbar-tap-63516345-ca24-43dd-9f23-6bbd4dca1a42",
-          "logicalConnectionId": "connection-edge-2467a4cc-c9eb-4e08-826d-a50f345b47e0",
-          "color": "#0084FF"
-        },
-        {
-          "id": "connection-edge-f227b22f-202f-43eb-932e-d85a2abb670f",
-          "sourceNodeId": "connection-node-a0e7101b-00cf-4c61-a336-685a1591de88",
-          "targetNodeId": "connection-busbar-tap-6edb7ac2-2cb1-4549-8340-7384651c154b",
-          "color": "#0084FF"
-        }
-      ]
-    },
-    {
-      "id": "connection-network-23fd5d71-485e-4b25-a75a-1263b7d03174",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "powerSupplyChannel": "a",
-      "nodes": [
-        {
-          "id": "connection-node-c8b81116-267d-4239-a803-5e4007baba51",
-          "kind": "element-anchor",
-          "elementId": "48a17d69-1e3a-439a-b6fd-e0e203a9f605",
-          "anchorId": "anchor-88e4eab8-42fb-40cb-9d65-076759bb935a"
-        },
-        {
-          "id": "connection-node-6a44ce9a-77a2-4a9e-a64a-065ca4193aa2",
-          "kind": "element-anchor",
-          "elementId": "f9558ea9-5c70-460c-97eb-4f205a567782",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-72dd3aff-a3e3-48ac-afc6-e9d451c20744",
-          "sourceNodeId": "connection-node-c8b81116-267d-4239-a803-5e4007baba51",
-          "targetNodeId": "connection-node-6a44ce9a-77a2-4a9e-a64a-065ca4193aa2",
-          "color": "#0084FF"
-        }
-      ]
-    },
-    {
-      "id": "connection-network-861f5974-977f-4000-9a02-6368d3c13402",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "powerSupplyChannel": "b",
-      "nodes": [
-        {
-          "id": "connection-node-3a21c002-4af0-4cef-8024-f2b244204318",
-          "kind": "element-anchor",
-          "elementId": "ef7b12a7-35a4-4d80-85dd-d7f305ff75f1",
-          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
-        },
-        {
-          "id": "connection-node-0e86b7e3-69f5-476f-8e02-955289565d0f",
-          "kind": "element-anchor",
-          "elementId": "9bfc6c6b-61c4-471a-9a71-2b1e5675d4cb",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-34103d91-0f84-45f4-910c-88d8d60e0e96",
-          "sourceNodeId": "connection-node-3a21c002-4af0-4cef-8024-f2b244204318",
-          "targetNodeId": "connection-node-0e86b7e3-69f5-476f-8e02-955289565d0f",
-          "color": "#00F074"
-        }
-      ]
-    },
-    {
-      "id": "connection-network-7236ec23-4ecb-4234-bf87-ebc69989cfa4",
-      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
-      "type": "electrical",
-      "powerSupplyChannel": "b",
-      "nodes": [
-        {
-          "id": "connection-node-4b4a9113-efed-42f3-8555-dd7878837c50",
-          "kind": "element-anchor",
-          "elementId": "8ba16042-9077-4b00-9a00-6f7f75a6d946",
-          "anchorId": "anchor-5fe54af5-0857-4e44-a1f7-fbae646c57eb"
-        },
-        {
-          "id": "connection-node-ae4c7c56-6247-49d5-812a-6810f6e82337",
-          "kind": "element-anchor",
-          "elementId": "951f507b-9076-40ae-973f-35109ba3cc4f",
-          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
-        }
-      ],
-      "edges": [
-        {
-          "id": "connection-edge-61c86df9-60da-4d4c-b900-666e27f4ceab",
-          "sourceNodeId": "connection-node-4b4a9113-efed-42f3-8555-dd7878837c50",
-          "targetNodeId": "connection-node-ae4c7c56-6247-49d5-812a-6810f6e82337",
-          "color": "#00F074"
         }
       ]
     },
@@ -50312,6 +49941,437 @@
       ]
     },
     {
+      "id": "connection-network-b282554c-2a95-40d4-bd01-4ffeb4d9a525",
+      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-0c8c0294-1cb8-43fb-8675-6a4a4d3a646c",
+          "kind": "element-anchor",
+          "elementId": "48a17d69-1e3a-439a-b6fd-e0e203a9f605",
+          "anchorId": "anchor-14147a1e-0796-489a-8671-a52f7a827ed1"
+        },
+        {
+          "id": "connection-node-dc29fa7c-a599-4496-867e-28230c5a3c1f",
+          "kind": "element-anchor",
+          "elementId": "f9558ea9-5c70-460c-97eb-4f205a567782",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-eaf5d80b-b0bf-44e0-b6b3-5fdb2caeb899",
+          "sourceNodeId": "connection-node-0c8c0294-1cb8-43fb-8675-6a4a4d3a646c",
+          "targetNodeId": "connection-node-dc29fa7c-a599-4496-867e-28230c5a3c1f",
+          "lineWidth": 6
+        }
+      ],
+      "powerSupplyChannel": "a"
+    },
+    {
+      "id": "connection-network-5f32463f-2a0a-48d3-a202-a4774b70d0df",
+      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-4ba0b5ef-9f3c-4bf5-8c21-f5225ac0dd74",
+          "kind": "element-anchor",
+          "elementId": "f9558ea9-5c70-460c-97eb-4f205a567782",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-1721cff0-627e-49f9-aabe-51d1ecc23e4a",
+          "kind": "node",
+          "x": 496,
+          "y": 384
+        },
+        {
+          "id": "connection-node-1a5aa6c4-8339-4ddf-9dd9-58803200c6e6",
+          "kind": "node",
+          "x": 1232,
+          "y": 384
+        },
+        {
+          "id": "connection-node-96cd9be2-e9c7-462a-8edd-b617139b4fd6",
+          "kind": "element-anchor",
+          "elementId": "a0f697aa-ef70-44e9-8091-54af47b294e5",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-e93e8caa-61cf-4b61-9c44-9245ba7f7ce4",
+          "kind": "node",
+          "x": 496,
+          "y": 1112
+        },
+        {
+          "id": "connection-node-481699ed-f9f8-40de-87a1-610bc90ae4f5",
+          "kind": "element-anchor",
+          "elementId": "d1eb5456-7ed1-436d-bc4e-21507f292514",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-73d718d2-9e45-4727-851c-f85344477ff4",
+          "kind": "node",
+          "x": 496,
+          "y": 904
+        },
+        {
+          "id": "connection-node-0bb54b2c-a2ea-40c5-a75d-e7020cf9ed00",
+          "kind": "element-anchor",
+          "elementId": "65721fb0-cda4-413b-b403-f1bec6dba2ad",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-cf865433-e2bd-40e9-9899-756d41988756",
+          "kind": "node",
+          "x": 496,
+          "y": 696
+        },
+        {
+          "id": "connection-node-36a0e09b-c7ae-4ffc-97b6-a4046f1b6d2d",
+          "kind": "element-anchor",
+          "elementId": "8bd86d8c-c043-42dd-9360-8d7a391ac0ee",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-f9127931-c414-4038-b6ef-f7d51f743035",
+          "kind": "node",
+          "x": 496,
+          "y": 488
+        },
+        {
+          "id": "connection-node-6753c927-10bd-44a8-971d-8b9e315b80ab",
+          "kind": "element-anchor",
+          "elementId": "97e08dc3-c97c-4b65-9da3-b177fe9720d8",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-85770a43-c7d1-4ec2-b625-fd42104dcee9",
+          "kind": "node",
+          "x": 832,
+          "y": 384
+        },
+        {
+          "id": "connection-node-87c0eb94-c8da-444f-9ce9-b2f151ca7491",
+          "kind": "element-anchor",
+          "elementId": "f6ca5069-b889-4a1f-8e53-f43efd8dee4e",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-9fc64bbe-e9ea-463a-8c5c-513749d26303",
+          "sourceNodeId": "connection-node-4ba0b5ef-9f3c-4bf5-8c21-f5225ac0dd74",
+          "targetNodeId": "connection-node-1721cff0-627e-49f9-aabe-51d1ecc23e4a",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-8c85d664-a2f9-45af-939d-1bb44e356ba5",
+          "sourceNodeId": "connection-node-1721cff0-627e-49f9-aabe-51d1ecc23e4a",
+          "targetNodeId": "connection-node-85770a43-c7d1-4ec2-b625-fd42104dcee9",
+          "logicalConnectionId": "connection-edge-8c85d664-a2f9-45af-939d-1bb44e356ba5",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-8cea81dc-2da3-4213-8322-1e67490b4ef5",
+          "sourceNodeId": "connection-node-85770a43-c7d1-4ec2-b625-fd42104dcee9",
+          "targetNodeId": "connection-node-1a5aa6c4-8339-4ddf-9dd9-58803200c6e6",
+          "logicalConnectionId": "connection-edge-8c85d664-a2f9-45af-939d-1bb44e356ba5",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-d3db3e6f-1118-4b93-b536-c64bcaf0e6b7",
+          "sourceNodeId": "connection-node-1a5aa6c4-8339-4ddf-9dd9-58803200c6e6",
+          "targetNodeId": "connection-node-96cd9be2-e9c7-462a-8edd-b617139b4fd6"
+        },
+        {
+          "id": "connection-edge-9034a48d-0e57-4129-84ef-abb329d25401",
+          "sourceNodeId": "connection-node-1721cff0-627e-49f9-aabe-51d1ecc23e4a",
+          "targetNodeId": "connection-node-f9127931-c414-4038-b6ef-f7d51f743035",
+          "logicalConnectionId": "connection-edge-9034a48d-0e57-4129-84ef-abb329d25401",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-9880f882-1437-4ea2-af19-4b8754dcb64a",
+          "sourceNodeId": "connection-node-f9127931-c414-4038-b6ef-f7d51f743035",
+          "targetNodeId": "connection-node-cf865433-e2bd-40e9-9899-756d41988756",
+          "logicalConnectionId": "connection-edge-9034a48d-0e57-4129-84ef-abb329d25401",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-b76b2a7e-42b9-4fda-bd22-a908bd264e6b",
+          "sourceNodeId": "connection-node-cf865433-e2bd-40e9-9899-756d41988756",
+          "targetNodeId": "connection-node-73d718d2-9e45-4727-851c-f85344477ff4",
+          "logicalConnectionId": "connection-edge-9034a48d-0e57-4129-84ef-abb329d25401",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-ad5adc77-c854-4cc4-bcdf-e946fb8d8381",
+          "sourceNodeId": "connection-node-73d718d2-9e45-4727-851c-f85344477ff4",
+          "targetNodeId": "connection-node-e93e8caa-61cf-4b61-9c44-9245ba7f7ce4",
+          "logicalConnectionId": "connection-edge-9034a48d-0e57-4129-84ef-abb329d25401",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-a915f55a-2b0e-4197-8879-ddab86586bca",
+          "sourceNodeId": "connection-node-e93e8caa-61cf-4b61-9c44-9245ba7f7ce4",
+          "targetNodeId": "connection-node-481699ed-f9f8-40de-87a1-610bc90ae4f5",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-cd612af7-8697-4201-9f48-ae2af5b2c89c",
+          "sourceNodeId": "connection-node-0bb54b2c-a2ea-40c5-a75d-e7020cf9ed00",
+          "targetNodeId": "connection-node-73d718d2-9e45-4727-851c-f85344477ff4",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-099d3400-c205-4345-a9d9-5b83a847b5d5",
+          "sourceNodeId": "connection-node-36a0e09b-c7ae-4ffc-97b6-a4046f1b6d2d",
+          "targetNodeId": "connection-node-cf865433-e2bd-40e9-9899-756d41988756",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-46843f4b-9875-4911-a9a9-dbb51c7a16b4",
+          "sourceNodeId": "connection-node-6753c927-10bd-44a8-971d-8b9e315b80ab",
+          "targetNodeId": "connection-node-f9127931-c414-4038-b6ef-f7d51f743035",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-66fd60b2-b6e3-4b3a-a933-b504645d1897",
+          "sourceNodeId": "connection-node-87c0eb94-c8da-444f-9ce9-b2f151ca7491",
+          "targetNodeId": "connection-node-85770a43-c7d1-4ec2-b625-fd42104dcee9"
+        }
+      ],
+      "powerSupplyChannel": "a"
+    },
+    {
+      "id": "connection-network-715ed686-449d-4993-840c-14d6d43ba889",
+      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-248faff9-1600-451a-9451-97a86f9bda73",
+          "kind": "element-anchor",
+          "elementId": "8ba16042-9077-4b00-9a00-6f7f75a6d946",
+          "anchorId": "anchor-14147a1e-0796-489a-8671-a52f7a827ed1"
+        },
+        {
+          "id": "connection-node-f8a724b5-7cab-492b-8c2f-fb5ac65f33e8",
+          "kind": "element-anchor",
+          "elementId": "951f507b-9076-40ae-973f-35109ba3cc4f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-1d2c9407-3c83-4548-b504-283ee93af06d",
+          "sourceNodeId": "connection-node-248faff9-1600-451a-9451-97a86f9bda73",
+          "targetNodeId": "connection-node-f8a724b5-7cab-492b-8c2f-fb5ac65f33e8",
+          "color": "#F4C000",
+          "lineWidth": 6
+        }
+      ],
+      "powerSupplyChannel": "b"
+    },
+    {
+      "id": "connection-network-7f78aee6-dc90-49b8-b4f2-e648595346f1",
+      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
+      "type": "electrical",
+      "nodes": [
+        {
+          "id": "connection-node-f4a911b4-cb86-4817-bdf3-ad95a610bca8",
+          "kind": "element-anchor",
+          "elementId": "9bfc6c6b-61c4-471a-9a71-2b1e5675d4cb",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-28b5bd4d-74a8-40d0-bd71-beddf3c3406d",
+          "kind": "element-anchor",
+          "elementId": "ef7b12a7-35a4-4d80-85dd-d7f305ff75f1",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-1486bbe8-ad5b-4ff8-9d22-0403e9d38053",
+          "sourceNodeId": "connection-node-f4a911b4-cb86-4817-bdf3-ad95a610bca8",
+          "targetNodeId": "connection-node-28b5bd4d-74a8-40d0-bd71-beddf3c3406d",
+          "color": "#F4C000"
+        }
+      ],
+      "powerSupplyChannel": "b"
+    },
+    {
+      "id": "connection-network-dfb8ecd3-e737-488b-8549-39c18dbcc617",
+      "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
+      "type": "electrical",
+      "powerSupplyChannel": "b",
+      "nodes": [
+        {
+          "id": "connection-node-94d31da1-94b0-4deb-8438-041db923d466",
+          "kind": "element-anchor",
+          "elementId": "a0f697aa-ef70-44e9-8091-54af47b294e5",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-794feea9-d985-41d9-8558-c72ba656d92d",
+          "kind": "node",
+          "x": 1408,
+          "y": 384
+        },
+        {
+          "id": "connection-node-6d92ea6b-6ced-4a6a-a707-41084b56d491",
+          "kind": "element-anchor",
+          "elementId": "951f507b-9076-40ae-973f-35109ba3cc4f",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        },
+        {
+          "id": "connection-node-b8a5fc51-b5b7-431d-b731-c30cbe1ffb70",
+          "kind": "element-anchor",
+          "elementId": "9f92a115-9228-4a5c-98d5-f81cf19916d4",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
+          "kind": "node",
+          "x": 2128,
+          "y": 384
+        },
+        {
+          "id": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
+          "kind": "node",
+          "x": 2128,
+          "y": 488
+        },
+        {
+          "id": "connection-node-bec353b6-c664-4f94-bd49-32e6e487a130",
+          "kind": "element-anchor",
+          "elementId": "a02eb696-570f-404f-8d71-2451cea3fce5",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
+          "kind": "node",
+          "x": 2128,
+          "y": 696
+        },
+        {
+          "id": "connection-node-5f7020fe-6525-4e9f-a11d-99a8cbdac768",
+          "kind": "element-anchor",
+          "elementId": "ba67cb78-ccaa-4a66-b463-c9f2d574ffc4",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
+          "kind": "node",
+          "x": 2128,
+          "y": 904
+        },
+        {
+          "id": "connection-node-3a7e2b3d-0c04-44bd-9c48-e452643f6c18",
+          "kind": "element-anchor",
+          "elementId": "d28e9f2e-2494-4027-ab72-9d0d739d0c1f",
+          "anchorId": "anchor-f214eb96-1573-42d3-a33b-379a5e22fda8"
+        },
+        {
+          "id": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f",
+          "kind": "node",
+          "x": 1744,
+          "y": 384
+        },
+        {
+          "id": "connection-node-7b9b1c3c-8958-4cd1-9ef1-08443d982d23",
+          "kind": "element-anchor",
+          "elementId": "ef7b12a7-35a4-4d80-85dd-d7f305ff75f1",
+          "anchorId": "anchor-f96dbbe7-5ca2-40ff-a213-ea907eec7fee"
+        }
+      ],
+      "edges": [
+        {
+          "id": "connection-edge-823e3a71-a5e9-461d-8181-fcce7a8963fe",
+          "sourceNodeId": "connection-node-94d31da1-94b0-4deb-8438-041db923d466",
+          "targetNodeId": "connection-node-794feea9-d985-41d9-8558-c72ba656d92d"
+        },
+        {
+          "id": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "sourceNodeId": "connection-node-6d92ea6b-6ced-4a6a-a707-41084b56d491",
+          "targetNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
+          "color": "#F4C000",
+          "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-51130243-a6b3-482b-bf64-4930e1ec5217",
+          "sourceNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
+          "targetNodeId": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
+          "color": "#F4C000",
+          "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-265d7fb2-ecb5-41ac-8d1b-5d022d67fea3",
+          "sourceNodeId": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
+          "targetNodeId": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
+          "color": "#F4C000",
+          "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-b0b9a626-ec08-43d3-93e7-56da858732d2",
+          "sourceNodeId": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
+          "targetNodeId": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
+          "color": "#F4C000",
+          "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-149a237d-42dd-471e-b9c1-0e5a60418ffb",
+          "sourceNodeId": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
+          "targetNodeId": "connection-node-b8a5fc51-b5b7-431d-b731-c30cbe1ffb70",
+          "color": "#F4C000",
+          "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767",
+          "sourceNodeId": "connection-node-794feea9-d985-41d9-8558-c72ba656d92d",
+          "targetNodeId": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f",
+          "lineWidth": 6,
+          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767"
+        },
+        {
+          "id": "connection-edge-25a23cef-baa2-4007-add3-f44e6f4ca11d",
+          "sourceNodeId": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f",
+          "targetNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
+          "lineWidth": 6,
+          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767"
+        },
+        {
+          "id": "connection-edge-866ff2c9-be03-4715-b980-ff7bad20102b",
+          "sourceNodeId": "connection-node-bec353b6-c664-4f94-bd49-32e6e487a130",
+          "targetNodeId": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-98c65a74-85af-4b91-9f5f-79728f9e56b0",
+          "sourceNodeId": "connection-node-5f7020fe-6525-4e9f-a11d-99a8cbdac768",
+          "targetNodeId": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-5122efb3-33ac-4048-a15c-fa2a3b96595a",
+          "sourceNodeId": "connection-node-3a7e2b3d-0c04-44bd-9c48-e452643f6c18",
+          "targetNodeId": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
+          "lineWidth": 6
+        },
+        {
+          "id": "connection-edge-bd6a628e-c79a-483b-92d0-7bab909705e2",
+          "sourceNodeId": "connection-node-7b9b1c3c-8958-4cd1-9ef1-08443d982d23",
+          "targetNodeId": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f"
+        }
+      ]
+    },
+    {
       "id": "connection-network-02408430-4339-4809-856d-d6049b1b3b85",
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "type": "cooling-primary-hot",
@@ -50616,43 +50676,37 @@
         {
           "id": "connection-node-8075da0c-038f-4755-8232-aa4b550ba2a3",
           "kind": "node",
-          "x": 576,
+          "x": 592,
           "y": 656
         },
         {
           "id": "connection-node-13b8d3a1-8849-4492-b331-70ca0416f897",
           "kind": "node",
-          "x": -544,
+          "x": -608,
           "y": 656
         },
         {
           "id": "connection-node-e3e2226a-3865-41f7-a510-b6cd5c6a36d4",
           "kind": "node",
-          "x": -544,
+          "x": -608,
           "y": 640
-        },
-        {
-          "id": "connection-node-27767aad-5e46-4859-a916-dece427f6b27",
-          "kind": "node",
-          "x": -512,
-          "y": 656
         },
         {
           "id": "connection-node-81ded914-8b9b-4ef6-9dda-c3f57de2c673",
           "kind": "node",
-          "x": -544,
+          "x": -608,
           "y": 544
         },
         {
           "id": "connection-node-9bf8e9bf-303c-49f8-aa14-b0fa0257c510",
           "kind": "node",
-          "x": 752,
+          "x": 784,
           "y": 656
         },
         {
           "id": "connection-node-6d69ddb3-71f1-4652-b9d6-7c0dfca13a63",
           "kind": "node",
-          "x": 752,
+          "x": 784,
           "y": 544
         },
         {
@@ -50683,7 +50737,19 @@
           "id": "route-waypoint-58a2b497-57a9-4bae-8de5-6592bdbd0120",
           "kind": "node",
           "x": -112,
-          "y": 856
+          "y": 808
+        },
+        {
+          "id": "connection-node-f297ec63-9bd9-44cc-bd87-302beaa4c782",
+          "kind": "node",
+          "x": 240,
+          "y": 808
+        },
+        {
+          "id": "connection-node-4ff22c65-579e-438b-94f2-02216b5d320f",
+          "kind": "node",
+          "x": 592,
+          "y": 808
         }
       ],
       "edges": [
@@ -50761,13 +50827,29 @@
         {
           "id": "connection-edge-7241a389-ab11-463c-afe8-926b40aebc3f",
           "sourceNodeId": "connection-node-bffeb939-48fd-4906-b253-bd8905c32000",
+          "targetNodeId": "connection-node-f297ec63-9bd9-44cc-bd87-302beaa4c782",
+          "logicalConnectionId": "connection-edge-7241a389-ab11-463c-afe8-926b40aebc3f",
+          "color": "#FB7800"
+        },
+        {
+          "id": "connection-edge-16ce9bb5-ee18-4008-9bb1-8d3d174dbd34",
+          "sourceNodeId": "connection-node-f297ec63-9bd9-44cc-bd87-302beaa4c782",
           "targetNodeId": "connection-node-6bd0a676-3a88-440d-a7a4-16336c718fd2",
+          "logicalConnectionId": "connection-edge-7241a389-ab11-463c-afe8-926b40aebc3f",
           "color": "#FB7800"
         },
         {
           "id": "connection-edge-8af9fde6-c14b-46c2-a262-e6096cdc2863",
           "sourceNodeId": "connection-node-a5d54728-be6f-49ef-b07f-3d29f3a343d7",
+          "targetNodeId": "connection-node-4ff22c65-579e-438b-94f2-02216b5d320f",
+          "logicalConnectionId": "connection-edge-8af9fde6-c14b-46c2-a262-e6096cdc2863",
+          "color": "#FB7800"
+        },
+        {
+          "id": "connection-edge-1a687873-bb8f-409b-9443-2ee537b76a47",
+          "sourceNodeId": "connection-node-4ff22c65-579e-438b-94f2-02216b5d320f",
           "targetNodeId": "connection-node-dff40ad2-2495-4014-949e-fc383a1afdd2",
+          "logicalConnectionId": "connection-edge-8af9fde6-c14b-46c2-a262-e6096cdc2863",
           "color": "#FB7800"
         },
         {
@@ -50787,13 +50869,6 @@
         {
           "id": "connection-edge-6ae44a50-9741-40d3-ab28-9fe4eff9110b",
           "sourceNodeId": "connection-node-13b8d3a1-8849-4492-b331-70ca0416f897",
-          "targetNodeId": "connection-node-27767aad-5e46-4859-a916-dece427f6b27",
-          "logicalConnectionId": "connection-edge-5dd282bc-7e1a-4d05-ac57-f1bdbed1c847",
-          "color": "#FB7800"
-        },
-        {
-          "id": "connection-edge-b53bf450-3def-4845-98be-3c5f960675f4",
-          "sourceNodeId": "connection-node-27767aad-5e46-4859-a916-dece427f6b27",
           "targetNodeId": "connection-node-ffc2781a-2897-44a8-bafb-b44bd092cb13",
           "logicalConnectionId": "connection-edge-5dd282bc-7e1a-4d05-ac57-f1bdbed1c847",
           "color": "#FB7800"
@@ -50900,12 +50975,6 @@
           "anchorId": "mp-measurement-point"
         },
         {
-          "id": "connection-node-6d830e45-1a38-4e31-b653-92e9229b95b8",
-          "kind": "node",
-          "x": -112,
-          "y": 1088
-        },
-        {
           "id": "connection-node-30185ff5-6c3e-4ea7-8e65-00a1b3e174d4",
           "kind": "element-anchor",
           "elementId": "fc3785e6-6dd2-41d7-b5d8-7c4c1ea687ae",
@@ -50915,20 +50984,13 @@
           "id": "route-waypoint-7efd8018-9a9e-4fbd-a0d6-fabe65136e84",
           "kind": "node",
           "x": -112,
-          "y": 936
+          "y": 888
         }
       ],
       "edges": [
         {
           "id": "connection-edge-2b1c09f6-6d69-44c1-aa59-7a0d00a247e8",
           "sourceNodeId": "connection-node-97ce4fdd-c0ca-4195-97bf-7275384828f7",
-          "targetNodeId": "connection-node-6d830e45-1a38-4e31-b653-92e9229b95b8",
-          "logicalConnectionId": "connection-edge-2b1c09f6-6d69-44c1-aa59-7a0d00a247e8",
-          "color": "#00B387"
-        },
-        {
-          "id": "connection-edge-2b1c09f6-6d69-44c1-aa59-7a0d00a247e8:segment:2",
-          "sourceNodeId": "connection-node-6d830e45-1a38-4e31-b653-92e9229b95b8",
           "targetNodeId": "connection-node-a7179ead-7a6a-4cae-a5c2-1cb0da416cbe",
           "logicalConnectionId": "connection-edge-2b1c09f6-6d69-44c1-aa59-7a0d00a247e8",
           "color": "#00B387"
@@ -50967,29 +51029,22 @@
           "anchorId": "mp-measurement-point"
         },
         {
-          "id": "connection-node-1f07b8b0-4c3a-4c61-b878-c298c6a12229",
-          "kind": "node",
-          "x": 240,
-          "y": 1088
-        },
-        {
           "id": "connection-node-c590d897-82a7-4dcf-ac08-3517c78322f5",
           "kind": "element-anchor",
           "elementId": "ed4db91e-9749-4d62-a5c1-f0a10e16faeb",
           "anchorId": "anchor-9d474a7e-054c-4e29-a43a-1dfba8b970e1"
+        },
+        {
+          "id": "connection-node-3dc90142-382b-42c6-8cf2-89f70c6f6941",
+          "kind": "node",
+          "x": 240,
+          "y": 888
         }
       ],
       "edges": [
         {
           "id": "connection-edge-2ba6ac9f-74b3-4575-bfbe-d18dd398d499",
           "sourceNodeId": "connection-node-3976e690-8c82-413d-ae97-44ef36d73c4f",
-          "targetNodeId": "connection-node-1f07b8b0-4c3a-4c61-b878-c298c6a12229",
-          "logicalConnectionId": "connection-edge-2ba6ac9f-74b3-4575-bfbe-d18dd398d499",
-          "color": "#00B387"
-        },
-        {
-          "id": "connection-edge-2ba6ac9f-74b3-4575-bfbe-d18dd398d499:segment:2",
-          "sourceNodeId": "connection-node-1f07b8b0-4c3a-4c61-b878-c298c6a12229",
           "targetNodeId": "connection-node-217e9dc6-9b46-46e8-80dd-10f42b5c2ad6",
           "logicalConnectionId": "connection-edge-2ba6ac9f-74b3-4575-bfbe-d18dd398d499",
           "color": "#00B387"
@@ -50997,7 +51052,15 @@
         {
           "id": "connection-edge-81ad73c4-00cb-4daf-9e47-17b0101e2c46",
           "sourceNodeId": "connection-node-c590d897-82a7-4dcf-ac08-3517c78322f5",
+          "targetNodeId": "connection-node-3dc90142-382b-42c6-8cf2-89f70c6f6941",
+          "logicalConnectionId": "connection-edge-81ad73c4-00cb-4daf-9e47-17b0101e2c46",
+          "color": "#00B387"
+        },
+        {
+          "id": "connection-edge-233a9786-7329-4cd5-9f2a-17ab5e3ea64f",
+          "sourceNodeId": "connection-node-3dc90142-382b-42c6-8cf2-89f70c6f6941",
           "targetNodeId": "connection-node-217e9dc6-9b46-46e8-80dd-10f42b5c2ad6",
+          "logicalConnectionId": "connection-edge-81ad73c4-00cb-4daf-9e47-17b0101e2c46",
           "color": "#00B387"
         }
       ]
@@ -51026,29 +51089,16 @@
           "anchorId": "anchor-9d474a7e-054c-4e29-a43a-1dfba8b970e1"
         },
         {
-          "id": "route-waypoint-db93e2ae-c2cb-4406-b2e6-99253b1612d9",
-          "kind": "node",
-          "x": 592,
-          "y": 1088
-        },
-        {
           "id": "route-waypoint-7bf56655-ccca-4ac8-8005-40066f5a7b36",
           "kind": "node",
           "x": 592,
-          "y": 936
+          "y": 888
         }
       ],
       "edges": [
         {
           "id": "connection-edge-6ba9241f-e3f2-4c92-80b7-e5353bd4db29",
           "sourceNodeId": "connection-node-ec82a4b8-8a46-4c98-8011-11aabfd4b9d3",
-          "targetNodeId": "route-waypoint-db93e2ae-c2cb-4406-b2e6-99253b1612d9",
-          "logicalConnectionId": "connection-edge-6ba9241f-e3f2-4c92-80b7-e5353bd4db29",
-          "color": "#00B387"
-        },
-        {
-          "id": "connection-edge-8b8bae43-594a-4020-bf58-51b8e9ec3661",
-          "sourceNodeId": "route-waypoint-db93e2ae-c2cb-4406-b2e6-99253b1612d9",
           "targetNodeId": "connection-node-f2234b07-40a8-441e-b5fa-16bfde713197",
           "logicalConnectionId": "connection-edge-6ba9241f-e3f2-4c92-80b7-e5353bd4db29",
           "color": "#00B387"
@@ -51102,7 +51152,7 @@
           "id": "connection-node-eaacd229-19fa-40d5-868f-b821faf5a559",
           "kind": "node",
           "x": 400,
-          "y": 1152
+          "y": 1064
         },
         {
           "id": "connection-node-05979993-36fa-49bf-a431-cf27f7967a98",
@@ -51114,31 +51164,31 @@
           "id": "route-waypoint-80c4cd02-a0cc-423f-967e-a4e315209f2e",
           "kind": "node",
           "x": 688,
-          "y": 1152
+          "y": 1064
         },
         {
           "id": "route-waypoint-6a448443-68a5-43ee-b43d-e597a0f27a49",
           "kind": "node",
           "x": 688,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "route-waypoint-21af2e3c-61be-4511-a61b-bc87e6bc6e49",
           "kind": "node",
           "x": -512,
-          "y": 1152
+          "y": 1064
         },
         {
           "id": "route-waypoint-a30d0deb-b3c4-455c-a6fb-81202ff05903",
           "kind": "node",
           "x": -512,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "connection-node-f1e993b9-14e9-4e65-b16e-1f69daebb38e",
           "kind": "node",
           "x": 688,
-          "y": 1200
+          "y": 1112
         },
         {
           "id": "connection-node-30da0326-9f1b-4e0d-9564-b7f33e1131ab",
@@ -51150,7 +51200,7 @@
           "id": "connection-node-a78b4d26-4378-4534-ae5a-6198e27e79c0",
           "kind": "node",
           "x": -512,
-          "y": 1200
+          "y": 1112
         },
         {
           "id": "connection-node-c0666076-920c-44b3-b727-7c3fe907ee0b",
@@ -51162,7 +51212,7 @@
           "id": "connection-node-101f7aa7-ce2e-40dd-b6e4-b443061e511f",
           "kind": "node",
           "x": 208,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "connection-node-17795fec-de2d-4786-b5fd-0bbff3c0132f",
@@ -51174,7 +51224,7 @@
           "id": "connection-node-51180b84-b143-4193-b6c3-0a4e84993e32",
           "kind": "node",
           "x": 544,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "connection-node-779a5b67-e5dd-4018-aef3-9b2ddbb6368c",
@@ -51186,7 +51236,7 @@
           "id": "connection-node-87e3e7bc-700f-4c75-932d-66fed8a194b6",
           "kind": "node",
           "x": -144,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "connection-node-659b05b3-a81a-44e7-88d1-886fd8b7a61c",
@@ -51198,7 +51248,7 @@
           "id": "connection-node-5933a487-4c8c-42d3-ab50-83063bd5e159",
           "kind": "node",
           "x": -464,
-          "y": 1232
+          "y": 1144
         },
         {
           "id": "connection-node-bb5642bb-29ba-4a5f-aa2a-dbfb66f00163",
@@ -51222,13 +51272,13 @@
           "id": "connection-node-7bc1fb19-932b-4653-a586-1d7c89a52881",
           "kind": "node",
           "x": -144,
-          "y": 1376
+          "y": 1288
         },
         {
           "id": "connection-node-291fa37d-955f-431f-ad81-0248130766bd",
           "kind": "node",
-          "x": -304,
-          "y": 1152
+          "x": -112,
+          "y": 1064
         },
         {
           "id": "connection-node-77e5670d-e237-455f-8d3f-04f87506beab",
@@ -51240,7 +51290,7 @@
           "id": "connection-node-f33a5784-0b78-4679-99d0-06daeb62b41b",
           "kind": "node",
           "x": 48,
-          "y": 1152
+          "y": 1064
         },
         {
           "id": "connection-node-4214a35d-7a2f-414c-b17f-42bfff78c43a",
@@ -51251,8 +51301,8 @@
         {
           "id": "connection-node-9f2ef589-f053-4871-96e2-00b1b1000249",
           "kind": "node",
-          "x": -480,
-          "y": 1152
+          "x": -496,
+          "y": 1064
         }
       ],
       "edges": [
@@ -51515,13 +51565,13 @@
         {
           "id": "route-waypoint-3a6f6443-7e9f-407a-810a-67ea066dcabc",
           "kind": "node",
-          "x": -528,
+          "x": -592,
           "y": 560
         },
         {
           "id": "route-waypoint-2fab3494-ac4e-4418-ac48-0655c0587d1f",
           "kind": "node",
-          "x": -528,
+          "x": -592,
           "y": 640
         },
         {
@@ -51533,13 +51583,13 @@
         {
           "id": "route-waypoint-fe977d62-879c-4e1d-b110-22e494f7dbb8",
           "kind": "node",
-          "x": 736,
+          "x": 768,
           "y": 560
         },
         {
           "id": "route-waypoint-0b3dd91e-3677-4c5b-9af1-b48f13a65f65",
           "kind": "node",
-          "x": 736,
+          "x": 768,
           "y": 640
         },
         {
@@ -51551,7 +51601,7 @@
         {
           "id": "connection-node-429f1822-cefe-48e9-9b35-a5c1be9eee2f",
           "kind": "node",
-          "x": 224,
+          "x": 32,
           "y": 640
         },
         {
@@ -51563,7 +51613,7 @@
         {
           "id": "connection-node-aa7f09c9-fce1-4493-98a2-68a02e14c79d",
           "kind": "node",
-          "x": 576,
+          "x": 384,
           "y": 640
         },
         {
@@ -51581,7 +51631,7 @@
         {
           "id": "connection-node-14a16c66-8835-4051-a913-458ecc0656e6",
           "kind": "node",
-          "x": -128,
+          "x": -320,
           "y": 640
         },
         {
@@ -51599,7 +51649,7 @@
         {
           "id": "connection-node-badd396f-2e9e-4b61-bccb-75b0b32d7c99",
           "kind": "node",
-          "x": -480,
+          "x": -512,
           "y": 640
         },
         {
@@ -51611,7 +51661,7 @@
         {
           "id": "connection-node-038a4ce4-7c54-4f21-b98e-907cb4d09907",
           "kind": "node",
-          "x": -512,
+          "x": -544,
           "y": 640
         },
         {
@@ -51797,19 +51847,19 @@
           "id": "route-waypoint-bb57604c-260f-4346-9c42-ce62d6325fb0",
           "kind": "node",
           "x": 384,
-          "y": 1136
+          "y": 1048
         },
         {
           "id": "connection-node-d6b36924-34ab-40c3-9758-8e2eae5acfc3",
           "kind": "node",
           "x": -320,
-          "y": 1136
+          "y": 1048
         },
         {
           "id": "connection-node-60c67c0b-55b1-4393-89cd-8eaed0b56af9",
           "kind": "node",
           "x": 32,
-          "y": 1136
+          "y": 1048
         },
         {
           "id": "connection-node-1873848b-66be-4023-af27-313a74f547cb",
@@ -51826,8 +51876,8 @@
         {
           "id": "connection-node-2a83f7ab-1660-4f41-a850-290e11e1f451",
           "kind": "node",
-          "x": -544,
-          "y": 1136
+          "x": -560,
+          "y": 1048
         },
         {
           "id": "connection-node-f5d1c6cb-caa9-4bd2-8596-9d95309c8015",
@@ -51851,13 +51901,13 @@
           "id": "route-waypoint-ff9937ae-515c-43af-b0a7-7c40cd3ba37e",
           "kind": "node",
           "x": 784,
-          "y": 1248
+          "y": 1160
         },
         {
           "id": "connection-node-9ecd2aba-e6e2-464d-b03b-36b0eb1d052c",
           "kind": "node",
           "x": 784,
-          "y": 1200
+          "y": 1112
         },
         {
           "id": "connection-node-96e315e0-95d9-4be1-b54c-27787d716a89",
@@ -51869,7 +51919,7 @@
           "id": "connection-node-be19f81a-aebf-4d2c-ab8e-1ad2a6a9e360",
           "kind": "node",
           "x": -608,
-          "y": 1200
+          "y": 1112
         },
         {
           "id": "connection-node-051db163-e9a3-4f71-99ca-6f8bd4b680d0",
@@ -51881,7 +51931,7 @@
           "id": "connection-node-f25282cb-b82d-4b66-812e-f95e481e1b1f",
           "kind": "node",
           "x": 560,
-          "y": 1248
+          "y": 1160
         },
         {
           "id": "connection-node-72988788-5ca6-4147-8d25-3e2750b61700",
@@ -51893,7 +51943,7 @@
           "id": "connection-node-92280dfe-5e82-44a2-b928-c823fc59d3d5",
           "kind": "node",
           "x": 192,
-          "y": 1248
+          "y": 1160
         },
         {
           "id": "connection-node-09316c3c-ffa1-425e-8d4c-0d733807d6f8",
@@ -51905,7 +51955,7 @@
           "id": "connection-node-2c8fc092-b2f4-4a2f-89ae-226bef7420f5",
           "kind": "node",
           "x": -160,
-          "y": 1248
+          "y": 1160
         },
         {
           "id": "connection-node-3194eae2-8b84-4686-866d-50d282c5faba",
@@ -51917,7 +51967,7 @@
           "id": "connection-node-c573102b-7649-4993-985c-3387831b5884",
           "kind": "node",
           "x": -512,
-          "y": 1248
+          "y": 1160
         },
         {
           "id": "connection-node-62c61312-8cb5-4340-95d9-28d6e6af4c5f",
@@ -51947,13 +51997,13 @@
           "id": "connection-node-320ef61f-0118-42d5-a786-e69cdba1a498",
           "kind": "node",
           "x": -160,
-          "y": 1376
+          "y": 1288
         },
         {
           "id": "connection-node-f33371f3-f465-46a3-8a32-177692a687aa",
           "kind": "node",
           "x": -608,
-          "y": 1136
+          "y": 1048
         },
         {
           "id": "connection-node-dbbd418d-26d2-46be-826a-c0c22170a448",
@@ -51965,7 +52015,7 @@
           "id": "route-waypoint-3d9cf7f8-b8ca-435c-a8f3-6d1d40741c92",
           "kind": "node",
           "x": 192,
-          "y": 1392
+          "y": 1304
         },
         {
           "id": "connection-node-c75d7ef3-d762-417e-b351-683aa689dc09",
@@ -51983,31 +52033,31 @@
           "id": "route-waypoint-03d6fb8e-0519-4a27-96a5-46ec00a166d8",
           "kind": "node",
           "x": -320,
-          "y": 936
+          "y": 888
         },
         {
           "id": "route-waypoint-cae664c6-2880-4361-9d1a-6d33d74334d6",
           "kind": "node",
           "x": 32,
-          "y": 936
+          "y": 888
         },
         {
           "id": "route-waypoint-b951ba57-8d5d-481c-ab3f-05c52fb5609c",
           "kind": "node",
           "x": 784,
-          "y": 1136
+          "y": 1048
         },
         {
           "id": "connection-node-713d395b-4a7e-42e4-9065-c696d39d1a4e",
           "kind": "node",
           "x": 384,
-          "y": 936
+          "y": 888
         },
         {
           "id": "connection-node-dca50702-8c93-4eed-ba0d-f785205a12cd",
           "kind": "node",
           "x": 560,
-          "y": 1392
+          "y": 1304
         }
       ],
       "edges": [
@@ -52321,25 +52371,25 @@
         {
           "id": "route-waypoint-ad9d1cca-4f21-468d-8f87-7137cafcaa62",
           "kind": "node",
-          "x": 752,
+          "x": 768,
           "y": 272
         },
         {
           "id": "route-waypoint-8dac1078-ad42-4c0a-b769-31ab62529522",
           "kind": "node",
-          "x": 752,
+          "x": 768,
           "y": 304
         },
         {
           "id": "connection-node-72543111-6e50-42da-93e3-0f4ef6182d2a",
           "kind": "node",
-          "x": -608,
+          "x": -592,
           "y": 304
         },
         {
           "id": "connection-node-c5a9c46c-6860-45a0-9bfb-c0f0e0c8152e",
           "kind": "node",
-          "x": -608,
+          "x": -592,
           "y": 272
         }
       ],
@@ -52458,13 +52508,7 @@
           "id": "route-waypoint-9411fde5-772d-425f-82e0-60b8930b8469",
           "kind": "node",
           "x": -320,
-          "y": 856
-        },
-        {
-          "id": "route-waypoint-c13860c4-045f-4f7b-8fc0-d5b189adeaab",
-          "kind": "node",
-          "x": -320,
-          "y": 800
+          "y": 808
         }
       ],
       "edges": [
@@ -52483,12 +52527,6 @@
         {
           "id": "connection-edge-cc5c09ce-a3b3-4634-9c04-cc39fdb027f8",
           "sourceNodeId": "connection-node-d6961d15-72a7-46b5-8ec6-e132bb1f4b1d",
-          "targetNodeId": "route-waypoint-c13860c4-045f-4f7b-8fc0-d5b189adeaab",
-          "logicalConnectionId": "connection-edge-cc5c09ce-a3b3-4634-9c04-cc39fdb027f8"
-        },
-        {
-          "id": "connection-edge-911e43f3-ec0f-46bc-85db-61ae6fbbb751",
-          "sourceNodeId": "route-waypoint-c13860c4-045f-4f7b-8fc0-d5b189adeaab",
           "targetNodeId": "connection-node-59baa9c7-7f03-46f3-b1a9-8855e82f08e2",
           "logicalConnectionId": "connection-edge-cc5c09ce-a3b3-4634-9c04-cc39fdb027f8"
         }
@@ -52518,28 +52556,16 @@
           "anchorId": "anchor-01242339-ed31-479d-84be-0e322c70b59f"
         },
         {
-          "id": "route-waypoint-a4ccb537-1e27-4474-8595-f017657c5f27",
-          "kind": "node",
-          "x": 32,
-          "y": 800
-        },
-        {
           "id": "route-waypoint-5a63e37f-a2e3-4449-b074-b637c73fed66",
           "kind": "node",
           "x": 32,
-          "y": 856
+          "y": 808
         }
       ],
       "edges": [
         {
           "id": "connection-edge-2e74afba-f489-4b58-90a1-09b89e161f9a",
           "sourceNodeId": "connection-node-53ec4ebc-4897-4bdf-8ee3-c5aa1ed6c5a1",
-          "targetNodeId": "route-waypoint-a4ccb537-1e27-4474-8595-f017657c5f27",
-          "logicalConnectionId": "connection-edge-2e74afba-f489-4b58-90a1-09b89e161f9a"
-        },
-        {
-          "id": "connection-edge-53ce355d-6dbd-4a73-8d93-e47b45b62ce1",
-          "sourceNodeId": "route-waypoint-a4ccb537-1e27-4474-8595-f017657c5f27",
           "targetNodeId": "connection-node-3f5057d1-139e-4a7d-8a12-ceb2692cd70d",
           "logicalConnectionId": "connection-edge-2e74afba-f489-4b58-90a1-09b89e161f9a"
         },
@@ -52572,19 +52598,13 @@
           "id": "route-waypoint-81d6dd1a-9822-4771-a1eb-eeb9c28b0a4e",
           "kind": "node",
           "x": 384,
-          "y": 856
+          "y": 808
         },
         {
           "id": "connection-node-3129cd30-e94a-48ea-be1b-63ac0d7a3245",
           "kind": "element-anchor",
           "elementId": "d671196a-01a2-4902-8953-935bc7fd8ab7",
           "anchorId": "anchor-d8f580a4-fe28-4302-beeb-f807cabd061c"
-        },
-        {
-          "id": "route-waypoint-f4b37093-7a6f-485f-9e78-89fe3e27a263",
-          "kind": "node",
-          "x": 384,
-          "y": 800
         },
         {
           "id": "connection-node-8597777a-dcbf-47fd-87fc-dbe8918c492c",
@@ -52603,12 +52623,6 @@
         {
           "id": "connection-edge-f31d0605-29d1-4f19-bbd9-1674ba11114d",
           "sourceNodeId": "connection-node-3129cd30-e94a-48ea-be1b-63ac0d7a3245",
-          "targetNodeId": "route-waypoint-f4b37093-7a6f-485f-9e78-89fe3e27a263",
-          "logicalConnectionId": "connection-edge-f31d0605-29d1-4f19-bbd9-1674ba11114d"
-        },
-        {
-          "id": "connection-edge-cb4115eb-9114-4e94-bb7a-9ecad4769b2a",
-          "sourceNodeId": "route-waypoint-f4b37093-7a6f-485f-9e78-89fe3e27a263",
           "targetNodeId": "connection-node-8597777a-dcbf-47fd-87fc-dbe8918c492c",
           "logicalConnectionId": "connection-edge-f31d0605-29d1-4f19-bbd9-1674ba11114d"
         },
@@ -52803,18 +52817,18 @@
         {
           "id": "anchor-6a45e189-cb75-4f3b-a81f-849004dbf40f",
           "name": "一次回路冷 1",
-          "x": 80,
+          "x": 0,
           "y": 112,
-          "direction": "right",
+          "direction": "left",
           "type": "cooling-primary-cold",
           "flowRole": "inlet"
         },
         {
           "id": "anchor-d8f580a4-fe28-4302-beeb-f807cabd061c",
           "name": "一次回路冷 2",
-          "x": 0,
+          "x": 80,
           "y": 112,
-          "direction": "left",
+          "direction": "right",
           "type": "cooling-primary-cold",
           "flowRole": "outlet"
         }

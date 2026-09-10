@@ -548,6 +548,7 @@ export const DiagramElementItem = memo(function DiagramElementItem({
 })
 
 interface ConnectionEdgeItemProps {
+  lineWidth?: number
   edgeId: string
   networkId: string
   type: AnchorType
@@ -573,6 +574,7 @@ interface ConnectionEdgeItemProps {
 }
 
 const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
+  lineWidth,
   edgeId,
   networkId,
   type,
@@ -590,6 +592,7 @@ const ConnectionEdgeItem = memo(function ConnectionEdgeItem({
 }: ConnectionEdgeItemProps) {
   return (
     <DiagramConnectionVisual
+      lineWidth={lineWidth}
       edgeId={edgeId}
       networkId={networkId}
       type={type}
@@ -1546,7 +1549,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           'transform',
           `translate(${nextViewport.tx} ${nextViewport.ty}) scale(${nextViewport.zoom})`,
         )
-        world.style.transform = `translate(${nextViewport.tx}px, ${nextViewport.ty}px) scale(${nextViewport.zoom})`
       }
 
       const stage = canvasStageRef.current
@@ -2736,6 +2738,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
               points: flowPoints,
             },
             worldWidth: displayedPath?.worldWidth,
+            powerLineWidth: displayedPath?.powerLineWidth,
             speedMultiplier: flow.speedMultiplier,
             style: coolingRoute ? 'cooling' as const : 'power' as const,
             animated: true,
@@ -6954,9 +6957,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
               ref={viewportWorldRef}
               className="viewport-world"
               transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}
-              style={{
-                transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})`,
-              }}
             >
               <g className="busbar-layer" data-testid="busbar-layer">
                 {visibleBusbars.map((busbar) => {
@@ -7071,6 +7071,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                             networkId={route.networkId}
                             type={route.type}
                             color={edge?.color}
+                            lineWidth={edge?.lineWidth}
                             flowDirection={flowDirection}
                             coolingLineRole={edge?.coolingLineRole}
                             directionArrowPath={flowDirection
@@ -7606,7 +7607,6 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
           </svg>
           <svg className="editor-overlay label-overlay" data-testid="label-overlay" data-wiring={wiring ? 'true' : undefined} aria-hidden="true">
             <g ref={labelWorldRef} className="viewport-world"
-              style={{ transform: `translate(${viewportValue.tx}px, ${viewportValue.ty}px) scale(${viewportValue.zoom})` }}
               transform={`translate(${viewportValue.tx} ${viewportValue.ty}) scale(${viewportValue.zoom})`}>
               <g className="element-label-layer" data-testid="element-label-layer">
                 {elementLabelLayouts.map((layout) => (
