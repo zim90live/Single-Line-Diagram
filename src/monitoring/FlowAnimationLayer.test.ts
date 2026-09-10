@@ -37,6 +37,28 @@ describe('monitor flow appearance tokens', () => {
 })
 
 describe('monitor flow geometry', () => {
+  it('keeps the same wave phase at a cooling fork despite differing flow readings', () => {
+    const path = (id: string, start: string, end: string, points: Array<{ x: number; y: number }>, speedMultiplier: number) => ({
+      id, points, style: 'cooling' as const, speedMultiplier,
+      phasePath: { id, networkId: 'water', startNodeId: start, endNodeId: end, points },
+    })
+    const paths = [
+      path('trunk', 'source', 'fork', [{ x: 0, y: 0 }, { x: 100, y: 0 }], 2),
+      path('left', 'fork', 'left-end', [{ x: 100, y: 0 }, { x: 100, y: 80 }], 0.5),
+      path('right', 'fork', 'right-end', [{ x: 100, y: 0 }, { x: 180, y: 0 }], 0.15),
+    ]
+    const geometry = buildFlowLineGeometry(paths)
+    const trunkEnd = geometry.distances[2]
+    expect(trunkEnd).toBe(100)
+    expect(geometry.distances[6]).toBe(trunkEnd)
+    expect(geometry.distances[12]).toBe(trunkEnd)
+    for (const time of [0, 1, 10, 100]) {
+      expect(geometry.distances[6] - time * geometry.speeds[6])
+        .toBe(trunkEnd - time * geometry.speeds[2])
+    }
+    const refreshed = buildFlowLineGeometry(paths.map(p => ({ ...p, speedMultiplier: 0.75 })))
+    expect([...refreshed.distances]).toEqual([...geometry.distances])
+  })
   it('uses configured cooling speed regardless of positive flow, while retaining zero-flow gating', () => {
     for (const multiplier of [0, 0.15, 0.5, 1, 2]) {
       const geometry = buildFlowLineGeometry([{

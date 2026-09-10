@@ -393,7 +393,7 @@ const fragmentShader = `
     float tail = clamp(phase / uDashLength, 0.0, 1.0);
     // The former gap is a short head-to-tail transition, never an empty cut.
     float reset = 1.0 - smoothstep(uDashLength, uDashPeriod, phase);
-    float alpha = 0.2 + 0.8 * tail * reset;
+    float alpha = 0.4 + 0.6 * tail * reset;
     vec3 displayColor = vColor;
     if (uDashes > 0.5) {
       alpha = phase < uDashLength ? 1.0 : uGapOpacity;

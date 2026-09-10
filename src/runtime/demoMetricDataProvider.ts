@@ -8,8 +8,6 @@ import {
   DEFAULT_DEMO_SIMULATION_SEED,
   createDemoAnomalyAssignments,
   createDemoDeviceRuntimeState,
-  createDemoMonitorMetric,
-  defaultDemoMetricsForElement,
   demoDeviceProfileForAsset,
   demoMetricProfileFor,
   inferDemoMetricSemantic,
@@ -29,6 +27,8 @@ import type {
 export const DEMO_METRIC_REFRESH_MS = 3_000
 
 export interface DemoMonitorMetricOwner extends MonitorMetricOwner {
+  name?: string
+  properties?: { [key: string]: unknown }
   diagramId?: string
   assetKey?: string
   monitorDataVisible?: boolean
@@ -234,50 +234,12 @@ export class DemoMonitorMetricDataProvider implements MonitorMetricDataProvider 
       })),
       this.seed,
     )
-    return owners.map((owner) => {
-      const assignment = this.preparedAssignments[owner.id]
-      const configured = (owner.monitorMetrics ?? []).map((metric) => (
+    return owners.map((owner) => ({
+      ...owner,
+      monitorMetrics: (owner.monitorMetrics ?? []).map((metric) => (
         normalizedConfiguredMetric(metric, owner.assetKey)
-      ))
-      const deviceProfile = owner.assetKey ? demoDeviceProfileForAsset(owner.assetKey) : undefined
-      const compatible = deviceProfile ? configured.filter((item) => (
-        demoMetricProfileFor(owner.assetKey, item) || inferDemoMetricSemantic(item) === null
-      )) : configured
-      const configuredForRuntime = configured.length > 0 && compatible.length === 0 && owner.assetKey
-        ? defaultDemoMetricsForElement({ assetKey: owner.assetKey })
-        : compatible
-      if (assignment?.secondarySeverity && owner.assetKey && deviceProfile) {
-        const metrics = [...configuredForRuntime]
-        const eligible = (metric: MonitorMetric) => metric.valueType === 'number' &&
-          !(owner.assetKey === 'battery-group' && inferDemoMetricSemantic(metric) === 'soc')
-        for (const profile of deviceProfile.metrics) {
-          if (metrics.filter(eligible).length >= 2) break
-          const metric = createDemoMonitorMetric(owner.assetKey, profile)
-          if (eligible(metric) && !metrics.some((item) => item.id === metric.id)) metrics.push(metric)
-        }
-        // Status-only devices still need two visible numeric demo readings.
-        for (const profile of demoDeviceProfileForAsset('transformer')!.metrics) {
-          if (metrics.filter(eligible).length >= 2) break
-          const metric = createDemoMonitorMetric(owner.assetKey, profile)
-          if (eligible(metric) && !metrics.some((item) => item.id === metric.id)) metrics.push(metric)
-        }
-        return { ...owner, monitorDataVisible: true, monitorMetrics: metrics }
-      }
-      if (configuredForRuntime.length || !assignment || !owner.assetKey || owner.monitorDataVisible === false) {
-        return {
-          ...owner,
-          ...(assignment && owner.monitorDataVisible === undefined
-            ? { monitorDataVisible: true }
-            : {}),
-          monitorMetrics: configuredForRuntime,
-        }
-      }
-      return {
-        ...owner,
-        monitorDataVisible: true,
-        monitorMetrics: defaultDemoMetricsForElement({ assetKey: owner.assetKey }),
-      }
-    })
+      )),
+    }))
   }
 
   getRuntimeSnapshot(owners: readonly DemoMonitorMetricOwner[]): MonitorMetricRuntimeSnapshot {
@@ -330,6 +292,14 @@ export class DemoMonitorMetricDataProvider implements MonitorMetricDataProvider 
           return
         }
         if (metric.valueType === 'text') {
+          if (owner.assetKey === 'ups-group' &&
+            String(owner.properties?.tag ?? owner.name ?? '').trim() === 'UPS-group-旁路' &&
+            metric.name.trim() === '供电方式') {
+            const bypass = metric.textOptions.find((option) => /^旁路(?:供电)?$/.test(option.value.trim()))
+            readings[readingKey] = { elementId: owner.id, metricId: metric.id,
+              value: '旁路', severity: bypass?.severity ?? 'minor' }
+            return
+          }
           const value = textReading(
             metric,
             targetHealth,

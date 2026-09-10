@@ -6,6 +6,7 @@ import { symbolAssets } from '../scene/symbolCatalog'
 import { DemoMonitorMetricDataProvider } from './demoMetricDataProvider'
 import {
   createDemoAnomalyAssignments,
+  defaultDemoMetricsForElement,
   demoDeviceProfileForAsset,
   demoAnomalyCount,
   demoMetricProfileFor,
@@ -34,7 +35,37 @@ function element(
 }
 
 describe('demo metric data provider', () => {
-  it('shows red and yellow numeric readings on every device-profile page, including hidden and empty metrics', () => {
+  it('keeps the named UPS bypass device on bypass without affecting other UPS devices', () => {
+    const metric: MonitorMetric = { id: 'supply', name: '供电方式', valueType: 'text',
+      textOptions: [{ id: 'main', value: '主路', severity: 'normal' }, { id: 'bypass', value: '旁路', severity: 'minor' }] }
+    const owners = ['UPS-group-旁路', 'UPS-group-01'].map((tag) => ({
+      ...element(tag, 'ups-group', [metric]), properties: { tag },
+    }))
+    const provider = new DemoMonitorMetricDataProvider({ anomalyAssignments: {} })
+    const snapshot = provider.getRuntimeSnapshot(provider.prepareOwners(owners))
+    expect(snapshot.readings[monitorMetricReadingKey(owners[0].id, metric.id)]).toMatchObject({ value: '旁路', severity: 'minor' })
+    expect(snapshot.readings[monitorMetricReadingKey(owners[1].id, metric.id)].value).toBe('主路')
+  })
+  it.each(['算力 POD', 'UPS L', 'POD A'])('does not append anomaly metrics on %s', (diagramId) => {
+    const owner = { ...element('configured', 'ups', defaultDemoMetricsForElement({ assetKey: 'ups' }).slice(0, 1)), diagramId, monitorDataVisible: true }
+    const provider = new DemoMonitorMetricDataProvider()
+    const prepared = provider.prepareOwners([owner])
+    expect(prepared[0].monitorMetrics?.map((metric) => metric.id)).toEqual(owner.monitorMetrics!.map((metric) => metric.id))
+    expect(Object.keys(provider.getRuntimeSnapshot(prepared).readings)).toHaveLength(1)
+  })
+  it.each([true, false, undefined])('preserves manual visibility %s for new and legacy anomalies', (monitorDataVisible) => {
+    for (const assignment of [
+      { severity: 'critical' as const, faultCode: 'test', secondarySeverity: 'minor' as const },
+      { severity: 'critical' as const, faultCode: 'legacy' },
+    ]) {
+      const owner = { ...element('visibility'), monitorDataVisible }
+      const provider = new DemoMonitorMetricDataProvider({ anomalyAssignments: { [owner.id]: assignment } })
+      const prepared = provider.prepareOwners([owner])
+      expect(prepared[0].monitorDataVisible).toBe(monitorDataVisible)
+      expect(provider.getRuntimeSnapshot(prepared).deviceStates[owner.id].health).toBe('critical')
+    }
+  })
+  it('never adds readings for empty metric configurations, even on anomalous pages', () => {
     const owners = symbolAssets.filter((asset) => asset.key !== 'text').map((asset) => ({
       ...element(asset.key, asset.key), diagramId: asset.key, monitorDataVisible: false,
     }))
@@ -43,10 +74,9 @@ describe('demo metric data provider', () => {
     for (let tick = 0; tick < 5; tick++) {
       const snapshot = provider.getRuntimeSnapshot(prepared)
       for (const owner of prepared) {
-        expect(owner.monitorDataVisible).toBe(true)
+        expect(owner.monitorDataVisible).toBe(false)
         const readings = Object.values(snapshot.readings).filter((reading) => reading.elementId === owner.id)
-        expect(readings.some((reading) => reading.severity === 'critical'), owner.assetKey).toBe(true)
-        expect(readings.some((reading) => reading.severity === 'minor'), owner.assetKey).toBe(true)
+        expect(readings, owner.assetKey).toEqual([])
       }
       provider.advance()
     }
@@ -144,14 +174,13 @@ describe('demo metric data provider', () => {
     expect(createDemoAnomalyAssignments([], 'one-fault-per-page')).toEqual({})
   })
 
-  it('injects metrics only for assigned devices and reproduces readings after reset', () => {
+  it('retains fault states without injecting metrics and reproduces them after reset', () => {
     const elements = Array.from({ length: 8 }, (_, index) => element(`cabinet-${index}`))
     const provider = new DemoMonitorMetricDataProvider({ seed: 'provider-seed' })
     const prepared = provider.prepareOwners(elements)
     const injected = prepared.filter((owner) => owner.monitorMetrics?.length)
 
-    expect(injected).toHaveLength(1)
-    expect(injected[0].monitorDataVisible).toBe(true)
+    expect(injected).toHaveLength(0)
     const first = provider.getRuntimeSnapshot(prepared)
     provider.reset()
     const replay = provider.getRuntimeSnapshot(prepared)
@@ -161,7 +190,7 @@ describe('demo metric data provider', () => {
   })
 
   it('does not move the scenario clock when a page only reads another snapshot', () => {
-    const owner = element('clock-cabinet')
+    const owner = element('clock-cabinet', 'cabinet-device', defaultDemoMetricsForElement({ assetKey: 'cabinet-device' }))
     const provider = new DemoMonitorMetricDataProvider({
       anomalyAssignments: {
         [owner.id]: { severity: 'minor', faultCode: 'profile-anomaly' },
@@ -264,7 +293,7 @@ describe('demo metric data provider', () => {
     expect(normalizeDemoMetricUnit('³m/h')).toBe('m³/h')
   })
 
-  it('replaces a known but invalid device metric with profile defaults at runtime', () => {
+  it('preserves configured metrics instead of replacing them with extra profile metrics', () => {
     const invalidMetric: MonitorMetric = {
       id: 'phe-frequency',
       name: '频率',
@@ -283,12 +312,12 @@ describe('demo metric data provider', () => {
     })
     const prepared = provider.prepareOwners([owner])[0]
 
-    expect(prepared.monitorMetrics?.map((item) => item.name)).toEqual(['温差', '压差'])
+    expect(prepared.monitorMetrics?.map((item) => item.name)).toEqual(['频率'])
     expect(owner.monitorMetrics?.[0]).toBe(invalidMetric)
   })
 
   it('represents offline readings as unavailable and stops the device state', () => {
-    const owner = element('offline-pump', 'chwp')
+    const owner = element('offline-pump', 'chwp', defaultDemoMetricsForElement({ assetKey: 'chwp' }))
     const provider = new DemoMonitorMetricDataProvider({
       anomalyAssignments: {
         [owner.id]: { severity: 'offline', faultCode: 'communication-offline' },

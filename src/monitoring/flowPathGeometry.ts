@@ -1,5 +1,5 @@
 import type { Point } from '../scene/geometry'
-import type { MonitorFlowPath } from './flowPresentation'
+import { flowAnimationSpeedMultiplier, type MonitorFlowPath } from './flowPresentation'
 
 export function projectedDistanceAlongPolyline(points: Point[], target: Point) {
   let accumulated = 0
@@ -99,7 +99,8 @@ export function splitFlowPathAroundCrossings(
 }
 
 /** Continue the animation coordinate over real topology nodes, never crossings.
- * Different flow speeds are separate domains: they cannot remain phase-locked.
+ * Different rendered speeds are separate domains; raw hydraulic flow values
+ * must not split domains when the renderer uses a uniform cooling speed.
  * At unequal-length merges/cycles, the first stable incoming route owns the
  * junction phase, so any unavoidable seam stays at a junction, not in a pipe.
  */
@@ -110,7 +111,7 @@ export function flowPhaseOffsets(paths: MonitorFlowPath[]) {
   for (const path of paths) {
     if (!path.phasePath) continue
     const ref = path.phasePath
-    const domain = JSON.stringify([path.style ?? 'power', ref.networkId, path.speedMultiplier ?? 1])
+    const domain = JSON.stringify([path.style ?? 'power', ref.networkId, flowAnimationSpeedMultiplier(path)])
     const key = JSON.stringify([domain, ref.id])
     pathKeys.set(path.id, key)
     links.set(key, {

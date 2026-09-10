@@ -156,7 +156,7 @@ export function buildMonitorStaticFlowLineGroups(
   const append = (path: MonitorFlowPath, active: boolean) => {
     if (path.points.length < 2) return
     const base = path.baseColor ?? '#000000'
-    const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.6
+    const inactiveBlackMix = path.style === 'cooling' ? 0.875 : 0.3
     const color = darkenFlowColor(base, active && animationMode !== 'dots' ? 0.75 : inactiveBlackMix)
     const appearance = resolvedStaticLineAppearance(path)
     const renderPriority = path.renderPriority ?? 1

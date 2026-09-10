@@ -67,6 +67,13 @@ const FLOW_EPSILON = 1e-5
 const COOLING_LINE_SOURCE_FLOW = 100
 const VISUAL_CIRCULATION_FLOW = 1
 
+/** Stable demo-only resistance diversity; independent of frame time and ordering. */
+export function coolingDemoConductance(key: string) {
+  let hash = 2166136261
+  for (const character of key) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+  return 0.7 + (hash >>> 0) / 0xffffffff * 0.6
+}
+
 function directCoolingTypesCompatible(left: AnchorType, right: AnchorType) {
   return left !== 'electrical' &&
     right !== 'electrical' &&
@@ -451,6 +458,10 @@ export function deriveCoolingFlowTopology({
   const nodeTypesById = new Map(coolingNetworks.flatMap((network) => (
     network.nodes.map((node) => [node.id, network.type] as const)
   )))
+  const variedDemoResistance = elements.some(element => {
+    const asset = assetsByKey.get(element.assetKey)
+    return asset ? isTmuAsset(asset) : false
+  })
   const hydraulicLinks: CoolingHydraulicLink[] = []
   const lineLinks: CoolingLineLink[] = []
   const lineLinksByEdgeId = new Map<string, CoolingLineLink[]>()
@@ -487,7 +498,8 @@ export function deriveCoolingFlowTopology({
         addHydraulicLink(hydraulicLinks, {
           ...lineLink,
           lineLinkId: id,
-          conductance: intervalCount,
+          conductance: intervalCount * (variedDemoResistance
+            ? coolingDemoConductance(`${network.id}:${edge.logicalConnectionId ?? edge.id}`) : 1),
           allowedDirection: edge.flowDirection === 'forward'
             ? 'forward'
             : edge.flowDirection === 'reverse'
@@ -594,7 +606,7 @@ export function deriveCoolingFlowTopology({
             id: `cooling-fm:${elementId}:${coldPort.node.id}:${hotPort.node.id}`,
             startNodeId: coldPort.node.id,
             endNodeId: hotPort.node.id,
-            conductance: 1,
+            conductance: variedDemoResistance ? coolingDemoConductance(`fm:${elementId}`) : 1,
             allowedDirection: 'forward',
           })
         }

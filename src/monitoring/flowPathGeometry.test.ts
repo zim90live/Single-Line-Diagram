@@ -59,7 +59,7 @@ describe('cooling animation continuity', () => {
     }
   })
 
-  it('continues both branches but never joins coincident separate networks or different speeds', () => {
+  it('continues cooling branches with different flow rates but isolates separate networks', () => {
     const trunk = path('trunk', 'source', 'junction', [{ x: 0, y: 0 }, { x: 100, y: 0 }])
     const left = path('left', 'junction', 'left-end', [{ x: 100, y: 0 }, { x: 100, y: 50 }])
     const right = path('right', 'junction', 'right-end', [{ x: 100, y: 0 }, { x: 200, y: 0 }])
@@ -69,7 +69,7 @@ describe('cooling animation continuity', () => {
     expect(offsets.get('left')).toBe(100)
     expect(offsets.get('right')).toBe(100)
     expect(offsets.get('other')).toBe(0)
-    expect(offsets.get('slow')).toBe(0)
+    expect(offsets.get('slow')).toBe(100)
   })
 
   it('terminates on a directed loop with deterministic finite phases', () => {

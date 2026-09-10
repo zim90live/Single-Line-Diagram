@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import archivedProject from '../../scene-archives/WuHu AIDC 0831.json'
 import { parseProjectDocument } from '../domain/project'
-import { deriveCoolingFlowTopology } from './coolingFlowTopology'
+import { coolingDemoConductance, deriveCoolingFlowTopology } from './coolingFlowTopology'
 import { MockCoolingRuntimeProvider } from './coolingRuntime'
 
 describe('archived TMU to FM topology', () => {
+  it('uses repeatable nonuniform demo conductance rather than frame randomness', () => {
+    const keys = ['fm:one', 'fm:two', 'pipe:one', 'pipe:two']
+    const values = keys.map(coolingDemoConductance)
+    expect(new Set(values).size).toBe(keys.length)
+    expect(values.every(value => value >= 0.7 && value <= 1.3)).toBe(true)
+    expect([...keys].reverse().map(coolingDemoConductance).reverse()).toEqual(values)
+  })
   it('drives every FM branch and the middle loop without animating the open dead end', () => {
     const document = parseProjectDocument(archivedProject)
     const diagram = document.diagrams.find(({ name }) => name === 'TMU到FM 01')
@@ -44,6 +51,8 @@ describe('archived TMU to FM topology', () => {
 
     expect(fmEdgeIds).toHaveLength(8)
     expect(fmEdgeIds.every((edgeId) => flowingEdgeIds.has(edgeId))).toBe(true)
+    expect(new Set(topology.edges.filter(edge => fmEdgeIds.includes(edge.edgeId))
+      .map(edge => edge.flowRate)).size).toBeGreaterThan(1)
     expect(middleLoopEdgeIds.every((edgeId) => flowingEdgeIds.has(edgeId))).toBe(true)
     expect(flowingEdgeIds.has(openDeadEndEdgeId)).toBe(false)
   })
