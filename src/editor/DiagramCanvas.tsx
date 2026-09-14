@@ -1,6 +1,7 @@
 import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { sensorAssetsForSystem } from '../scene/sensorAssets'
 import { Canvas } from '@react-three/fiber'
+import { coolingPipeWidthStyle } from '../scene/connectionAppearance'
 import { changeCoolingCircuit } from '../scene/coolingCircuitEditing'
 import { circuitBusbarColor, circuitBusbarKey, circuitColor, circuitDisplayEdges, circuitKey, circuitPaletteStyle, networkPowerChannels, type CircuitPalette } from '../scene/circuitPalette'
 import { completeSceneBounds, fitSceneViewport } from '../scene/sceneFit'
@@ -7032,6 +7033,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                       data-network-id={group.networkId}
                       data-connection-type={group.type}
                       data-cooling-line-role={group.coolingLineRole}
+                      style={coolingPipeWidthStyle(group.lineWidth) as CSSProperties}
                     >
                       {group.routes.flatMap((route) => {
                         const bridgeCasingPath = renderedConnectionPaths
@@ -7112,6 +7114,7 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
                       return (
                         <g
                           key={`monitor-static-connection-group:${group.renderKey}`}
+                          style={coolingPipeWidthStyle(group.lineWidth) as CSSProperties}
                           data-network-id={group.networkId}
                           data-render-priority={connectionEdgeCrossingPriority({
                             crossingLayer: group.crossingLayer,

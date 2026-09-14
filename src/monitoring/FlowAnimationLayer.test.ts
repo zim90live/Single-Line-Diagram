@@ -37,6 +37,16 @@ describe('monitor flow appearance tokens', () => {
 })
 
 describe('monitor flow geometry', () => {
+  it('uses flat power child-line caps but retains square busbar caps', () => {
+    const points = [{ x: 0, y: 0 }, { x: 80, y: 0 }]
+    const child = { id: 'child', style: 'power' as const, points }
+    const busbar = { ...child, id: 'bar', screenWidth: 4.5 }
+    for (const active of [true, false]) {
+      const groups = buildMonitorStaticFlowLineGroups(active ? [child, busbar] : [], active ? [] : [child, busbar])
+      expect(groups.find(group => group.kind === 'connection')?.lineCap).toBe('butt')
+      expect(groups.find(group => group.kind === 'busbar')?.lineCap).toBe('square')
+    }
+  })
   it('uses custom electrical width for static strokes and wave geometry', () => {
     const path = { id: 'custom', style: 'power' as const, powerLineWidth: 4.5, points: [{ x: 0, y: 0 }, { x: 80, y: 0 }] }
     expect([...buildFlowLineGeometry([path]).widths]).toEqual(Array(6).fill(4.5))

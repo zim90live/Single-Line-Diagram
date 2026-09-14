@@ -139,10 +139,23 @@ export function sortByCoolingLineRenderPriority<T>(
     .map(({ item }) => item)
 }
 
-export function coolingPipeCoreWidth(role: CoolingLineRole | undefined) {
+export function coolingPipeCoreWidth(role: CoolingLineRole | undefined, lineWidth?: number) {
+  if (lineWidth !== undefined) return lineWidth * (role === 'auxiliary' ? 0.6 : 0.75)
   return role === 'auxiliary'
     ? COOLING_AUXILIARY_PIPE_CORE_WIDTH
     : COOLING_PIPE_CORE_WIDTH
+}
+
+export function coolingPipeWidthStyle(lineWidth?: number) {
+  if (lineWidth === undefined) return {}
+  return {
+    '--connection-cooling-pipe-shell-width': `${lineWidth}px`,
+    '--connection-cooling-auxiliary-pipe-shell-width': `${lineWidth}px`,
+    '--connection-cooling-pipe-width': `${lineWidth * 0.75}px`,
+    '--connection-cooling-auxiliary-pipe-width': `${lineWidth * 0.6}px`,
+    '--connection-cooling-selection-width': `${lineWidth + 2}px`,
+    '--connection-cooling-auxiliary-selection-width': `${lineWidth + 2}px`,
+  }
 }
 
 export function routeHitWidthForConnectionType(type: AnchorType) {

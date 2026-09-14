@@ -1564,6 +1564,11 @@ button:focus-visible,
   pointer-events: none;
 }
 
+.connection-edge[data-connection-type='electrical'] .connection-edge__line,
+.connection-preview[data-connection-type='electrical'] {
+  stroke-linecap: butt;
+}
+
 .connection-edge__pipe-shell {
   display: none;
   fill: none;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+it('scales cooling shell and core widths together and restores defaults', () => {
+  expect(coolingPipeCoreWidth('primary', 12)).toBe(9)
+  expect(coolingPipeCoreWidth('auxiliary', 10)).toBe(6)
+  expect(coolingPipeWidthStyle(10)['--connection-cooling-pipe-shell-width']).toBe('10px')
+  expect(coolingPipeWidthStyle(undefined)).toEqual({})
+})
+
 import type { AnchorType } from '../domain/project'
 import {
   COOLING_DIRECTION_ARROW_INSET_SCREEN,
@@ -11,6 +18,7 @@ import {
   COOLING_PIPE_SHELL_WIDTH,
   coolingLineRoleRenderPriority,
   coolingPipeCoreWidth,
+  coolingPipeWidthStyle,
   COOLING_PIPE_SHELL_ENDPOINT_INSET,
   COOLING_PIPE_BRIDGE_RADIUS,
   COOLING_PIPE_CORNER_RADIUS,

@@ -127,7 +127,7 @@ function resolvedStaticLineAppearance(path: MonitorFlowPath) {
       kind: 'connection' as const,
       lineWidth: path.worldWidth,
       widthSpace: 'world' as const,
-      lineCap: path.style === 'cooling' ? 'butt' as const : 'round' as const,
+      lineCap: 'butt' as const,
       lineJoin: 'miter' as const,
     }
   }
@@ -138,7 +138,7 @@ function resolvedStaticLineAppearance(path: MonitorFlowPath) {
       ? FLOW_POWER_BUSBAR_STATIC_SCREEN_WIDTH
       : FLOW_POWER_CONNECTION_STATIC_SCREEN_WIDTH),
     widthSpace: 'world' as const,
-    lineCap: isBusbar ? 'square' as const : 'round' as const,
+    lineCap: isBusbar ? 'square' as const : 'butt' as const,
     lineJoin: 'round' as const,
   }
 }

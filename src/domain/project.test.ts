@@ -2109,10 +2109,10 @@ describe('project document', () => {
       { key: 'cdu', name: 'CDU', width: 192, height: 96, anchor: { x: 96, y: 0, direction: 'top' as const } },
     ]
     const currentLayouts = [
-      { key: 'cwp', name: 'CWP', width: 80, height: 128 },
-      { key: 'chwp', name: 'CHWP', width: 80, height: 128 },
-      { key: 'ct', name: 'CT', width: 96, height: 96 },
-      { key: 'phe', name: 'PHE', width: 80, height: 128 },
+      { key: 'cwp', name: 'CWP', width: 80, height: 80 },
+      { key: 'chwp', name: 'CHWP', width: 80, height: 80 },
+      { key: 'ct', name: 'CT', width: 80, height: 80 },
+      { key: 'phe', name: 'PHE', width: 80, height: 80 },
       { key: 'cdu', name: 'CDU', width: 48, height: 48 },
     ]
     const previousAssets = previousLayouts.map((layout) => ({
@@ -2166,20 +2166,20 @@ describe('project document', () => {
       anchor: candidate.anchors[0],
     }))).toEqual([
       {
-        key: 'cwp', source: 'src/assets/symbols/CWP.svg', width: 80, height: 128,
+        key: 'cwp', source: 'src/assets/symbols/CWP.svg', width: 80, height: 80,
         anchor: expect.objectContaining({ id: 'cwp-anchor', x: 40, y: 0, direction: 'top' }),
       },
       {
-        key: 'chwp', source: 'src/assets/symbols/CHWP.svg', width: 80, height: 128,
-        anchor: expect.objectContaining({ id: 'chwp-anchor', x: 72, y: 128, direction: 'bottom' }),
+        key: 'chwp', source: 'src/assets/symbols/CHWP.svg', width: 80, height: 80,
+        anchor: expect.objectContaining({ id: 'chwp-anchor', x: 72, y: 80, direction: 'bottom' }),
       },
       {
-        key: 'ct', source: 'src/assets/symbols/CT.svg', width: 96, height: 96,
-        anchor: expect.objectContaining({ id: 'ct-anchor', x: 96, y: 8, direction: 'right' }),
+        key: 'ct', source: 'src/assets/symbols/CT.svg', width: 80, height: 80,
+        anchor: expect.objectContaining({ id: 'ct-anchor', x: 80, y: 8, direction: 'right' }),
       },
       {
-        key: 'phe', source: 'src/assets/symbols/PHE.svg', width: 80, height: 128,
-        anchor: expect.objectContaining({ id: 'phe-anchor', x: 56, y: 128, direction: 'bottom' }),
+        key: 'phe', source: 'src/assets/symbols/PHE.svg', width: 80, height: 80,
+        anchor: expect.objectContaining({ id: 'phe-anchor', x: 56, y: 80, direction: 'bottom' }),
       },
       {
         key: 'cdu', source: 'src/assets/symbols/CDU.svg', width: 48, height: 48,
@@ -2193,10 +2193,10 @@ describe('project document', () => {
       width: element.width,
       height: element.height,
     }))).toEqual([
-      { key: 'cwp', x: 64, y: -24, width: 80, height: 128 },
-      { key: 'chwp', x: 304, y: -24, width: 80, height: 128 },
-      { key: 'ct', x: 512, y: 32, width: 96, height: 96 },
-      { key: 'phe', x: 784, y: -24, width: 80, height: 128 },
+      { key: 'cwp', x: 64, y: 0, width: 80, height: 80 },
+      { key: 'chwp', x: 304, y: 0, width: 80, height: 80 },
+      { key: 'ct', x: 520, y: 40, width: 80, height: 80 },
+      { key: 'phe', x: 784, y: 0, width: 80, height: 80 },
       { key: 'cdu', x: 1032, y: 24, width: 48, height: 48 },
     ])
     expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)

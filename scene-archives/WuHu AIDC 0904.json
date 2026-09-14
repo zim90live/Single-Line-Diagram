@@ -5,7 +5,7 @@
     "id": "project-f1624f78-36a8-45d7-ba04-38aec6ebd39f",
     "name": "AIDC 一次接线图",
     "createdAt": "2026-08-13T10:32:21.116Z",
-    "updatedAt": "2026-09-10T07:22:44.232Z"
+    "updatedAt": "2026-09-14T07:36:02.424Z"
   },
   "lineSystems": [
     {
@@ -17539,10 +17539,10 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "ct",
       "name": "CT",
-      "x": -224,
-      "y": 336,
-      "width": 96,
-      "height": 96,
+      "x": -264,
+      "y": 368,
+      "width": 80,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -17595,8 +17595,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": -96,
-      "y": 480,
+      "x": -144,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -17616,8 +17616,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": -224,
-      "y": 480,
+      "x": -336,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -17653,8 +17653,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -592,
-      "y": 584,
+      "x": -576,
+      "y": 600,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -17719,8 +17719,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 736,
-      "y": 584,
+      "x": 720,
+      "y": 600,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -17785,8 +17785,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": -160,
-      "y": 480,
+      "x": -208,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -17807,7 +17807,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -640,
-      "y": 584,
+      "y": 600,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -17873,7 +17873,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 784,
-      "y": 584,
+      "y": 600,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -17938,10 +17938,10 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "ct",
       "name": "CT",
-      "x": 144,
-      "y": 336,
-      "width": 96,
-      "height": 96,
+      "x": 88,
+      "y": 368,
+      "width": 80,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -17994,8 +17994,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 272,
-      "y": 480,
+      "x": 208,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18015,8 +18015,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 144,
-      "y": 480,
+      "x": 16,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18052,8 +18052,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 208,
-      "y": 480,
+      "x": 144,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18073,10 +18073,10 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "ct",
       "name": "CT",
-      "x": 512,
-      "y": 336,
-      "width": 96,
-      "height": 96,
+      "x": 440,
+      "y": 368,
+      "width": 80,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -18129,8 +18129,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 640,
-      "y": 480,
+      "x": 560,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18150,8 +18150,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 512,
-      "y": 480,
+      "x": 368,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18187,8 +18187,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "2-wv",
       "name": "2WV",
-      "x": 576,
-      "y": 480,
+      "x": 496,
+      "y": 488,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -18208,10 +18208,10 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": -312,
-      "y": 656,
+      "x": -328,
+      "y": 704,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 90,
       "labelPlacement": "right",
       "monitorDataVisible": true,
@@ -18243,12 +18243,12 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": 40,
-      "y": 656,
+      "x": 24,
+      "y": 704,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 90,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18279,12 +18279,12 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cwp",
       "name": "CWP",
-      "x": 392,
-      "y": 656,
+      "x": 376,
+      "y": 704,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 90,
-      "labelPlacement": "left",
+      "labelPlacement": "right",
       "monitorDataVisible": true,
       "monitorMetricLabelsVisible": false,
       "monitorMetrics": [
@@ -18316,9 +18316,9 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": -264,
-      "y": 784,
+      "y": 808,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -18350,7 +18350,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -352,
-      "y": 768,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18400,8 +18400,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -112,
-      "y": 768,
+      "x": -128,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18453,9 +18453,9 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": 88,
-      "y": 784,
+      "y": 808,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -18488,7 +18488,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 0,
-      "y": 768,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18539,8 +18539,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 240,
-      "y": 768,
+      "x": 224,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18592,9 +18592,9 @@
       "assetKey": "phe",
       "name": "PHE",
       "x": 440,
-      "y": 784,
+      "y": 808,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 0,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -18627,7 +18627,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 352,
-      "y": 768,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18678,8 +18678,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 592,
-      "y": 768,
+      "x": 576,
+      "y": 784,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18730,8 +18730,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -112,
-      "y": 896,
+      "x": -128,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18783,7 +18783,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -352,
-      "y": 896,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18834,8 +18834,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 240,
-      "y": 896,
+      "x": 224,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18887,7 +18887,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 0,
-      "y": 896,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -18938,8 +18938,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 592,
-      "y": 896,
+      "x": 576,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -18991,7 +18991,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 352,
-      "y": 896,
+      "y": 880,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19045,7 +19045,7 @@
       "x": -200,
       "y": 912,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -19079,7 +19079,7 @@
       "x": 152,
       "y": 912,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -19115,7 +19115,7 @@
       "x": 504,
       "y": 912,
       "width": 80,
-      "height": 128,
+      "height": 80,
       "rotation": 270,
       "labelPlacement": "left",
       "monitorDataVisible": true,
@@ -19149,7 +19149,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -464,
-      "y": 1064,
+      "y": 1040,
       "width": 32,
       "height": 32,
       "rotation": 180,
@@ -19200,7 +19200,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 608,
-      "y": 1064,
+      "y": 1040,
       "width": 32,
       "height": 32,
       "rotation": 180,
@@ -19251,7 +19251,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -640,
-      "y": 1064,
+      "y": 1040,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19302,7 +19302,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": 784,
-      "y": 1064,
+      "y": 1040,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19353,7 +19353,7 @@
       "assetKey": "2-wv",
       "name": "2WV",
       "x": -576,
-      "y": 1096,
+      "y": 1072,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19390,7 +19390,7 @@
       "assetKey": "2-wv",
       "name": "2WV",
       "x": 720,
-      "y": 1096,
+      "y": 1072,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19426,8 +19426,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -144,
-      "y": 1208,
+      "x": 496,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19492,8 +19492,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": -192,
-      "y": 1208,
+      "x": 432,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19543,8 +19543,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 160,
-      "y": 1208,
+      "x": -272,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19594,8 +19594,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 560,
-      "y": 1208,
+      "x": 144,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19645,8 +19645,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 512,
-      "y": 1208,
+      "x": 80,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19711,8 +19711,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "mp",
       "name": "MP",
-      "x": 208,
-      "y": 1208,
+      "x": -208,
+      "y": 1200,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19778,7 +19778,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -560,
-      "y": 240,
+      "y": 280,
       "width": 32,
       "height": 32,
       "rotation": 0,
@@ -19812,7 +19812,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -560,
-      "y": 304,
+      "y": 344,
       "width": 32,
       "height": 32,
       "rotation": 180,
@@ -19847,7 +19847,7 @@
       "assetKey": "generic",
       "name": "通用图元",
       "x": -576,
-      "y": 696,
+      "y": 728,
       "width": 96,
       "height": 96,
       "rotation": 270,
@@ -19864,7 +19864,7 @@
       "assetKey": "generic",
       "name": "通用图元",
       "x": -576,
-      "y": 880,
+      "y": 848,
       "width": 96,
       "height": 96,
       "rotation": 0,
@@ -19881,7 +19881,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -496,
-      "y": 984,
+      "y": 952,
       "width": 32,
       "height": 32,
       "rotation": 90,
@@ -19932,7 +19932,7 @@
       "assetKey": "mp",
       "name": "MP",
       "x": -592,
-      "y": 984,
+      "y": 952,
       "width": 32,
       "height": 32,
       "rotation": 270,
@@ -19998,8 +19998,8 @@
       "diagramId": "diagram-62b3c397-17dd-4ca4-bc40-378ebd86ff90",
       "assetKey": "cdu",
       "name": "CDU",
-      "x": 336,
-      "y": 1272,
+      "x": -96,
+      "y": 1248,
       "width": 96,
       "height": 96,
       "rotation": 0,
@@ -20017,7 +20017,7 @@
       "assetKey": "cpd",
       "name": "CPD",
       "x": -528,
-      "y": 1192,
+      "y": 1184,
       "width": 80,
       "height": 80,
       "rotation": 0,
@@ -20034,7 +20034,7 @@
       "assetKey": "text",
       "name": "文字",
       "x": -824,
-      "y": 576,
+      "y": 592,
       "width": 64,
       "height": 40,
       "rotation": 0,
@@ -20055,7 +20055,7 @@
       "assetKey": "text",
       "name": "文字",
       "x": -824,
-      "y": 1088,
+      "y": 1064,
       "width": 64,
       "height": 40,
       "rotation": 0,
@@ -48344,8 +48344,8 @@
           "id": "connection-edge-772c61f1-7d3e-4d63-a7bc-06d86bd415d2",
           "sourceNodeId": "connection-node-bd7d06f2-53ba-4893-9b60-e44cc8d80e6b",
           "targetNodeId": "connection-node-90911eb3-ac28-4dea-9180-3fb711273466",
-          "color": "#00F074",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#00F074"
         }
       ]
     },
@@ -48401,8 +48401,8 @@
           "id": "connection-edge-71ca1284-740b-426d-921d-d3af45badccc",
           "sourceNodeId": "connection-node-20dbd392-07a0-47e2-9897-87ac057bf2aa",
           "targetNodeId": "connection-node-ca519fab-3bc3-401f-8028-165f31b68a6e",
-          "color": "#0084FF",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#0084FF"
         }
       ]
     },
@@ -48623,8 +48623,8 @@
           "id": "connection-edge-8c3f4ce3-0c83-4114-9326-3e199eb2c5a6",
           "sourceNodeId": "connection-node-8518b5c2-88f8-49c0-a3e5-f65c631c78b6",
           "targetNodeId": "connection-node-1c40200f-2ace-400d-8348-5d495f452b9c",
-          "color": "#00F074",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#00F074"
         }
       ]
     },
@@ -48680,8 +48680,8 @@
           "id": "connection-edge-9417a109-dcf2-4136-a961-6c6d74feed9c",
           "sourceNodeId": "connection-node-a052f135-d264-45e5-b6c1-8e15f254e9ff",
           "targetNodeId": "connection-node-dae1f0b1-fe39-4069-acde-7bca2d92bfd6",
-          "color": "#0084FF",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#0084FF"
         }
       ]
     },
@@ -48882,8 +48882,8 @@
           "id": "connection-edge-0c39c20a-4fb7-4313-897d-128afca21994",
           "sourceNodeId": "connection-node-dd0ad0c9-27c7-4512-86d6-cb356a713891",
           "targetNodeId": "connection-node-77987ecf-bab2-4338-864c-689aa3ac19b0",
-          "color": "#00F074",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#00F074"
         }
       ]
     },
@@ -48939,8 +48939,8 @@
           "id": "connection-edge-5140b419-cd76-40bc-8ad0-d3015838685f",
           "sourceNodeId": "connection-node-afa1a44d-c546-4011-8a65-33c0e4b8bc39",
           "targetNodeId": "connection-node-c0ba3f60-131a-4f17-83fa-278a6141dc7b",
-          "color": "#0084FF",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#0084FF"
         }
       ]
     },
@@ -49174,8 +49174,8 @@
           "id": "connection-edge-8707ff8a-c3af-44d7-b73f-e7b2ba9f6318",
           "sourceNodeId": "connection-node-fe1ad4f8-55e4-45d9-ad55-dece6f802f57",
           "targetNodeId": "connection-node-cf033b9f-0da3-42cd-9337-ab1916fcf12b",
-          "color": "#00F074",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#00F074"
         }
       ]
     },
@@ -49231,8 +49231,8 @@
           "id": "connection-edge-61798dab-d11d-48b5-b518-15c62d117b87",
           "sourceNodeId": "connection-node-03cb71ca-27af-45e0-a914-d15c973f4d42",
           "targetNodeId": "connection-node-13203f73-7c0c-46fb-b6ff-23c6e13590c3",
-          "color": "#0084FF",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#0084FF"
         }
       ]
     },
@@ -49944,6 +49944,7 @@
       "id": "connection-network-b282554c-2a95-40d4-bd01-4ffeb4d9a525",
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "type": "electrical",
+      "powerSupplyChannel": "a",
       "nodes": [
         {
           "id": "connection-node-0c8c0294-1cb8-43fb-8675-6a4a4d3a646c",
@@ -49965,13 +49966,13 @@
           "targetNodeId": "connection-node-dc29fa7c-a599-4496-867e-28230c5a3c1f",
           "lineWidth": 6
         }
-      ],
-      "powerSupplyChannel": "a"
+      ]
     },
     {
       "id": "connection-network-5f32463f-2a0a-48d3-a202-a4774b70d0df",
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "type": "electrical",
+      "powerSupplyChannel": "a",
       "nodes": [
         {
           "id": "connection-node-4ba0b5ef-9f3c-4bf5-8c21-f5225ac0dd74",
@@ -50141,13 +50142,13 @@
           "sourceNodeId": "connection-node-87c0eb94-c8da-444f-9ce9-b2f151ca7491",
           "targetNodeId": "connection-node-85770a43-c7d1-4ec2-b625-fd42104dcee9"
         }
-      ],
-      "powerSupplyChannel": "a"
+      ]
     },
     {
       "id": "connection-network-715ed686-449d-4993-840c-14d6d43ba889",
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "type": "electrical",
+      "powerSupplyChannel": "b",
       "nodes": [
         {
           "id": "connection-node-248faff9-1600-451a-9451-97a86f9bda73",
@@ -50167,16 +50168,16 @@
           "id": "connection-edge-1d2c9407-3c83-4548-b504-283ee93af06d",
           "sourceNodeId": "connection-node-248faff9-1600-451a-9451-97a86f9bda73",
           "targetNodeId": "connection-node-f8a724b5-7cab-492b-8c2f-fb5ac65f33e8",
-          "color": "#F4C000",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         }
-      ],
-      "powerSupplyChannel": "b"
+      ]
     },
     {
       "id": "connection-network-7f78aee6-dc90-49b8-b4f2-e648595346f1",
       "diagramId": "diagram-2803b37a-abaf-4477-9c7d-07464246e3d9",
       "type": "electrical",
+      "powerSupplyChannel": "b",
       "nodes": [
         {
           "id": "connection-node-f4a911b4-cb86-4817-bdf3-ad95a610bca8",
@@ -50198,8 +50199,7 @@
           "targetNodeId": "connection-node-28b5bd4d-74a8-40d0-bd71-beddf3c3406d",
           "color": "#F4C000"
         }
-      ],
-      "powerSupplyChannel": "b"
+      ]
     },
     {
       "id": "connection-network-dfb8ecd3-e737-488b-8549-39c18dbcc617",
@@ -50296,55 +50296,55 @@
           "id": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
           "sourceNodeId": "connection-node-6d92ea6b-6ced-4a6a-a707-41084b56d491",
           "targetNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
-          "color": "#F4C000",
           "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         },
         {
           "id": "connection-edge-51130243-a6b3-482b-bf64-4930e1ec5217",
           "sourceNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
           "targetNodeId": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
-          "color": "#F4C000",
           "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         },
         {
           "id": "connection-edge-265d7fb2-ecb5-41ac-8d1b-5d022d67fea3",
           "sourceNodeId": "connection-node-ab84b72e-e9a7-4de0-bad3-31544fb53547",
           "targetNodeId": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
-          "color": "#F4C000",
           "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         },
         {
           "id": "connection-edge-b0b9a626-ec08-43d3-93e7-56da858732d2",
           "sourceNodeId": "connection-node-34ba541b-ee2c-462a-80f8-5cf05da8aa68",
           "targetNodeId": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
-          "color": "#F4C000",
           "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         },
         {
           "id": "connection-edge-149a237d-42dd-471e-b9c1-0e5a60418ffb",
           "sourceNodeId": "connection-node-2a315d3b-cde3-47d0-ba14-350a028d5db1",
           "targetNodeId": "connection-node-b8a5fc51-b5b7-431d-b731-c30cbe1ffb70",
-          "color": "#F4C000",
           "logicalConnectionId": "connection-edge-1d4c8d6c-9093-45d8-ac1f-8df93d1bf743",
-          "lineWidth": 6
+          "lineWidth": 6,
+          "color": "#F4C000"
         },
         {
           "id": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767",
           "sourceNodeId": "connection-node-794feea9-d985-41d9-8558-c72ba656d92d",
           "targetNodeId": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f",
-          "lineWidth": 6,
-          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767"
+          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767",
+          "lineWidth": 6
         },
         {
           "id": "connection-edge-25a23cef-baa2-4007-add3-f44e6f4ca11d",
           "sourceNodeId": "connection-node-d60c1c3a-a15d-47b2-8376-02505507534f",
           "targetNodeId": "connection-node-eb60b482-4b86-4b5e-a14d-13fefbd220c0",
-          "lineWidth": 6,
-          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767"
+          "logicalConnectionId": "connection-edge-5ec7ef40-a93a-4842-a42c-2637bca5a767",
+          "lineWidth": 6
         },
         {
           "id": "connection-edge-866ff2c9-be03-4715-b980-ff7bad20102b",
@@ -50421,6 +50421,7 @@
           "id": "connection-edge-76076e17-d4f6-4d11-855d-27f3c77b5972",
           "sourceNodeId": "connection-node-6ebbbe92-1473-4aa9-a7d8-fa877ceba47a",
           "targetNodeId": "connection-node-52948154-9865-4012-b651-3d627ae4aca1",
+          "lineWidth": 4,
           "color": "#FB7800"
         }
       ]
@@ -50502,6 +50503,7 @@
           "id": "connection-edge-d10fc167-d1a4-46c2-b2ab-794ee710963f",
           "sourceNodeId": "connection-node-d796d6cf-63f9-40f7-aa36-6a532f3947fc",
           "targetNodeId": "connection-node-6be81795-9bbe-40da-b562-14ae8297e04a",
+          "lineWidth": 4,
           "color": "#FB7800"
         }
       ]
@@ -50556,6 +50558,7 @@
           "id": "connection-edge-4ba676bb-caef-4d33-870e-579097ded15d",
           "sourceNodeId": "connection-node-464aacac-1918-4146-8205-2fc261c48658",
           "targetNodeId": "connection-node-0db02012-405e-4780-9180-fcef0af33d30",
+          "lineWidth": 4,
           "color": "#FB7800"
         }
       ]
@@ -50574,7 +50577,7 @@
         {
           "id": "connection-node-565fba20-3c86-49df-9e6a-d53fd5407bcb",
           "kind": "node",
-          "x": -144,
+          "x": -192,
           "y": 544
         },
         {
@@ -50586,7 +50589,7 @@
         {
           "id": "connection-node-2d27d1f1-fed0-4a79-a498-8bd852dea32e",
           "kind": "node",
-          "x": -80,
+          "x": -128,
           "y": 544
         },
         {
@@ -50598,7 +50601,7 @@
         {
           "id": "connection-node-899c2763-843b-47e0-b0fa-ffa611a3d3a7",
           "kind": "node",
-          "x": 288,
+          "x": 224,
           "y": 544
         },
         {
@@ -50610,7 +50613,7 @@
         {
           "id": "connection-node-26cf78b7-3551-4f81-9f9c-f7d80fd9e074",
           "kind": "node",
-          "x": 224,
+          "x": 160,
           "y": 544
         },
         {
@@ -50622,7 +50625,7 @@
         {
           "id": "connection-node-72d9e459-c5dc-4ed2-8b4f-e86ecc137476",
           "kind": "node",
-          "x": 656,
+          "x": 576,
           "y": 544
         },
         {
@@ -50634,7 +50637,7 @@
         {
           "id": "connection-node-f1df468b-e39c-4428-8376-d53c7a4d29b5",
           "kind": "node",
-          "x": 592,
+          "x": 512,
           "y": 544
         },
         {
@@ -50670,26 +50673,26 @@
         {
           "id": "connection-node-f638b0f5-2d14-415b-aba5-083866ec123a",
           "kind": "node",
-          "x": 240,
-          "y": 656
+          "x": 224,
+          "y": 688
         },
         {
           "id": "connection-node-8075da0c-038f-4755-8232-aa4b550ba2a3",
           "kind": "node",
           "x": 592,
-          "y": 656
+          "y": 688
         },
         {
           "id": "connection-node-13b8d3a1-8849-4492-b331-70ca0416f897",
           "kind": "node",
           "x": -608,
-          "y": 656
+          "y": 688
         },
         {
           "id": "connection-node-e3e2226a-3865-41f7-a510-b6cd5c6a36d4",
           "kind": "node",
           "x": -608,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-81ded914-8b9b-4ef6-9dda-c3f57de2c673",
@@ -50701,7 +50704,7 @@
           "id": "connection-node-9bf8e9bf-303c-49f8-aa14-b0fa0257c510",
           "kind": "node",
           "x": 784,
-          "y": 656
+          "y": 688
         },
         {
           "id": "connection-node-6d69ddb3-71f1-4652-b9d6-7c0dfca13a63",
@@ -50718,8 +50721,8 @@
         {
           "id": "connection-node-ffc2781a-2897-44a8-bafb-b44bd092cb13",
           "kind": "node",
-          "x": -112,
-          "y": 656
+          "x": -128,
+          "y": 688
         },
         {
           "id": "connection-node-099a0e4e-5a53-43e8-842a-8b0c16caa723",
@@ -50736,20 +50739,20 @@
         {
           "id": "route-waypoint-58a2b497-57a9-4bae-8de5-6592bdbd0120",
           "kind": "node",
-          "x": -112,
-          "y": 808
+          "x": -128,
+          "y": 824
         },
         {
           "id": "connection-node-f297ec63-9bd9-44cc-bd87-302beaa4c782",
           "kind": "node",
-          "x": 240,
-          "y": 808
+          "x": 224,
+          "y": 824
         },
         {
           "id": "connection-node-4ff22c65-579e-438b-94f2-02216b5d320f",
           "kind": "node",
-          "x": 592,
-          "y": 808
+          "x": 576,
+          "y": 824
         }
       ],
       "edges": [
@@ -50792,6 +50795,7 @@
           "id": "connection-edge-0af5896a-a33f-47ef-b275-972e8d9e71bc",
           "sourceNodeId": "connection-node-31dbbed0-1eb3-45e4-9771-88fa31539d6d",
           "targetNodeId": "connection-node-565fba20-3c86-49df-9e6a-d53fd5407bcb",
+          "lineWidth": 4,
           "color": "#FB7800"
         },
         {
@@ -50810,6 +50814,7 @@
           "id": "connection-edge-c8885a83-171a-4c57-a1b9-54ee1360bbd8",
           "sourceNodeId": "connection-node-d3fca852-a4fd-42f6-91c1-73b95b7dddc7",
           "targetNodeId": "connection-node-26cf78b7-3551-4f81-9f9c-f7d80fd9e074",
+          "lineWidth": 4,
           "color": "#FB7800"
         },
         {
@@ -50822,6 +50827,7 @@
           "id": "connection-edge-6d7e7d89-4f3c-4f6b-9bc2-379e8a196246",
           "sourceNodeId": "connection-node-18612cc5-7a89-44a5-9e1f-316bbc64c333",
           "targetNodeId": "connection-node-f1df468b-e39c-4428-8376-d53c7a4d29b5",
+          "lineWidth": 4,
           "color": "#FB7800"
         },
         {
@@ -50983,8 +50989,8 @@
         {
           "id": "route-waypoint-7efd8018-9a9e-4fbd-a0d6-fabe65136e84",
           "kind": "node",
-          "x": -112,
-          "y": 888
+          "x": -128,
+          "y": 872
         }
       ],
       "edges": [
@@ -51037,8 +51043,8 @@
         {
           "id": "connection-node-3dc90142-382b-42c6-8cf2-89f70c6f6941",
           "kind": "node",
-          "x": 240,
-          "y": 888
+          "x": 224,
+          "y": 872
         }
       ],
       "edges": [
@@ -51091,8 +51097,8 @@
         {
           "id": "route-waypoint-7bf56655-ccca-4ac8-8005-40066f5a7b36",
           "kind": "node",
-          "x": 592,
-          "y": 888
+          "x": 576,
+          "y": 872
         }
       ],
       "edges": [
@@ -51151,8 +51157,8 @@
         {
           "id": "connection-node-eaacd229-19fa-40d5-868f-b821faf5a559",
           "kind": "node",
-          "x": 400,
-          "y": 1064
+          "x": 576,
+          "y": 1040
         },
         {
           "id": "connection-node-05979993-36fa-49bf-a431-cf27f7967a98",
@@ -51164,31 +51170,31 @@
           "id": "route-waypoint-80c4cd02-a0cc-423f-967e-a4e315209f2e",
           "kind": "node",
           "x": 688,
-          "y": 1064
+          "y": 1040
         },
         {
           "id": "route-waypoint-6a448443-68a5-43ee-b43d-e597a0f27a49",
           "kind": "node",
           "x": 688,
-          "y": 1144
+          "y": 1120
         },
         {
           "id": "route-waypoint-21af2e3c-61be-4511-a61b-bc87e6bc6e49",
           "kind": "node",
           "x": -512,
-          "y": 1064
+          "y": 1040
         },
         {
           "id": "route-waypoint-a30d0deb-b3c4-455c-a6fb-81202ff05903",
           "kind": "node",
           "x": -512,
-          "y": 1144
+          "y": 1120
         },
         {
           "id": "connection-node-f1e993b9-14e9-4e65-b16e-1f69daebb38e",
           "kind": "node",
           "x": 688,
-          "y": 1112
+          "y": 1088
         },
         {
           "id": "connection-node-30da0326-9f1b-4e0d-9564-b7f33e1131ab",
@@ -51200,7 +51206,7 @@
           "id": "connection-node-a78b4d26-4378-4534-ae5a-6198e27e79c0",
           "kind": "node",
           "x": -512,
-          "y": 1112
+          "y": 1088
         },
         {
           "id": "connection-node-c0666076-920c-44b3-b727-7c3fe907ee0b",
@@ -51211,8 +51217,8 @@
         {
           "id": "connection-node-101f7aa7-ce2e-40dd-b6e4-b443061e511f",
           "kind": "node",
-          "x": 208,
-          "y": 1144
+          "x": -208,
+          "y": 1120
         },
         {
           "id": "connection-node-17795fec-de2d-4786-b5fd-0bbff3c0132f",
@@ -51223,8 +51229,8 @@
         {
           "id": "connection-node-51180b84-b143-4193-b6c3-0a4e84993e32",
           "kind": "node",
-          "x": 544,
-          "y": 1144
+          "x": 112,
+          "y": 1120
         },
         {
           "id": "connection-node-779a5b67-e5dd-4018-aef3-9b2ddbb6368c",
@@ -51235,8 +51241,8 @@
         {
           "id": "connection-node-87e3e7bc-700f-4c75-932d-66fed8a194b6",
           "kind": "node",
-          "x": -144,
-          "y": 1144
+          "x": 496,
+          "y": 1120
         },
         {
           "id": "connection-node-659b05b3-a81a-44e7-88d1-886fd8b7a61c",
@@ -51248,7 +51254,7 @@
           "id": "connection-node-5933a487-4c8c-42d3-ab50-83063bd5e159",
           "kind": "node",
           "x": -464,
-          "y": 1144
+          "y": 1120
         },
         {
           "id": "connection-node-bb5642bb-29ba-4a5f-aa2a-dbfb66f00163",
@@ -51271,14 +51277,14 @@
         {
           "id": "connection-node-7bc1fb19-932b-4653-a586-1d7c89a52881",
           "kind": "node",
-          "x": -144,
-          "y": 1288
+          "x": 496,
+          "y": 1304
         },
         {
           "id": "connection-node-291fa37d-955f-431f-ad81-0248130766bd",
           "kind": "node",
-          "x": -112,
-          "y": 1064
+          "x": -128,
+          "y": 1040
         },
         {
           "id": "connection-node-77e5670d-e237-455f-8d3f-04f87506beab",
@@ -51289,8 +51295,8 @@
         {
           "id": "connection-node-f33a5784-0b78-4679-99d0-06daeb62b41b",
           "kind": "node",
-          "x": 48,
-          "y": 1064
+          "x": 224,
+          "y": 1040
         },
         {
           "id": "connection-node-4214a35d-7a2f-414c-b17f-42bfff78c43a",
@@ -51302,7 +51308,7 @@
           "id": "connection-node-9f2ef589-f053-4871-96e2-00b1b1000249",
           "kind": "node",
           "x": -496,
-          "y": 1064
+          "y": 1040
         }
       ],
       "edges": [
@@ -51541,8 +51547,8 @@
         {
           "id": "connection-node-77e57172-5b95-4ab8-94ae-c6065fe5c4ab",
           "kind": "node",
-          "x": 160,
-          "y": 560
+          "x": 32,
+          "y": 576
         },
         {
           "id": "connection-node-442800b7-b223-4953-8b77-8563c000e62f",
@@ -51553,8 +51559,8 @@
         {
           "id": "connection-node-d4a38a54-7455-4bfc-8f6d-df55c92c74f0",
           "kind": "node",
-          "x": 528,
-          "y": 560
+          "x": 384,
+          "y": 576
         },
         {
           "id": "connection-node-7dc75d77-3556-4f64-8570-1fe41b0f3ccb",
@@ -51565,14 +51571,14 @@
         {
           "id": "route-waypoint-3a6f6443-7e9f-407a-810a-67ea066dcabc",
           "kind": "node",
-          "x": -592,
-          "y": 560
+          "x": -576,
+          "y": 576
         },
         {
           "id": "route-waypoint-2fab3494-ac4e-4418-ac48-0655c0587d1f",
           "kind": "node",
-          "x": -592,
-          "y": 640
+          "x": -576,
+          "y": 656
         },
         {
           "id": "connection-node-258aff03-0c45-46fe-b563-4ae2f2715067",
@@ -51583,14 +51589,14 @@
         {
           "id": "route-waypoint-fe977d62-879c-4e1d-b110-22e494f7dbb8",
           "kind": "node",
-          "x": 768,
-          "y": 560
+          "x": 752,
+          "y": 576
         },
         {
           "id": "route-waypoint-0b3dd91e-3677-4c5b-9af1-b48f13a65f65",
           "kind": "node",
-          "x": 768,
-          "y": 640
+          "x": 752,
+          "y": 656
         },
         {
           "id": "connection-node-cb25c503-109d-463c-869b-0f37e48ec3bb",
@@ -51602,7 +51608,7 @@
           "id": "connection-node-429f1822-cefe-48e9-9b35-a5c1be9eee2f",
           "kind": "node",
           "x": 32,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-d892703c-228d-4c8f-9397-03dc605e43f1",
@@ -51614,7 +51620,7 @@
           "id": "connection-node-aa7f09c9-fce1-4493-98a2-68a02e14c79d",
           "kind": "node",
           "x": 384,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-6b75a1f7-d7ca-4a5c-a505-966f2372b4d0",
@@ -51632,13 +51638,13 @@
           "id": "connection-node-14a16c66-8835-4051-a913-458ecc0656e6",
           "kind": "node",
           "x": -320,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-b0776149-bf88-4008-b5e7-76ef7fa6ac7b",
           "kind": "node",
-          "x": -208,
-          "y": 560
+          "x": -320,
+          "y": 576
         },
         {
           "id": "connection-node-6c32ad79-3074-4724-ae38-313da6b30e22",
@@ -51650,7 +51656,7 @@
           "id": "connection-node-badd396f-2e9e-4b61-bccb-75b0b32d7c99",
           "kind": "node",
           "x": -512,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-5e72753c-88c6-4abe-8d45-141b8364ecb5",
@@ -51662,7 +51668,7 @@
           "id": "connection-node-038a4ce4-7c54-4f21-b98e-907cb4d09907",
           "kind": "node",
           "x": -544,
-          "y": 640
+          "y": 656
         },
         {
           "id": "connection-node-527d6d6c-fd6c-433a-97eb-eaba5cad6cc9",
@@ -51847,19 +51853,19 @@
           "id": "route-waypoint-bb57604c-260f-4346-9c42-ce62d6325fb0",
           "kind": "node",
           "x": 384,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-d6b36924-34ab-40c3-9758-8e2eae5acfc3",
           "kind": "node",
           "x": -320,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-60c67c0b-55b1-4393-89cd-8eaed0b56af9",
           "kind": "node",
           "x": 32,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-1873848b-66be-4023-af27-313a74f547cb",
@@ -51877,7 +51883,7 @@
           "id": "connection-node-2a83f7ab-1660-4f41-a850-290e11e1f451",
           "kind": "node",
           "x": -560,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-f5d1c6cb-caa9-4bd2-8596-9d95309c8015",
@@ -51901,13 +51907,13 @@
           "id": "route-waypoint-ff9937ae-515c-43af-b0a7-7c40cd3ba37e",
           "kind": "node",
           "x": 784,
-          "y": 1160
+          "y": 1152
         },
         {
           "id": "connection-node-9ecd2aba-e6e2-464d-b03b-36b0eb1d052c",
           "kind": "node",
           "x": 784,
-          "y": 1112
+          "y": 1088
         },
         {
           "id": "connection-node-96e315e0-95d9-4be1-b54c-27787d716a89",
@@ -51919,7 +51925,7 @@
           "id": "connection-node-be19f81a-aebf-4d2c-ab8e-1ad2a6a9e360",
           "kind": "node",
           "x": -608,
-          "y": 1112
+          "y": 1088
         },
         {
           "id": "connection-node-051db163-e9a3-4f71-99ca-6f8bd4b680d0",
@@ -51930,8 +51936,8 @@
         {
           "id": "connection-node-f25282cb-b82d-4b66-812e-f95e481e1b1f",
           "kind": "node",
-          "x": 560,
-          "y": 1160
+          "x": 144,
+          "y": 1152
         },
         {
           "id": "connection-node-72988788-5ca6-4147-8d25-3e2750b61700",
@@ -51942,8 +51948,8 @@
         {
           "id": "connection-node-92280dfe-5e82-44a2-b928-c823fc59d3d5",
           "kind": "node",
-          "x": 192,
-          "y": 1160
+          "x": -240,
+          "y": 1152
         },
         {
           "id": "connection-node-09316c3c-ffa1-425e-8d4c-0d733807d6f8",
@@ -51954,8 +51960,8 @@
         {
           "id": "connection-node-2c8fc092-b2f4-4a2f-89ae-226bef7420f5",
           "kind": "node",
-          "x": -160,
-          "y": 1160
+          "x": 464,
+          "y": 1152
         },
         {
           "id": "connection-node-3194eae2-8b84-4686-866d-50d282c5faba",
@@ -51967,7 +51973,7 @@
           "id": "connection-node-c573102b-7649-4993-985c-3387831b5884",
           "kind": "node",
           "x": -512,
-          "y": 1160
+          "y": 1152
         },
         {
           "id": "connection-node-62c61312-8cb5-4340-95d9-28d6e6af4c5f",
@@ -51996,14 +52002,14 @@
         {
           "id": "connection-node-320ef61f-0118-42d5-a786-e69cdba1a498",
           "kind": "node",
-          "x": -160,
-          "y": 1288
+          "x": 464,
+          "y": 1304
         },
         {
           "id": "connection-node-f33371f3-f465-46a3-8a32-177692a687aa",
           "kind": "node",
           "x": -608,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-dbbd418d-26d2-46be-826a-c0c22170a448",
@@ -52014,8 +52020,8 @@
         {
           "id": "route-waypoint-3d9cf7f8-b8ca-435c-a8f3-6d1d40741c92",
           "kind": "node",
-          "x": 192,
-          "y": 1304
+          "x": -240,
+          "y": 1312
         },
         {
           "id": "connection-node-c75d7ef3-d762-417e-b351-683aa689dc09",
@@ -52033,31 +52039,31 @@
           "id": "route-waypoint-03d6fb8e-0519-4a27-96a5-46ec00a166d8",
           "kind": "node",
           "x": -320,
-          "y": 888
+          "y": 872
         },
         {
           "id": "route-waypoint-cae664c6-2880-4361-9d1a-6d33d74334d6",
           "kind": "node",
           "x": 32,
-          "y": 888
+          "y": 872
         },
         {
           "id": "route-waypoint-b951ba57-8d5d-481c-ab3f-05c52fb5609c",
           "kind": "node",
           "x": 784,
-          "y": 1048
+          "y": 1008
         },
         {
           "id": "connection-node-713d395b-4a7e-42e4-9065-c696d39d1a4e",
           "kind": "node",
           "x": 384,
-          "y": 888
+          "y": 872
         },
         {
           "id": "connection-node-dca50702-8c93-4eed-ba0d-f785205a12cd",
           "kind": "node",
-          "x": 560,
-          "y": 1304
+          "x": 144,
+          "y": 1312
         }
       ],
       "edges": [
@@ -52335,14 +52341,14 @@
         {
           "id": "connection-node-c79aec03-2e36-4814-97e6-aed2e604c9e4",
           "kind": "node",
-          "x": 352,
-          "y": 464
+          "x": 320,
+          "y": 472
         },
         {
           "id": "route-waypoint-25e32172-b5b4-4c60-b34e-50cee538b780",
           "kind": "node",
-          "x": 192,
-          "y": 464
+          "x": 128,
+          "y": 472
         },
         {
           "id": "connection-node-d689cc02-527e-4bab-922e-507116404c04",
@@ -52353,8 +52359,8 @@
         {
           "id": "connection-node-e8c9366f-cc56-4179-8f24-e773842ea43c",
           "kind": "node",
-          "x": 352,
-          "y": 304
+          "x": 320,
+          "y": 344
         },
         {
           "id": "connection-node-dcf99199-8fae-4230-abad-981f7a2137c4",
@@ -52372,25 +52378,25 @@
           "id": "route-waypoint-ad9d1cca-4f21-468d-8f87-7137cafcaa62",
           "kind": "node",
           "x": 768,
-          "y": 272
+          "y": 312
         },
         {
           "id": "route-waypoint-8dac1078-ad42-4c0a-b769-31ab62529522",
           "kind": "node",
           "x": 768,
-          "y": 304
+          "y": 344
         },
         {
           "id": "connection-node-72543111-6e50-42da-93e3-0f4ef6182d2a",
           "kind": "node",
           "x": -592,
-          "y": 304
+          "y": 344
         },
         {
           "id": "connection-node-c5a9c46c-6860-45a0-9bfb-c0f0e0c8152e",
           "kind": "node",
           "x": -592,
-          "y": 272
+          "y": 312
         }
       ],
       "edges": [
@@ -52508,7 +52514,7 @@
           "id": "route-waypoint-9411fde5-772d-425f-82e0-60b8930b8469",
           "kind": "node",
           "x": -320,
-          "y": 808
+          "y": 824
         }
       ],
       "edges": [
@@ -52559,7 +52565,7 @@
           "id": "route-waypoint-5a63e37f-a2e3-4449-b074-b637c73fed66",
           "kind": "node",
           "x": 32,
-          "y": 808
+          "y": 824
         }
       ],
       "edges": [
@@ -52598,7 +52604,7 @@
           "id": "route-waypoint-81d6dd1a-9822-4771-a1eb-eeb9c28b0a4e",
           "kind": "node",
           "x": 384,
-          "y": 808
+          "y": 824
         },
         {
           "id": "connection-node-3129cd30-e94a-48ea-be1b-63ac0d7a3245",
@@ -52683,7 +52689,7 @@
           "id": "anchor-3b5e1614-0cc0-439e-ba34-9709485cd9e4",
           "name": "二次回路冷 1",
           "x": 48,
-          "y": 24,
+          "y": 32,
           "direction": "right",
           "type": "cooling-secondary-cold"
         },
@@ -52699,7 +52705,7 @@
           "id": "anchor-6606b073-9d25-455a-ba18-203724e25fac",
           "name": "二次回路冷 2",
           "x": 0,
-          "y": 24,
+          "y": 32,
           "direction": "left",
           "type": "cooling-secondary-cold"
         }
@@ -52711,14 +52717,14 @@
       "category": "冷却",
       "source": "src/assets/symbols/CHWP.svg",
       "intrinsicWidth": 80,
-      "intrinsicHeight": 128,
+      "intrinsicHeight": 80,
       "coolingDeviceRole": "pump",
       "anchors": [
         {
           "id": "anchor-65269745-d0ca-4232-837c-eb680e142ac0",
           "name": "二次回路热 1",
           "x": 80,
-          "y": 112,
+          "y": 72,
           "direction": "right",
           "type": "cooling-secondary-hot",
           "flowRole": "outlet"
@@ -52727,7 +52733,7 @@
           "id": "anchor-f14be056-422b-4fc4-a4a5-95e284e013cd",
           "name": "二次回路热 2",
           "x": 0,
-          "y": 112,
+          "y": 72,
           "direction": "left",
           "type": "cooling-secondary-hot",
           "flowRole": "inlet"
@@ -52739,38 +52745,38 @@
       "name": "CT",
       "category": "冷却",
       "source": "src/assets/symbols/CT.svg",
-      "intrinsicWidth": 96,
-      "intrinsicHeight": 96,
+      "intrinsicWidth": 80,
+      "intrinsicHeight": 80,
       "anchors": [
         {
           "id": "anchor-729e53e3-32de-479b-982f-dd88048b13b6",
           "name": "一次回路热 3",
-          "x": 96,
-          "y": 16,
+          "x": 80,
+          "y": 24,
           "direction": "right",
           "type": "cooling-primary-hot"
         },
         {
           "id": "anchor-5f924e3c-c5de-43f6-8625-bcd398d574d8",
           "name": "一次回路热 4",
-          "x": 80,
-          "y": 96,
+          "x": 72,
+          "y": 80,
           "direction": "bottom",
           "type": "cooling-primary-hot"
         },
         {
           "id": "anchor-7e55a4ca-6cee-41fc-beae-a2692f1d3c75",
           "name": "一次回路冷 1",
-          "x": 16,
-          "y": 96,
-          "direction": "bottom",
+          "x": 0,
+          "y": 64,
+          "direction": "left",
           "type": "cooling-primary-cold"
         },
         {
           "id": "anchor-37545169-6919-4d84-8bd7-31f7f3d3ef23",
           "name": "通用 1",
-          "x": 48,
-          "y": 96,
+          "x": 40,
+          "y": 80,
           "direction": "bottom",
           "type": "cooling-general"
         }
@@ -52811,14 +52817,14 @@
       "category": "冷却",
       "source": "src/assets/symbols/CWP.svg",
       "intrinsicWidth": 80,
-      "intrinsicHeight": 128,
+      "intrinsicHeight": 80,
       "coolingDeviceRole": "pump",
       "anchors": [
         {
           "id": "anchor-6a45e189-cb75-4f3b-a81f-849004dbf40f",
           "name": "一次回路冷 1",
           "x": 0,
-          "y": 112,
+          "y": 72,
           "direction": "left",
           "type": "cooling-primary-cold",
           "flowRole": "inlet"
@@ -52827,7 +52833,7 @@
           "id": "anchor-d8f580a4-fe28-4302-beeb-f807cabd061c",
           "name": "一次回路冷 2",
           "x": 80,
-          "y": 112,
+          "y": 72,
           "direction": "right",
           "type": "cooling-primary-cold",
           "flowRole": "outlet"
@@ -52918,13 +52924,13 @@
       "category": "冷却",
       "source": "src/assets/symbols/PHE.svg",
       "intrinsicWidth": 80,
-      "intrinsicHeight": 128,
+      "intrinsicHeight": 80,
       "anchors": [
         {
           "id": "anchor-0d94282d-11cc-4357-918a-1851c56128df",
           "name": "一次回路热 1",
           "x": 80,
-          "y": 24,
+          "y": 16,
           "direction": "right",
           "type": "cooling-primary-hot"
         },
@@ -52932,7 +52938,7 @@
           "id": "anchor-01242339-ed31-479d-84be-0e322c70b59f",
           "name": "一次回路冷 1",
           "x": 0,
-          "y": 24,
+          "y": 16,
           "direction": "left",
           "type": "cooling-primary-cold"
         },
@@ -52940,7 +52946,7 @@
           "id": "anchor-1c68b38b-33de-411a-a7ba-b23e831a0b94",
           "name": "二次回路冷 1",
           "x": 0,
-          "y": 104,
+          "y": 64,
           "direction": "left",
           "type": "cooling-secondary-cold"
         },
@@ -52948,7 +52954,7 @@
           "id": "anchor-9d474a7e-054c-4e29-a43a-1dfba8b970e1",
           "name": "二次回路热 1",
           "x": 80,
-          "y": 104,
+          "y": 64,
           "direction": "right",
           "type": "cooling-secondary-hot"
         }
@@ -53188,7 +53194,7 @@
       "key": "cpd",
       "name": "CPD",
       "category": "冷却",
-      "source": "src/assets/symbols/CPD.png",
+      "source": "src/assets/symbols/CPD.svg",
       "intrinsicWidth": 80,
       "intrinsicHeight": 80,
       "anchors": [

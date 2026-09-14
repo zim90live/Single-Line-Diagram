@@ -66,6 +66,14 @@ const routes: RoutedConnectionEdge[] = [
 const edgesById = new Map(coolingNetwork.edges.map((edge) => [edge.id, edge]))
 
 describe('connection scene model', () => {
+  it('keeps custom pipe widths in separate render groups', () => {
+    const edges = new Map(coolingNetwork.edges.map((edge, index) => [edge.id, {
+      ...edge, coolingLineRole: 'primary' as const, crossingLayer: undefined, lineWidth: index ? 10 : 6,
+    }]))
+    const groups = createConnectionRouteRenderGroups(routes, edges)
+    expect(groups).toHaveLength(2)
+    expect(groups.map(group => group.lineWidth).sort((a, b) => a! - b!)).toEqual([6, 10])
+  })
   it('keeps different configured pipe colors separate within one network', () => {
     const coloredEdges = new Map(coolingNetwork.edges.map((edge, index) => [edge.id, {
       ...edge,

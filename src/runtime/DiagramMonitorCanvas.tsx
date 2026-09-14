@@ -1,5 +1,6 @@
 import type { FlowAnimationMode } from '../monitoring/flowPresentation'
 import { Canvas } from '@react-three/fiber'
+import { coolingPipeWidthStyle } from '../scene/connectionAppearance'
 import { circuitBusbarColor, circuitDisplayEdges, circuitPaletteStyle } from '../scene/circuitPalette'
 import { completeSceneBounds, fitSceneViewport } from '../scene/sceneFit'
 import {
@@ -1347,6 +1348,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
                     data-network-id={group.networkId}
                     data-connection-type={group.type}
                     data-cooling-line-role={group.coolingLineRole}
+                    style={coolingPipeWidthStyle(group.lineWidth) as CSSProperties}
                   >
                     {group.routes.flatMap((route) => {
                       const casing = renderedPaths.get(route.edgeId)?.bridgeCasingPath

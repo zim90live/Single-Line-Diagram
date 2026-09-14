@@ -38,14 +38,14 @@ const emptySelectionProps = {
 }
 
 describe('PropertiesPanel color property', () => {
-  it('sets and resets electrical child-line width for the selected edges', () => {
+  it.each(['electrical', 'cooling-secondary-cold'] as const)('sets and resets %s line width for the selected edges', (type) => {
     const onPatchConnectionEdges = vi.fn()
     render(<PropertiesPanel {...emptySelectionProps} selectedElements={[]}
-      selectedConnection={{ id: 'selection', type: 'electrical', edges: [
+      selectedConnection={{ id: 'selection', type, edges: [
         { id: 'e1', sourceNodeId: 'a', targetNodeId: 'b' },
         { id: 'e2', sourceNodeId: 'b', targetNodeId: 'c' },
       ] }} onPatch={vi.fn()} onColorPreview={vi.fn()} onDelete={vi.fn()} onPatchConnectionEdges={onPatchConnectionEdges} />)
-    const field = screen.getByRole('textbox', { name: '子线粗细 (px)' })
+    const field = screen.getByRole('textbox', { name: type === 'electrical' ? '子线粗细 (px)' : '管路粗细 (px)' })
     fireEvent.change(field, { target: { value: '5' } })
     fireEvent.blur(field)
     expect(onPatchConnectionEdges).toHaveBeenLastCalledWith(['e1', 'e2'], { lineWidth: 5 })

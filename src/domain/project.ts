@@ -1968,10 +1968,10 @@ const RESIZED_COOLING_SVG_LAYOUTS = new Map<string, {
   width: number
   height: number
 }>([
-  ['chwp', { source: '/CHWP.svg', width: 80, height: 128 }],
-  ['cwp', { source: '/CWP.svg', width: 80, height: 128 }],
-  ['ct', { source: '/CT.svg', width: 96, height: 96 }],
-  ['phe', { source: '/PHE.svg', width: 80, height: 128 }],
+  ['chwp', { source: '/CHWP.svg', width: 80, height: 80 }],
+  ['cwp', { source: '/CWP.svg', width: 80, height: 80 }],
+  ['ct', { source: '/CT.svg', width: 80, height: 80 }],
+  ['phe', { source: '/PHE.svg', width: 80, height: 80 }],
   ['cdu', { source: '/CDU.svg', width: 48, height: 48 }],
 ] as const)
 

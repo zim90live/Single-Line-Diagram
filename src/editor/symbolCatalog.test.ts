@@ -296,21 +296,21 @@ describe('symbol catalog', () => {
         height: symbol?.intrinsicHeight,
       }
     })).toEqual([
-      { source: 'src/assets/symbols/CHWP.svg', width: 80, height: 128 },
-      { source: 'src/assets/symbols/CWP.svg', width: 80, height: 128 },
-      { source: 'src/assets/symbols/CPD.png', width: 80, height: 80 },
-      { source: 'src/assets/symbols/CT.svg', width: 96, height: 96 },
-      { source: 'src/assets/symbols/PHE.svg', width: 80, height: 128 },
+      { source: 'src/assets/symbols/CHWP.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/CWP.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/CPD.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/CT.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/PHE.svg', width: 80, height: 80 },
     ])
   })
 
   it('uses each SVG intrinsic size as its insertion size', () => {
     const chwp = symbolsByKey.get('chwp')
-    expect(chwp).toMatchObject({ intrinsicWidth: 80, intrinsicHeight: 128 })
-    expect(getScaledSymbolSize(chwp!, 1, 8)).toEqual({ scale: 1, width: 80, height: 128 })
+    expect(chwp).toMatchObject({ intrinsicWidth: 80, intrinsicHeight: 80 })
+    expect(getScaledSymbolSize(chwp!, 1, 8)).toEqual({ scale: 1, width: 80, height: 80 })
   })
 
-  it('keeps catalog dimensions synchronized with SVG width and height attributes', () => {
+  it('matches default dimensions to every SVG', () => {
     for (const symbol of symbolCatalog.filter((candidate) => candidate.source.endsWith('.svg'))) {
       const raw = rawSymbols[`../assets/symbols/${symbol.source.split('/').at(-1)}`]
       expect(raw, symbol.source).toBeTypeOf('string')
@@ -324,8 +324,8 @@ describe('symbol catalog', () => {
 
   it('derives grid-safe proportional scaling with the updated CHWP dimensions', () => {
     const chwp = symbolsByKey.get('chwp')!
-    expect(getSymbolScaleStep(chwp, 8)).toBe(0.5)
-    expect(getScaledSymbolSize(chwp, 0.01, 8)).toEqual({ scale: 0.5, width: 40, height: 64 })
-    expect(getScaledSymbolSize(chwp, 0.62, 8)).toEqual({ scale: 0.5, width: 40, height: 64 })
+    expect(getSymbolScaleStep(chwp, 8)).toBe(0.1)
+    expect(getScaledSymbolSize(chwp, 0.01, 8)).toEqual({ scale: 0.1, width: 8, height: 8 })
+    expect(getScaledSymbolSize(chwp, 0.62, 8)).toEqual({ scale: 0.6, width: 48, height: 48 })
   })
 })

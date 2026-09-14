@@ -36,6 +36,7 @@ import { defaultConnectionColor } from './objectColors'
 import type { Point } from './geometry'
 
 export interface ConnectionRouteRenderGroup {
+  lineWidth?: number
   networkId: string
   type: AnchorType
   routes: RoutedConnectionEdge[]
@@ -95,6 +96,7 @@ export function createConnectionRouteRenderGroups(
     const buckets = new Map<string, {
       routes: RoutedConnectionEdge[]
       coolingLineRole?: CoolingLineRole
+      lineWidth?: number
       crossingLayer?: ConnectionCrossingLayer
       color?: string
     }>()
@@ -105,10 +107,11 @@ export function createConnectionRouteRenderGroups(
         : undefined
       const crossingLayer = edge?.crossingLayer
       const color = isCoolingConnectionType(type) ? edge?.color : undefined
-      const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}${color ? `:${color}` : ''}`
+      const lineWidth = isCoolingConnectionType(type) ? edge?.lineWidth : undefined
+      const key = `${coolingLineRole ?? 'line'}:${crossingLayer ?? 'auto'}${color ? `:${color}` : ''}${lineWidth === undefined ? '' : `:width-${lineWidth}`}`
       const bucket = buckets.get(key)
       if (bucket) bucket.routes.push(route)
-      else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer, color })
+      else buckets.set(key, { routes: [route], coolingLineRole, crossingLayer, color, lineWidth })
     })
     buckets.forEach((bucket, key) => renderGroups.push({
       networkId,
@@ -328,7 +331,7 @@ export function createDisplayedRoutePaths(
             targetEndpointArc: geometry?.targetEndpointArc,
           }
         : {}),
-      worldWidth: cooling ? coolingPipeCoreWidth(edge?.coolingLineRole) : undefined,
+      worldWidth: cooling ? coolingPipeCoreWidth(edge?.coolingLineRole, edge?.lineWidth) : undefined,
       powerLineWidth: cooling ? undefined : edge?.lineWidth,
       style: cooling ? 'cooling' : 'power',
       renderPriority: connectionEdgeCrossingPriority(edge),

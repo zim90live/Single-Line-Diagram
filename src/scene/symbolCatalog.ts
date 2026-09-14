@@ -94,8 +94,8 @@ const metadata: SymbolMetadata[] = [
     stateFiles: { off: '2WV_Off.svg', on: '2WV_On.svg' },
   },
   { file: 'CDU.svg', name: 'CDU', category: '冷却', width: 48, height: 48 },
-  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 80, height: 128 },
-  { file: 'CT.svg', name: 'CT', category: '冷却', width: 96, height: 96 },
+  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 80, height: 80 },
+  { file: 'CT.svg', name: 'CT', category: '冷却', width: 80, height: 80 },
   {
     file: 'CV_Off.svg',
     key: 'cv',
@@ -128,7 +128,7 @@ const metadata: SymbolMetadata[] = [
       },
     ],
   },
-  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 80, height: 128 },
+  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 80, height: 80 },
   { file: 'FM.svg', name: 'FM', category: '电力', width: 64, height: 64 },
   {
     file: 'MP.svg',
@@ -200,7 +200,7 @@ const metadata: SymbolMetadata[] = [
       },
     ],
   },
-  { file: 'PHE.svg', name: 'PHE', category: '冷却', width: 80, height: 128 },
+  { file: 'PHE.svg', name: 'PHE', category: '冷却', width: 80, height: 80 },
   { file: 'TMU.svg', name: 'TMU', category: '冷却', width: 48, height: 48 },
   { file: 'WMT.svg', name: 'WMT', category: '冷却', width: 80, height: 80 },
   { file: 'Battery.svg', name: 'Battery', category: '电力', width: 48, height: 48 },
@@ -226,7 +226,7 @@ const metadata: SymbolMetadata[] = [
   { file: 'Transformer.svg', name: 'Transformer', category: '电力', width: 64, height: 64, configurableColor: true },
   { file: 'UPS.svg', name: 'UPS', category: '电力', width: 48, height: 48 },
   { file: 'UPS-group.svg', name: 'UPS-group', category: '电力', width: 48, height: 48 },
-  { file: 'CPD.png', name: 'CPD', category: '冷却', width: 80, height: 80 },
+  { file: 'CPD.svg', name: 'CPD', category: '冷却', width: 80, height: 80 },
   { file: 'Cabinet.svg', key: 'cabinet-device', name: 'Cabinet', category: '电力', width: 48, height: 48 },
   { file: 'Tap-off Unit-group.svg', key: 'cabinet', name: 'Tap-off Unit-group', category: '电力', width: 48, height: 48 },
   { file: 'Tap-off Unit-group.svg', key: 'cabinet-b', name: 'Tap-off Unit-group', category: '电力', width: 48, height: 48 },
@@ -263,6 +263,7 @@ const registeredFiles = new Set(metadata.flatMap((symbol) => [
     .filter((file): file is string => Boolean(file))
     .map((file) => `../assets/symbols/${file}`),
 ]).concat(
+  '../assets/symbols/CPD.png', // Retained legacy asset; new renders use CPD.svg.
   `../assets/symbols/${COOLING_PUMP_STOPPED_SYMBOL_FILE}`,
   `../assets/symbols/${CHWP_CWP_STOPPED_SYMBOL_FILE}`,
   ...Object.values(FAULT_SYMBOL_FILES).map((file) => `../assets/symbols/${file}`),
