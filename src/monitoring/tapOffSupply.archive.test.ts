@@ -5,7 +5,7 @@ import { derivePowerFlowTopology } from './flowTopology'
 
 it('feeds all four FM loads through isolated tap-off A/B paths in the POD archive', () => {
   const document = parseProjectDocument(archivedProject)
-  const diagram = document.diagrams.find((item) => item.name === '算力 POD-01')!
+  const diagram = document.diagrams.find((item) => item.name === '算力 POD')!
   const elements = document.elements.filter((item) => item.diagramId === diagram.id)
   const networks = document.connections.filter((item) => item.diagramId === diagram.id)
   const loads = elements.filter((item) => item.assetKey === 'fm')
@@ -33,11 +33,11 @@ it('feeds all four FM loads through isolated tap-off A/B paths in the POD archiv
     const topology = run(side)
     for (const load of loads) {
       expect(topology.energizedElementIds.has(load.id), `${side}: ${load.properties.tag}`).toBe(true)
-      expect(topology.selectedSupplyChannels[load.id]).toBe(side === 'both' ? 'a' : side)
+      expect(topology.activeSupplyChannels[load.id]).toEqual(side === 'both' ? ['a', 'b'] : [side])
       const inputNodes = networks.flatMap((network) => network.nodes).filter((node) => node.kind === 'element-anchor' && node.elementId === load.id)
       const inputIds = new Set(inputNodes.map((node) => node.id))
       const loadEdges = networks.flatMap((network) => network.edges).filter((edge) => inputIds.has(edge.sourceNodeId) || inputIds.has(edge.targetNodeId))
-      expect(loadEdges.filter((edge) => topology.edges.some((active) => active.edgeId === edge.id))).toHaveLength(1)
+      expect(loadEdges.filter((edge) => topology.edges.some((active) => active.edgeId === edge.id))).toHaveLength(side === 'both' ? 2 : 1)
     }
   }
   expect(loads.some((load) => run('none').energizedElementIds.has(load.id))).toBe(false)

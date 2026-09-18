@@ -497,7 +497,7 @@ describe('AIDC editor workspace', () => {
     expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-mode', 'monitor')
     const dirtyBeforeStyle = useAppStore.getState().dirty
     const documentBeforeStyle = useAppStore.getState().document
-    expect(screen.getByRole('button', { name: '光波' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '虚线' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: '圆点' }))
     expect(screen.getByTestId('diagram-monitor-canvas')).toHaveAttribute('data-animation-mode', 'dots')
     await user.click(screen.getByRole('button', { name: '虚线' }))

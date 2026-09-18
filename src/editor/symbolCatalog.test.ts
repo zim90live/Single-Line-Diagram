@@ -296,18 +296,18 @@ describe('symbol catalog', () => {
         height: symbol?.intrinsicHeight,
       }
     })).toEqual([
-      { source: 'src/assets/symbols/CHWP.svg', width: 80, height: 80 },
-      { source: 'src/assets/symbols/CWP.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/CHWP.svg', width: 64, height: 64 },
+      { source: 'src/assets/symbols/CWP.svg', width: 64, height: 64 },
       { source: 'src/assets/symbols/CPD.svg', width: 80, height: 80 },
-      { source: 'src/assets/symbols/CT.svg', width: 80, height: 80 },
+      { source: 'src/assets/symbols/CT.svg', width: 128, height: 128 },
       { source: 'src/assets/symbols/PHE.svg', width: 80, height: 80 },
     ])
   })
 
   it('uses each SVG intrinsic size as its insertion size', () => {
     const chwp = symbolsByKey.get('chwp')
-    expect(chwp).toMatchObject({ intrinsicWidth: 80, intrinsicHeight: 80 })
-    expect(getScaledSymbolSize(chwp!, 1, 8)).toEqual({ scale: 1, width: 80, height: 80 })
+    expect(chwp).toMatchObject({ intrinsicWidth: 64, intrinsicHeight: 64 })
+    expect(getScaledSymbolSize(chwp!, 1, 8)).toEqual({ scale: 1, width: 64, height: 64 })
   })
 
   it('matches default dimensions to every SVG', () => {
@@ -324,8 +324,8 @@ describe('symbol catalog', () => {
 
   it('derives grid-safe proportional scaling with the updated CHWP dimensions', () => {
     const chwp = symbolsByKey.get('chwp')!
-    expect(getSymbolScaleStep(chwp, 8)).toBe(0.1)
-    expect(getScaledSymbolSize(chwp, 0.01, 8)).toEqual({ scale: 0.1, width: 8, height: 8 })
-    expect(getScaledSymbolSize(chwp, 0.62, 8)).toEqual({ scale: 0.6, width: 48, height: 48 })
+    expect(getSymbolScaleStep(chwp, 8)).toBe(0.125)
+    expect(getScaledSymbolSize(chwp, 0.01, 8)).toEqual({ scale: 0.125, width: 8, height: 8 })
+    expect(getScaledSymbolSize(chwp, 0.62, 8)).toEqual({ scale: 0.625, width: 40, height: 40 })
   })
 })

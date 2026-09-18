@@ -4,7 +4,7 @@ import { derivePowerFlowTopology } from './flowTopology'
 
 export interface PowerDiagramExternalSupplyContext {
   active: boolean
-  channel?: PowerSupplyChannel
+  channels?: PowerSupplyChannel[]
   batteryBackupActive: boolean
 }
 
@@ -56,21 +56,17 @@ export function derivePowerDiagramExternalSupply({
       networks: document.connections.filter((network) => network.diagramId === parentDiagramId),
       switchStates,
       externalSupply: parentExternalSupply.active,
-      externalSupplyChannel: parentExternalSupply.channel,
+      externalSupplyChannels: parentExternalSupply.channels,
       batteryBackup: parentExternalSupply.batteryBackupActive,
     })
     const energizedLinkedElements = linkedParentElements.filter((element) => (
       parentTopology.energizedElementIds.has(element.id)
     ))
-    const channel = energizedLinkedElements.some((element) => (
-      parentTopology.selectedSupplyChannels[element.id] === 'a'
+    const channels = (['a', 'b'] as const).filter((channel) => (
+      energizedLinkedElements.some((element) => (
+        parentTopology.activeSupplyChannels[element.id]?.includes(channel)
+      ))
     ))
-      ? 'a' as const
-      : energizedLinkedElements.some((element) => (
-          parentTopology.selectedSupplyChannels[element.id] === 'b'
-        ))
-        ? 'b' as const
-        : undefined
     const active = energizedLinkedElements.length > 0
     const batteryBackupActive = !active && linkedParentElements.some((element) => (
       element.assetKey === 'ups-group'
@@ -78,7 +74,7 @@ export function derivePowerDiagramExternalSupply({
     visiting.delete(childDiagramId)
     return {
       active,
-      ...(channel ? { channel } : {}),
+      ...(channels.length ? { channels } : {}),
       batteryBackupActive,
     }
   }

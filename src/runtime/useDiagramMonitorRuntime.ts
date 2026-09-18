@@ -26,7 +26,7 @@ function emptyPowerFlowTopology(): PowerFlowTopology {
     edges: [],
     busbarSegments: [],
     energizedElementIds: new Set<string>(),
-    selectedSupplyChannels: {},
+    activeSupplyChannels: {},
   }
 }
 
@@ -110,6 +110,7 @@ export function useDiagramMonitorRuntime({
         networks: connections,
         switchStates: effectiveRuntimeState.onOffStates,
         externalSupply: effectiveRuntimeState.powerExternalSupplyActive,
+        externalSupplyChannels: effectiveRuntimeState.powerExternalSupplyChannels,
         externalSupplyChannel: effectiveRuntimeState.powerExternalSupplyChannel,
         batteryBackup: effectiveRuntimeState.powerBatteryBackupActive,
         resolvedBusbarTapOffsets,
@@ -123,6 +124,7 @@ export function useDiagramMonitorRuntime({
       resolvedBusbarTapOffsets,
       effectiveRuntimeState.onOffStates,
       effectiveRuntimeState.powerExternalSupplyActive,
+      effectiveRuntimeState.powerExternalSupplyChannels,
       effectiveRuntimeState.powerExternalSupplyChannel,
       effectiveRuntimeState.powerBatteryBackupActive,
     ])

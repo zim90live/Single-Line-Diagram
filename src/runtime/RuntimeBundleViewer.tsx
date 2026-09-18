@@ -93,7 +93,13 @@ export const RuntimeBundleViewer = memo(forwardRef<
         : { powerExternalSupplyActive: stateOverrides.powerExternalSupplyActive }),
       ...(stateOverrides?.powerExternalSupplyChannel === undefined
         ? {}
-        : { powerExternalSupplyChannel: stateOverrides.powerExternalSupplyChannel }),
+        : {
+            powerExternalSupplyChannel: stateOverrides.powerExternalSupplyChannel,
+            powerExternalSupplyChannels: [stateOverrides.powerExternalSupplyChannel],
+          }),
+      ...(stateOverrides?.powerExternalSupplyChannels === undefined
+        ? {}
+        : { powerExternalSupplyChannels: stateOverrides.powerExternalSupplyChannels }),
       ...(stateOverrides?.powerBatteryBackupActive === undefined
         ? {}
         : { powerBatteryBackupActive: stateOverrides.powerBatteryBackupActive }),

@@ -1,4 +1,4 @@
-import type { FlowAnimationMode } from '../monitoring/flowPresentation'
+import { DEFAULT_FLOW_ANIMATION_MODES, type FlowAnimationMode } from '../monitoring/flowPresentation'
 import { Canvas } from '@react-three/fiber'
 import { coolingPipeWidthStyle } from '../scene/connectionAppearance'
 import { circuitBusbarColor, circuitDisplayEdges, circuitPaletteStyle } from '../scene/circuitPalette'
@@ -413,7 +413,7 @@ export const DiagramMonitorCanvas = memo(forwardRef<
 >(function DiagramMonitorCanvas({
   view,
   runtime,
-  animationMode = view.lineSystem.type === 'power' ? 'dots' : 'wave',
+  animationMode = DEFAULT_FLOW_ANIMATION_MODES[view.lineSystem.type],
   animationPlaying,
   documentEpoch = 0,
   viewport = view.diagram.canvas.viewport,

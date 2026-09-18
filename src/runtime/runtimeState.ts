@@ -97,8 +97,8 @@ export function createDiagramRuntimeState({
     },
     coolingValveOpenStates,
     powerExternalSupplyActive: powerExternalSupply.active,
-    ...(powerExternalSupply.channel
-      ? { powerExternalSupplyChannel: powerExternalSupply.channel }
+    ...(powerExternalSupply.channels
+      ? { powerExternalSupplyChannels: powerExternalSupply.channels }
       : {}),
     powerBatteryBackupActive: powerExternalSupply.batteryBackupActive,
   }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ProjectDocument } from '../domain/project'
+import { createDiagramRuntimeState } from '../runtime/runtimeState'
+import { derivePowerFlowTopology } from './flowTopology'
 import {
   derivePowerDiagramExternalSupply,
   isPowerDiagramExternallyEnergized,
@@ -127,17 +129,17 @@ describe('power detail external supply context', () => {
     })).toBe(true)
   })
 
-  it('passes A to the child when both parent feeds are available and falls back to B', () => {
+  it('passes both available parent feeds to the child and removes only a lost feed', () => {
     expect(derivePowerDiagramExternalSupply({
       document: documentWithDualUpsGroupFeed(),
       diagramId: 'ups-left',
       switchStates: {},
-    })).toEqual({ active: true, channel: 'a', batteryBackupActive: false })
+    })).toEqual({ active: true, channels: ['a', 'b'], batteryBackupActive: false })
     expect(derivePowerDiagramExternalSupply({
       document: documentWithDualUpsGroupFeed(false),
       diagramId: 'ups-left',
       switchStates: {},
-    })).toEqual({ active: true, channel: 'b', batteryBackupActive: false })
+    })).toEqual({ active: true, channels: ['b'], batteryBackupActive: false })
   })
 
   it('enables UPS battery backup when neither parent feed is available', () => {
@@ -148,5 +150,61 @@ describe('power detail external supply context', () => {
       diagramId: 'ups-left',
       switchStates: {},
     })).toEqual({ active: false, batteryBackupActive: true })
+  })
+
+  it('propagates independent switch changes across two child levels and restores both feeds', () => {
+    const document = documentWithDualUpsGroupFeed()
+    document.diagrams.push({ ...document.diagrams[1], id: 'nested-ups', parentId: 'ups-left' })
+    const parentGroup = document.elements.find((element) => element.id === 'ups-group-left')!
+    document.elements.push({
+      ...parentGroup, id: 'nested-group', diagramId: 'ups-left',
+      properties: { drillDownDiagramId: 'nested-ups' },
+    })
+    for (const channel of ['a', 'b'] as const) {
+      document.elements.push({
+        ...parentGroup, id: `switch-${channel}`, assetKey: 'switch', properties: {},
+      })
+      document.connections[0].nodes.push(
+        { id: `switch-${channel}-in`, kind: 'element-anchor', elementId: `switch-${channel}`, anchorId: 'in' },
+        { id: `switch-${channel}-out`, kind: 'element-anchor', elementId: `switch-${channel}`, anchorId: 'out' },
+      )
+      document.connections[0].edges = document.connections[0].edges.filter((edge) => edge.id !== `feed-${channel}`)
+      document.connections[0].edges.push(
+        { id: `source-${channel}-feed`, sourceNodeId: `source-${channel}-node`, targetNodeId: `switch-${channel}-in` },
+        { id: `feed-${channel}`, sourceNodeId: `switch-${channel}-out`, targetNodeId: `ups-${channel}` },
+      )
+      document.connections.push({
+        id: `child-${channel}`, diagramId: 'ups-left', type: 'electrical', powerSupplyChannel: channel,
+        nodes: [
+          { id: `child-entry-${channel}`, kind: 'node', x: 0, y: channel === 'a' ? 0 : 80 },
+          { id: `child-load-${channel}`, kind: 'element-anchor', elementId: 'nested-group', anchorId: channel },
+        ],
+        edges: [{
+          id: `child-feed-${channel}`, sourceNodeId: `child-entry-${channel}`, targetNodeId: `child-load-${channel}`,
+          flowDirection: 'forward', externalSupplyEndpoint: 'source',
+        }],
+      })
+    }
+    for (const channels of [['a', 'b'], ['b'], ['a'], [], ['a', 'b']] as const) {
+      const onOffStates = {
+        'switch-a': channels.some((channel) => channel === 'a'),
+        'switch-b': channels.some((channel) => channel === 'b'),
+      }
+      for (const diagramId of ['ups-left', 'nested-ups']) {
+        const state = createDiagramRuntimeState({ document, diagramId, active: true, onOffStates })
+        expect(state.powerExternalSupplyActive).toBe(channels.length > 0)
+        expect(state.powerExternalSupplyChannels ?? []).toEqual(channels)
+        expect(state.powerBatteryBackupActive).toBe(channels.length === 0)
+      }
+      const context = derivePowerDiagramExternalSupply({ document, diagramId: 'ups-left', switchStates: onOffStates })
+      const topology = derivePowerFlowTopology({
+        elements: document.elements.filter((element) => element.diagramId === 'ups-left'),
+        assets: document.assets, busbars: [],
+        networks: document.connections.filter((network) => network.diagramId === 'ups-left'),
+        switchStates: onOffStates, externalSupply: context.active, externalSupplyChannels: context.channels,
+        batteryBackup: context.batteryBackupActive,
+      })
+      expect(topology.edges.map((edge) => edge.edgeId)).toEqual(channels.map((channel) => `child-feed-${channel}`))
+    }
   })
 })

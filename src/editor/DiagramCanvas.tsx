@@ -1,4 +1,4 @@
-import type { FlowAnimationMode } from '../monitoring/flowPresentation'
+import { DEFAULT_FLOW_ANIMATION_MODES, type FlowAnimationMode } from '../monitoring/flowPresentation'
 import { sensorAssetsForSystem } from '../scene/sensorAssets'
 import { Canvas } from '@react-three/fiber'
 import { coolingPipeWidthStyle } from '../scene/connectionAppearance'
@@ -1302,11 +1302,11 @@ export const DiagramCanvas = memo(forwardRef<DiagramCanvasHandle, DiagramCanvasP
   function DiagramCanvas(
     {
       mode,
-      animationMode = 'wave',
-  animationPlaying,
+      animationPlaying,
       runtime,
       diagramId,
       lineSystemType,
+      animationMode = lineSystemType === 'cooling' ? DEFAULT_FLOW_ANIMATION_MODES.cooling : 'wave',
       documentEpoch,
       gridSize,
       viewport,

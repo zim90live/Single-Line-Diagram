@@ -19,7 +19,7 @@ export function flowAnimationSpeedMultiplier(path: { style?: FlowAnimationStyle;
 
 export const DEFAULT_FLOW_ANIMATION_MODES: Record<FlowAnimationStyle, FlowAnimationMode> = {
   power: 'dots',
-  cooling: 'wave',
+  cooling: 'dashes',
 }
 
 /** 圆点直径与圆心间距为图纸单位，速度为图纸单位/秒。 */

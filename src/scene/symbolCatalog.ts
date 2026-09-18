@@ -94,8 +94,8 @@ const metadata: SymbolMetadata[] = [
     stateFiles: { off: '2WV_Off.svg', on: '2WV_On.svg' },
   },
   { file: 'CDU.svg', name: 'CDU', category: '冷却', width: 48, height: 48 },
-  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 80, height: 80 },
-  { file: 'CT.svg', name: 'CT', category: '冷却', width: 80, height: 80 },
+  { file: 'CHWP.svg', name: 'CHWP', category: '冷却', width: 64, height: 64 },
+  { file: 'CT.svg', name: 'CT', category: '冷却', width: 128, height: 128 },
   {
     file: 'CV_Off.svg',
     key: 'cv',
@@ -128,7 +128,7 @@ const metadata: SymbolMetadata[] = [
       },
     ],
   },
-  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 80, height: 80 },
+  { file: 'CWP.svg', name: 'CWP', category: '冷却', width: 64, height: 64 },
   { file: 'FM.svg', name: 'FM', category: '电力', width: 64, height: 64 },
   {
     file: 'MP.svg',

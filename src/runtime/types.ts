@@ -9,6 +9,9 @@ export interface DiagramRuntimeState {
   coolingPumpOutputPowerStates: Record<string, number>
   coolingValveOpenStates: Record<string, boolean>
   powerExternalSupplyActive: boolean
+  /** All energized parent feeds; undefined is legacy unclassified supply, [] is none. */
+  powerExternalSupplyChannels?: readonly PowerSupplyChannel[]
+  /** @deprecated Single-channel host override; use powerExternalSupplyChannels. */
   powerExternalSupplyChannel?: PowerSupplyChannel
   powerBatteryBackupActive: boolean
 }

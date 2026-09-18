@@ -2109,9 +2109,9 @@ describe('project document', () => {
       { key: 'cdu', name: 'CDU', width: 192, height: 96, anchor: { x: 96, y: 0, direction: 'top' as const } },
     ]
     const currentLayouts = [
-      { key: 'cwp', name: 'CWP', width: 80, height: 80 },
-      { key: 'chwp', name: 'CHWP', width: 80, height: 80 },
-      { key: 'ct', name: 'CT', width: 80, height: 80 },
+      { key: 'cwp', name: 'CWP', width: 64, height: 64 },
+      { key: 'chwp', name: 'CHWP', width: 64, height: 64 },
+      { key: 'ct', name: 'CT', width: 128, height: 128 },
       { key: 'phe', name: 'PHE', width: 80, height: 80 },
       { key: 'cdu', name: 'CDU', width: 48, height: 48 },
     ]
@@ -2166,16 +2166,16 @@ describe('project document', () => {
       anchor: candidate.anchors[0],
     }))).toEqual([
       {
-        key: 'cwp', source: 'src/assets/symbols/CWP.svg', width: 80, height: 80,
-        anchor: expect.objectContaining({ id: 'cwp-anchor', x: 40, y: 0, direction: 'top' }),
+        key: 'cwp', source: 'src/assets/symbols/CWP.svg', width: 64, height: 64,
+        anchor: expect.objectContaining({ id: 'cwp-anchor', x: 32, y: 0, direction: 'top' }),
       },
       {
-        key: 'chwp', source: 'src/assets/symbols/CHWP.svg', width: 80, height: 80,
-        anchor: expect.objectContaining({ id: 'chwp-anchor', x: 72, y: 80, direction: 'bottom' }),
+        key: 'chwp', source: 'src/assets/symbols/CHWP.svg', width: 64, height: 64,
+        anchor: expect.objectContaining({ id: 'chwp-anchor', x: 56, y: 64, direction: 'bottom' }),
       },
       {
-        key: 'ct', source: 'src/assets/symbols/CT.svg', width: 80, height: 80,
-        anchor: expect.objectContaining({ id: 'ct-anchor', x: 80, y: 8, direction: 'right' }),
+        key: 'ct', source: 'src/assets/symbols/CT.svg', width: 128, height: 128,
+        anchor: expect.objectContaining({ id: 'ct-anchor', x: 128, y: 16, direction: 'right' }),
       },
       {
         key: 'phe', source: 'src/assets/symbols/PHE.svg', width: 80, height: 80,
@@ -2193,13 +2193,65 @@ describe('project document', () => {
       width: element.width,
       height: element.height,
     }))).toEqual([
-      { key: 'cwp', x: 64, y: 0, width: 80, height: 80 },
-      { key: 'chwp', x: 304, y: 0, width: 80, height: 80 },
-      { key: 'ct', x: 520, y: 40, width: 80, height: 80 },
+      { key: 'cwp', x: 72, y: 8, width: 64, height: 64 },
+      { key: 'chwp', x: 312, y: 8, width: 64, height: 64 },
+      { key: 'ct', x: 496, y: 16, width: 128, height: 128 },
       { key: 'phe', x: 784, y: 0, width: 80, height: 80 },
       { key: 'cdu', x: 1032, y: 24, width: 48, height: 48 },
     ])
     expect(parseProjectDocument(parsed, installedAssets)).toEqual(parsed)
+  })
+
+  it.each([
+    { key: 'chwp', name: 'CHWP', size: 64, topX: 16, bottomX: 48 },
+    { key: 'cwp', name: 'CWP', size: 64, topX: 16, bottomX: 48 },
+    { key: 'ct', name: 'CT', size: 128, topX: 24, bottomX: 104 },
+  ])('migrates the previous 80px $name SVG without losing scale, rotation, or connections', ({ key, name, size, topX, bottomX }) => {
+    const previousAsset = {
+      ...asset, key, name, category: '冷却', source: `src/assets/symbols/${name}.svg`,
+      intrinsicWidth: 80, intrinsicHeight: 80,
+      anchors: [
+        { id: 'inlet', name: '入口', x: 16, y: 0, direction: 'top' as const, type: 'cooling-general' as const, flowRole: 'inlet' as const },
+        { id: 'outlet', name: '出口', x: 64, y: 80, direction: 'bottom' as const, type: 'cooling-general' as const, flowRole: 'outlet' as const },
+      ],
+    }
+    const installed = { ...previousAsset, intrinsicWidth: size, intrinsicHeight: size, anchors: [] }
+    const document = createDefaultProject('冷却 SVG 尺寸更新', [previousAsset])
+    const diagramId = document.lineSystems.find((line) => line.type === 'cooling')!.rootDiagramId
+    document.elements = [1, 2].map((scale, index) => ({
+      id: `${key}-${scale}`, diagramId, assetKey: key, name,
+      x: index * 240, y: 0, width: 80 * scale, height: 80 * scale, rotation: index * 90,
+      properties: {}, extensions: {},
+    }))
+    document.connections = document.elements.flatMap((element) => ['inlet', 'outlet'].map((anchorId) => ({
+      id: `network-${element.id}-${anchorId}`, diagramId, type: 'cooling-general' as const,
+      nodes: [
+        { id: `port-${element.id}-${anchorId}`, kind: 'element-anchor' as const, elementId: element.id, anchorId },
+        { id: `outside-${element.id}-${anchorId}`, kind: 'node' as const, x: element.x + 16, y: anchorId === 'inlet' ? -80 : 240 },
+      ],
+      edges: [{
+        id: `edge-${element.id}-${anchorId}`,
+        sourceNodeId: `outside-${element.id}-${anchorId}`,
+        targetNodeId: `port-${element.id}-${anchorId}`,
+      }],
+    })))
+
+    const parsed = parseProjectDocument(document, [installed])
+    expect(parsed.assets[0].anchors).toEqual([
+      { ...previousAsset.anchors[0], x: topX },
+      { ...previousAsset.anchors[1], x: bottomX, y: size },
+    ])
+    parsed.elements.forEach((element, index) => {
+      const original = document.elements[index]
+      const scale = index + 1
+      expect(element).toMatchObject({
+        id: original.id, rotation: original.rotation, width: size * scale, height: size * scale,
+        x: original.x + (original.width - size * scale) / 2,
+        y: original.y + (original.height - size * scale) / 2,
+      })
+    })
+    expect(parsed.connections).toEqual(document.connections)
+    expect(parseProjectDocument(JSON.parse(JSON.stringify(parsed)), [installed])).toEqual(parsed)
   })
 
   it('validates anchor grid, edge, corner, duplicate, and outward direction rules', () => {

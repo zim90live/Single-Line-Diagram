@@ -38,7 +38,7 @@
 
 - Switch、2WV、CV 的 On/Off 状态；
 - 水泵运行与输出功率、阀门开关状态；其中水泵以 Schema v35 图元实例快照为缺省值，显式宿主覆盖优先；
-- 电力设备子图外部供电是否有效、父级实际 A/B 通道，以及 UPS 锂电是否正在接管；
+- 电力设备子图外部供电是否有效、父级全部有效 A/B 通道集合（可同时包含两路），以及 UPS 锂电是否正在接管；
 - 图元下探映射；
 - 可选的指标与冷却运行数据 Provider。
 
@@ -118,6 +118,8 @@ v2 仍不导出编辑选择、历史、dirty、面板草稿、当前相机会话
 
 - 不传 `diagramId` 时，从 `defaultDiagramId` 或第一个入口开始并在下探后更新内部图纸；
 - 传入 `diagramId` 时，宿主通过 `onDiagramChange` 接入自己的 Router、Tab 或页面状态。
+
+2026-09-18（KD-205）：`stateOverrides.powerExternalSupplyChannels` 接收全部有效通道，如 `['a', 'b']`、`['a']` 或 `[]`；空数组停止外部注入，缺省时继承父级供电或兼容历史未分类入口。旧 `powerExternalSupplyChannel` 继续作为单通道覆盖输入；显式数组优先于旧单通道覆盖，旧覆盖优先于自动继承。设备供电拓扑输出 `activeSupplyChannels`，不再选择 A 优先的一路。项目 Schema v43 与运行包 v2 无需升级，旧包由新版运行时派生新规则。A/B 隔离及 UPS 仅双路失电后备电保持。
 
 `animationPlaying` 由宿主控制并同时冻结/恢复演示数据时钟；`stateOverrides` 可覆盖包内 On/Off 初始状态、水泵存档快照、父级外部供电、A/B 通道、UPS 锂电接管及其他运行状态；`providers` 可替换指标和冷却数据源。未提供指标 Provider 时，查看器按 Bundle 的 `simulation` 清单零配置启动确定性演示。`onRuntimePresentationChange` 向宿主输出当前指标、设备运行态、图元和水泵派生流量，使 AIDC 可用自己的共享右侧组件渲染详情并把控制结果再通过 `stateOverrides` 回传。查看器不读取 Zustand、IndexedDB 或编辑保存状态，转发的 ref 也只包含三个缩放命令。
 
